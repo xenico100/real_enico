@@ -97,6 +97,13 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
     ? products 
     : products.filter(product => product.category === activeCategory);
 
+  const categoryCounts = {
+    ALL: products.length,
+    OUTERWEAR: products.filter((product) => product.category === 'OUTERWEAR').length,
+    FOOTWEAR: products.filter((product) => product.category === 'FOOTWEAR').length,
+    ACCESSORIES: products.filter((product) => product.category === 'ACCESSORIES').length,
+  };
+
   const productCards = filteredProducts.map((product) => (
     <motion.div
       key={product.id}
@@ -176,14 +183,32 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
             </p>
           </div>
           
-          <div className="flex flex-wrap gap-3 mt-8 md:mt-0">
+          <div className="w-full md:w-auto mt-8 md:mt-0 md:min-w-[520px] border border-[#333] bg-[#090909] p-3 md:p-4">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <div>
+                <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-[#00ffd1]">
+                  Category Filter
+                </p>
+                <p className="font-mono text-[10px] text-[#666] mt-1">
+                  FUNCTION_UI // clearly visible controls
+                </p>
+              </div>
+              <div className="text-right font-mono">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">Showing</p>
+                <p className="text-sm text-[#e5e5e5]">
+                  <span className="text-[#00ffd1] font-bold">{filteredProducts.length}</span> / {products.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {categories.map((cat) => (
               <motion.button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.97, y: 0 }}
-                className={`group relative overflow-hidden min-w-[112px] text-left font-mono text-xs px-3 py-2 uppercase tracking-widest border transition-all duration-300 ${
+                className={`group relative overflow-hidden text-left font-mono text-xs px-3 py-2.5 uppercase tracking-widest border transition-all duration-300 ${
                   activeCategory === cat 
                     ? 'bg-[#00ffd1] text-black font-bold border-[#00ffd1] shadow-[0_0_0_1px_rgba(0,255,209,0.35),0_0_18px_rgba(0,255,209,0.18)]' 
                     : 'bg-[#0a0a0a] text-[#666] border-[#333] hover:text-[#00ffd1] hover:border-[#00ffd1] hover:bg-[#111]'
@@ -211,20 +236,25 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
                 />
 
                 <span className="relative z-10 flex items-center justify-between gap-3">
-                  <span className="flex flex-col leading-tight">
+                  <span className="flex flex-col leading-tight min-w-0">
                     <span className={`${activeCategory === cat ? 'text-black/70' : 'text-[#555] group-hover:text-[#00ffd1]/70'} text-[9px] tracking-[0.18em] transition-colors`}>
                       FILTER
                     </span>
-                    <span>{`[${cat}]`}</span>
+                    <span className="truncate">{`[${cat}]`}</span>
                   </span>
-                  <span
-                    className={`text-[10px] transition-all duration-200 ${
-                      activeCategory === cat
-                        ? 'opacity-100 translate-x-0'
-                        : 'opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0'
-                    }`}
-                  >
-                    ///
+                  <span className="flex flex-col items-end shrink-0 leading-none">
+                    <span
+                      className={`text-[10px] transition-all duration-200 ${
+                        activeCategory === cat
+                          ? 'opacity-100 translate-x-0'
+                          : 'opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0'
+                      }`}
+                    >
+                      ///
+                    </span>
+                    <span className={`${activeCategory === cat ? 'text-black/70' : 'text-[#8a8a8a]'} text-[10px] mt-1`}>
+                      {categoryCounts[cat as keyof typeof categoryCounts]}
+                    </span>
                   </span>
                 </span>
 
@@ -235,6 +265,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
                 </span>
               </motion.button>
             ))}
+            </div>
           </div>
         </div>
 

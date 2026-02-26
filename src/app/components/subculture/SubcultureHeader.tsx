@@ -59,16 +59,23 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
             
             <button
               onClick={onCartClick}
-              className="mt-4 group flex items-center gap-2 hover:text-[#00ffd1] transition-colors"
+              className="mt-4 group w-full min-w-[220px] border border-[#333] bg-black/60 px-3 py-3 text-left hover:border-[#00ffd1] transition-colors"
             >
-              <span className="text-xs">[CART]</span>
-              <div className="relative">
-                <ShoppingBag size={20} strokeWidth={1.5} />
-                {cartCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-[#00ffd1] text-black text-[10px] font-bold w-4 h-4 flex items-center justify-center">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-mono text-[10px] tracking-[0.18em] text-[#666] group-hover:text-[#00ffd1]/70 transition-colors">
+                    05 /// CART_PANEL
+                  </p>
+                  <p className="font-mono text-xs mt-1 text-white group-hover:text-[#00ffd1] transition-colors">
+                    OPEN CHECKOUT WINDOW
+                  </p>
+                </div>
+                <div className="relative shrink-0 border border-[#333] bg-[#111] p-2 group-hover:border-[#00ffd1] transition-colors">
+                  <ShoppingBag size={18} strokeWidth={1.5} />
+                  <span className="absolute -top-2 -right-2 bg-[#00ffd1] text-black text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center">
                     {cartCount}
                   </span>
-                )}
+                </div>
               </div>
             </button>
           </nav>
