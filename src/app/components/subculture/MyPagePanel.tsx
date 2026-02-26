@@ -31,7 +31,7 @@ export function MyPagePanel() {
         ? user.user_metadata.full_name
         : null) ||
       (typeof user.user_metadata?.name === 'string' ? user.user_metadata.name : null) ||
-      'Member'
+      '회원'
     );
   }, [profile?.full_name, user]);
 
@@ -41,11 +41,11 @@ export function MyPagePanel() {
   );
 
   const tabs: { id: MyPageTab; label: string; hint: string; count?: number }[] = [
-    { id: 'overview', label: 'OVERVIEW', hint: 'summary' },
-    { id: 'orders', label: 'ORDERS', hint: 'history', count: 0 },
-    { id: 'saved', label: 'SAVED', hint: 'posts', count: 0 },
-    { id: 'cart', label: 'CART', hint: 'checkout', count: cart.length },
-    { id: 'profile', label: 'PROFILE', hint: 'identity' },
+    { id: 'overview', label: '개요', hint: '요약' },
+    { id: 'orders', label: '주문', hint: '이력', count: 0 },
+    { id: 'saved', label: '저장됨', hint: '게시물', count: 0 },
+    { id: 'cart', label: '장바구니', hint: '결제', count: cart.length },
+    { id: 'profile', label: '프로필', hint: '신원', count: undefined },
   ];
   const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
@@ -55,14 +55,14 @@ export function MyPagePanel() {
         <div className="border border-[#333] bg-[#0a0a0a] p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-xl font-bold uppercase text-[#00ffd1] mb-2">My Page / Functional Hub</h3>
+              <h3 className="text-xl font-bold uppercase text-[#00ffd1] mb-2">마이페이지 / 기능 허브</h3>
               <p className="text-xs text-[#999] leading-relaxed">
                 주문내역, 저장 게시물, 장바구니 상태, 프로필 정보를 탭으로 관리하는 영역입니다.
                 먼저 로그인/회원가입 후 접근하세요.
               </p>
             </div>
             <span className="border border-[#333] bg-[#111] px-2 py-1 text-[10px] text-[#666] uppercase tracking-widest">
-              LOCKED
+              잠김
             </span>
           </div>
         </div>
@@ -81,33 +81,33 @@ export function MyPagePanel() {
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
             <p className="text-[#666] mb-1">로그인 방식</p>
-            <p className="text-[#e5e5e5] uppercase">{profile?.provider || 'email'}</p>
+            <p className="text-[#e5e5e5] uppercase">{profile?.provider === 'google' ? '구글' : '이메일'}</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
             <p className="text-[#666] mb-1">장바구니 품목</p>
-            <p className="text-[#e5e5e5]">{cart.length} items</p>
+            <p className="text-[#e5e5e5]">{cart.length}개</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
             <p className="text-[#666] mb-1">장바구니 합계</p>
-            <p className="text-[#00ffd1]">{cartSubtotal.toLocaleString()} USD</p>
+            <p className="text-[#00ffd1]">{cartSubtotal.toLocaleString()} 달러</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="border border-[#333] bg-[#0f0f0f] p-4">
-            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">Orders</p>
+            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">주문</p>
             <p className="text-xs text-[#9a9a9a] leading-relaxed">
               배송 상태, 주문 상세, 결제 영수증 카드가 들어갈 자리입니다.
             </p>
           </div>
           <div className="border border-[#333] bg-[#0f0f0f] p-4">
-            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">Saved Posts</p>
+            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">저장 게시물</p>
             <p className="text-xs text-[#9a9a9a] leading-relaxed">
-              clothes / collection 상세 게시글 저장 기능 연결 영역.
+              의류 / 컬렉션 상세 게시글 저장 기능 연결 영역.
             </p>
           </div>
           <div className="border border-[#333] bg-[#0f0f0f] p-4">
-            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">Checkout</p>
+            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">결제</p>
             <p className="text-xs text-[#9a9a9a] leading-relaxed">
               장바구니와 결제 UI를 여기서 빠르게 확인할 수 있게 확장 가능.
             </p>
@@ -118,18 +118,18 @@ export function MyPagePanel() {
     orders: (
       <div className="space-y-3">
         <div className="border border-[#333] bg-[#111] p-4">
-          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">Orders Feed</p>
+          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">주문 피드</p>
           <p className="text-xs text-[#999]">아직 주문 내역이 없습니다. 주문 테이블 연결 시 이 영역이 실제 카드 리스트로 바뀝니다.</p>
         </div>
         <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4">
-          <p className="text-xs text-[#666]">Placeholder rows: ORDER_ID / STATUS / TOTAL / CREATED_AT</p>
+          <p className="text-xs text-[#666]">자리표시 행: 주문식별값 / 상태 / 합계 / 생성일시</p>
         </div>
       </div>
     ),
     saved: (
       <div className="space-y-3">
         <div className="border border-[#333] bg-[#111] p-4">
-          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">Saved Board</p>
+          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">저장 보드</p>
           <p className="text-xs text-[#999]">
             찜한 의류/컬렉션 게시물 썸네일을 그리드로 배치할 공간입니다.
           </p>
@@ -137,7 +137,7 @@ export function MyPagePanel() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="border border-[#333] bg-[#0d0d0d] aspect-[4/5] p-3 flex items-end">
-              <p className="text-[10px] text-[#555] uppercase tracking-widest">EMPTY SLOT</p>
+              <p className="text-[10px] text-[#555] uppercase tracking-widest">빈 슬롯</p>
             </div>
           ))}
         </div>
@@ -148,13 +148,14 @@ export function MyPagePanel() {
         <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">Cart Snapshot</p>
+              <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">장바구니 스냅샷</p>
+              
               <p className="text-xs text-[#9a9a9a] mt-2">
                 장바구니 패널과 결제창으로 이어지는 기능성 탭입니다.
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-[#666] uppercase">Items</p>
+              <p className="text-[10px] text-[#666] uppercase">수량</p>
               <p className="text-lg text-[#e5e5e5]">{cart.length}</p>
             </div>
           </div>
@@ -162,12 +163,12 @@ export function MyPagePanel() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">Subtotal</p>
-            <p className="text-[#e5e5e5]">{cartSubtotal.toLocaleString()} USD</p>
+            <p className="text-[#666] mb-1">상품합계</p>
+            <p className="text-[#e5e5e5]">{cartSubtotal.toLocaleString()} 달러</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">Checkout Window</p>
-            <p className="text-[#00ffd1]">Use header CART panel</p>
+            <p className="text-[#666] mb-1">결제 창</p>
+            <p className="text-[#00ffd1]">헤더 장바구니 패널 사용</p>
           </div>
         </div>
 
@@ -182,11 +183,11 @@ export function MyPagePanel() {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-[#e5e5e5] truncate">{item.name}</p>
                   <p className="text-[10px] text-[#666] mt-1">
-                    {item.category || 'ITEM'} {item.selectedSize ? `// SIZE ${item.selectedSize}` : ''}
+                    {item.category || '항목'} {item.selectedSize ? `// 사이즈 ${item.selectedSize}` : ''}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-[#666]">x{item.quantity || 1}</p>
+                  <p className="text-[10px] text-[#666]">×{item.quantity || 1}</p>
                   <p className="text-xs text-[#00ffd1]">${item.price}</p>
                 </div>
               </div>
@@ -202,22 +203,22 @@ export function MyPagePanel() {
     profile: (
       <div className="space-y-4">
         <div className="border border-[#333] bg-[#111] p-4">
-          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-3">Identity Profile</p>
+          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-3">신원 프로필</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">Name</p>
+              <p className="text-[#666] mb-1">이름</p>
               <p className="text-[#e5e5e5]">{userDisplayName}</p>
             </div>
             <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">Email</p>
+              <p className="text-[#666] mb-1">이메일</p>
               <p className="text-[#e5e5e5] break-all">{user.email}</p>
             </div>
             <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">Provider</p>
-              <p className="text-[#e5e5e5] uppercase">{profile?.provider || 'email'}</p>
+              <p className="text-[#666] mb-1">로그인 수단</p>
+              <p className="text-[#e5e5e5] uppercase">{profile?.provider === 'google' ? '구글' : '이메일'}</p>
             </div>
             <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">Avatar URL</p>
+              <p className="text-[#666] mb-1">아바타 주소</p>
               <p className="text-[#999] break-all">{profile?.avatar_url || '-'}</p>
             </div>
           </div>
@@ -234,7 +235,8 @@ export function MyPagePanel() {
       <div className="border border-[#333] bg-[#0a0a0a] p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#333] pb-4 mb-4">
           <div>
-            <p className="text-[10px] tracking-[0.18em] uppercase text-[#666]">MYPAGE DASHBOARD</p>
+            <p className="text-[10px] tracking-[0.18em] uppercase text-[#666]">마이페이지 대시보드</p>
+            
             <h3 className="text-2xl md:text-3xl font-bold uppercase text-[#e5e5e5] mt-2">
               {userDisplayName}
             </h3>
@@ -247,9 +249,9 @@ export function MyPagePanel() {
 
         <div className="border border-[#222] bg-black/40 p-2">
           <div className="flex items-center justify-between gap-3 mb-2 px-1">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">MYPAGE TABS</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">마이페이지 탭</p>
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
-              active: {activeTabMeta.label}
+              현재: {activeTabMeta.label}
             </p>
           </div>
 
@@ -298,7 +300,7 @@ export function MyPagePanel() {
                   </div>
 
                   <p className={`mt-3 text-[10px] uppercase tracking-widest ${active ? 'text-[#9cf7e8]' : 'text-[#555]'}`}>
-                    {active ? 'SELECTED_TAB' : 'CLICK_TO_OPEN'}
+                    {active ? '선택됨' : '눌러서 열기'}
                   </p>
                 </button>
               );
@@ -310,9 +312,9 @@ export function MyPagePanel() {
       <div className="border border-[#333] bg-[#0a0a0a] p-5">
         <div className="flex items-center justify-between gap-3 border-b border-[#222] pb-3 mb-4">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
-            {activeTabMeta.label} TAB
+            {activeTabMeta.label} 탭
           </p>
-          <p className="text-[10px] text-[#666] uppercase">functional ui / visible controls</p>
+          <p className="text-[10px] text-[#666] uppercase">기능형 화면 / 보이는 조작부</p>
         </div>
         {tabContent[activeTab]}
       </div>

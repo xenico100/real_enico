@@ -12,13 +12,23 @@ interface CollectionDetailPopupProps {
 
 export function CollectionDetailPopup({ collection, onClose }: CollectionDetailPopupProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const imageList =
+    Array.isArray(collection.images) && collection.images.length > 0
+      ? collection.images
+      : collection.image
+        ? [collection.image]
+        : [];
+  const hasImages = imageList.length > 0;
+  const safeImageIndex = hasImages ? currentImageIndex % imageList.length : 0;
 
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % collection.images.length);
+    if (!hasImages) return;
+    setCurrentImageIndex((prev) => (prev + 1) % imageList.length);
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + collection.images.length) % collection.images.length);
+    if (!hasImages) return;
+    setCurrentImageIndex((prev) => (prev - 1 + imageList.length) % imageList.length);
   };
 
   return (
@@ -50,8 +60,8 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
 
           {/* Film Strip Header */}
           <div className="h-20 border-b border-[#333] flex items-center px-8 bg-[#0a0a0a]">
-            <span className="font-mono text-xs text-[#00ffd1] animate-pulse mr-4">● REC</span>
-            <span className="font-mono text-xs text-[#666]">FILE: {collection.id} /// {collection.season}</span>
+            <span className="font-mono text-xs text-[#00ffd1] animate-pulse mr-4">● 기록</span>
+            <span className="font-mono text-xs text-[#666]">파일: {collection.id} /// {collection.season}</span>
           </div>
 
           <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)]">
@@ -61,18 +71,38 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                {/* Noise Overlay */}
                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none z-10" />
                
-               <img 
-                 key={currentImageIndex}
-                 src={collection.images[currentImageIndex]} 
-                 alt="Collection View"
-                 className="w-full h-full object-contain grayscale contrast-125"
-               />
+               {hasImages ? (
+                 <img 
+                   key={safeImageIndex}
+                   src={imageList[safeImageIndex]} 
+                   alt="컬렉션 이미지"
+                   className="w-full h-full object-contain grayscale contrast-125"
+                 />
+               ) : (
+                 <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
+                   이미지 없음
+                 </div>
+               )}
                
                {/* Navigation Controls */}
                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-8 z-20">
-                 <button onClick={prevImage} className="hover:text-[#00ffd1] transition-colors"><ChevronLeft size={40} /></button>
-                 <span className="font-mono text-xl self-center">{currentImageIndex + 1} / {collection.images.length}</span>
-                 <button onClick={nextImage} className="hover:text-[#00ffd1] transition-colors"><ChevronRight size={40} /></button>
+                 <button
+                   onClick={prevImage}
+                   disabled={!hasImages}
+                   className="hover:text-[#00ffd1] transition-colors disabled:opacity-30 disabled:hover:text-inherit"
+                 >
+                   <ChevronLeft size={40} />
+                 </button>
+                 <span className="font-mono text-xl self-center">
+                   {hasImages ? safeImageIndex + 1 : 0} / {imageList.length}
+                 </span>
+                 <button
+                   onClick={nextImage}
+                   disabled={!hasImages}
+                   className="hover:text-[#00ffd1] transition-colors disabled:opacity-30 disabled:hover:text-inherit"
+                 >
+                   <ChevronRight size={40} />
+                 </button>
                </div>
             </div>
 
@@ -89,27 +119,27 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
 
                <div className="space-y-8 font-mono text-xs">
                  <div className="grid grid-cols-2 gap-4 border-t border-[#333] pt-4">
-                   <div className="text-[#666]">TOTAL_ASSETS</div>
-                   <div className="text-[#e5e5e5]">{collection.items} UNITS</div>
+                   <div className="text-[#666]">총 항목수</div>
+                   <div className="text-[#e5e5e5]">{collection.items}개</div>
                    
-                   <div className="text-[#666]">LAUNCH_DATE</div>
+                   <div className="text-[#666]">출시일</div>
                    <div className="text-[#e5e5e5]">{collection.releaseDate}</div>
                    
-                   <div className="text-[#666]">STATUS</div>
-                   <div className="text-[#00ffd1]">COMPROMISED</div>
+                   <div className="text-[#666]">상태</div>
+                   <div className="text-[#00ffd1]">유출됨</div>
                  </div>
 
                  <div className="bg-[#111] p-4 border border-[#333]">
-                   <p className="text-[#666] mb-2 uppercase">Directives:</p>
+                   <p className="text-[#666] mb-2 uppercase">지시문:</p>
                    <ul className="list-disc list-inside space-y-2 text-[#aaa]">
-                     <li>Disrupt normative patterns</li>
-                     <li>Engage in visual anarchy</li>
-                     <li>Question the fabric of reality</li>
+                     <li>정상성 패턴을 교란할 것</li>
+                     <li>시각적 무질서를 유도할 것</li>
+                     <li>현실의 짜임 자체를 의심할 것</li>
                    </ul>
                  </div>
 
                  <button className="w-full py-4 bg-[#00ffd1] text-black font-bold uppercase tracking-widest hover:bg-white transition-colors">
-                   ACCESS_FULL_ARCHIVE
+                   전체 아카이브 열기
                  </button>
                </div>
             </div>

@@ -67,7 +67,7 @@ export default function GoogleLoginButton({
       <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.05)] shrink-0">
         <GoogleIcon />
       </span>
-      {children ? children : <span>Google Login</span>}
+      {children ? children : <span>구글 로그인</span>}
     </button>
   );
 }

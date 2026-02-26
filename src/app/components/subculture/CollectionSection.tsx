@@ -1,7 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { SquarePen } from 'lucide-react';
+import { motion } from 'motion/react';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export interface Collection {
   id: string;
@@ -15,12 +18,27 @@ export interface Collection {
   fullDescription: string;
 }
 
-const collections: Collection[] = [
+type CollectionRow = {
+  id: string;
+  title: string | null;
+  season: string | null;
+  description: string | null;
+  full_description: string | null;
+  release_date: string | null;
+  items: number | string | null;
+  image: string | null;
+  images: unknown;
+  is_published?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+const fallbackCollections: Collection[] = [
   {
-    id: 'COL-001',
-    title: 'DIGITAL INSURGENCY',
-    season: 'AW 2026',
-    description: 'Encrypted fashion for the underground resistance',
+    id: '기록-001',
+    title: '디지털 반란',
+    season: '가을/겨울 2026',
+    description: '지하 저항 세력을 위한 암호화된 패션',
     image: 'https://images.unsplash.com/photo-1558769132-cb1aea3c8a76?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjeWJlcnB1bmslMjBmYXNoaW9uJTIwZWRpdG9yaWFsfGVufDB8fHx8MTczODY5NTY3M3ww&ixlib=rb-4.1.0&q=80&w=1080',
     images: [
       'https://images.unsplash.com/photo-1558769132-cb1aea3c8a76?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjeWJlcnB1bmslMjBmYXNoaW9uJTIwZWRpdG9yaWFsfGVufDB8fHx8MTczODY5NTY3M3ww&ixlib=rb-4.1.0&q=80&w=1080',
@@ -30,13 +48,13 @@ const collections: Collection[] = [
     ],
     items: 24,
     releaseDate: '2026.09.15',
-    fullDescription: 'Born from the depths of digital rebellion, this collection merges military-grade functionality with avant-garde design. Each piece is a statement against conformity, encrypted with forbidden techniques and constructed for those who dare to exist outside the system.',
+    fullDescription: '디지털 반란의 심연에서 태어난 이 컬렉션은 군용급 기능성과 아방가르드 디자인을 결합한다. 각 피스는 획일성에 대한 반발 선언이며, 금지된 기법과 시스템 바깥에서 존재하려는 이들을 위한 구조로 짜였다.',
   },
   {
-    id: 'COL-002',
-    title: 'NEON WASTELAND',
-    season: 'SS 2027',
-    description: 'Post-apocalyptic luxury from the ruins of civilization',
+    id: '기록-002',
+    title: '네온 황무지',
+    season: '봄/여름 2027',
+    description: '문명 폐허 위에서 올라온 포스트 아포칼립스 럭셔리',
     image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuZW9uJTIwbGlnaHRzJTIwZmFzaGlvbnxlbnwwfHx8fDE3Mzg2OTU2NzN8MA&ixlib=rb-4.1.0&q=80&w=1080',
     images: [
       'https://images.unsplash.com/photo-1509631179647-0177331693ae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuZW9uJTIwbGlnaHRzJTIwZmFzaGlvbnxlbnwwfHx8fDE3Mzg2OTU2NzN8MA&ixlib=rb-4.1.0&q=80&w=1080',
@@ -46,13 +64,13 @@ const collections: Collection[] = [
     ],
     items: 18,
     releaseDate: '2027.03.20',
-    fullDescription: 'Scavenged from the electromagnetic wastelands of tomorrow. Bio-luminescent fabrics, self-repairing nano-textiles, and radiation-resistant coatings. This collection represents the evolution of survival fashion.',
+    fullDescription: '내일의 전자기 황무지에서 수거한 재료로 완성했다. 생체 발광 원단, 자가 복원 나노 텍스타일, 방사선 저항 코팅이 들어가며 이 컬렉션은 생존 패션의 진화를 보여준다.',
   },
   {
-    id: 'COL-003',
-    title: 'GHOST PROTOCOL',
-    season: 'AW 2026',
-    description: 'Invisible to surveillance, visible to the enlightened',
+    id: '기록-003',
+    title: '고스트 프로토콜',
+    season: '가을/겨울 2026',
+    description: '감시에겐 보이지 않고, 눈 뜬 자에게만 보이는 컬렉션',
     image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZmFzaGlvbiUyMG1vZGVsfGVufDB8fHx8MTczODY5NTY3M3ww&ixlib=rb-4.1.0&q=80&w=1080',
     images: [
       'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZmFzaGlvbiUyMG1vZGVsfGVufDB8fHx8MTczODY5NTY3M3ww&ixlib=rb-4.1.0&q=80&w=1080',
@@ -62,9 +80,49 @@ const collections: Collection[] = [
     ],
     items: 15,
     releaseDate: '2026.11.11',
-    fullDescription: 'Engineered for those who move between shadows. Anti-facial recognition patterns, thermal signature disruption, and acoustic dampening materials. Each garment is designed to make you disappear in plain sight.',
+    fullDescription: '그림자 사이를 이동하는 사람을 위해 설계했다. 안면 인식 방해 패턴, 열 신호 교란, 소음 감쇠 소재를 적용했고 각 의복은 대낮에도 존재를 흐리게 만들도록 디자인되었다.',
   },
 ];
+
+function normalizeCollectionImages(value: unknown, primaryImage?: string | null) {
+  const parsed: string[] = [];
+
+  if (Array.isArray(value)) {
+    parsed.push(...value.filter((item): item is string => typeof item === 'string' && item.trim()));
+  } else if (typeof value === 'string') {
+    try {
+      const json = JSON.parse(value);
+      if (Array.isArray(json)) {
+        parsed.push(...json.filter((item): item is string => typeof item === 'string' && item.trim()));
+      }
+    } catch {
+      if (value.trim()) parsed.push(value);
+    }
+  }
+
+  if (primaryImage?.trim()) {
+    parsed.unshift(primaryImage);
+  }
+
+  return Array.from(new Set(parsed.map((item) => item.trim()).filter(Boolean)));
+}
+
+function mapCollectionRow(row: CollectionRow): Collection {
+  const images = normalizeCollectionImages(row.images, row.image);
+  const numericItems = Number(row.items);
+
+  return {
+    id: row.id,
+    title: row.title?.trim() || '제목 없음',
+    season: row.season?.trim() || '-',
+    description: row.description?.trim() || '설명 없음',
+    image: images[0] || '',
+    images,
+    items: Number.isFinite(numericItems) ? numericItems : 0,
+    releaseDate: row.release_date?.trim() || '-',
+    fullDescription: row.full_description?.trim() || row.description?.trim() || '상세 설명 없음',
+  };
+}
 
 interface CollectionSectionProps {
   onCollectionClick: (collection: Collection) => void;
@@ -72,6 +130,52 @@ interface CollectionSectionProps {
 
 export function CollectionSection({ onCollectionClick }: CollectionSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [collections, setCollections] = useState<Collection[] | null>(null);
+  const [isLoadingCollections, setIsLoadingCollections] = useState(false);
+  const [collectionLoadError, setCollectionLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCollections = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+
+      setIsLoadingCollections(true);
+      setCollectionLoadError(null);
+
+      try {
+        const { data, error } = await supabase
+          .from('collections')
+          .select(
+            'id, title, season, description, full_description, release_date, items, image, images, is_published, created_at, updated_at',
+          )
+          .eq('is_published', true)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (!active) return;
+
+        const mapped = ((data ?? []) as CollectionRow[]).map(mapCollectionRow);
+        setCollections(mapped);
+      } catch (error) {
+        if (!active) return;
+        setCollectionLoadError(
+          error instanceof Error ? error.message : '컬렉션 게시물 로드 실패',
+        );
+      } finally {
+        if (active) setIsLoadingCollections(false);
+      }
+    };
+
+    void loadCollections();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleCollections = collections ?? fallbackCollections;
 
   return (
     <section id="collection-section" className="py-20 bg-[#e5e5e5] text-black relative overflow-hidden scroll-mt-24" ref={containerRef}>
@@ -81,27 +185,54 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
 
       <div className="px-6 md:px-12 relative z-10">
         <div className="mb-6 inline-flex items-center gap-3 border-2 border-black bg-white/90 px-3 py-2">
-          <span className="font-mono text-[10px] tracking-[0.2em] text-black">SECTION_02</span>
+          <span className="font-mono text-[10px] tracking-[0.2em] text-black">구역_02</span>
           <span className="h-3 w-px bg-black/30" />
-          <span className="font-mono text-[11px] tracking-[0.18em] text-black">COLLECTION</span>
+          <span className="font-mono text-[13px] md:text-sm tracking-[0.18em] text-black">컬렉션</span>
         </div>
 
         <div className="flex flex-col md:flex-row justify-between items-end mb-20 border-b-4 border-black pb-4">
           <div>
-            <h2 className="text-7xl md:text-9xl font-black font-heading uppercase tracking-tighter leading-[0.8]">
-              COLLECTION
+            <h2 className="text-8xl md:text-[9rem] lg:text-[10rem] font-black font-heading uppercase tracking-tighter leading-[0.9]">
+              컬렉션
             </h2>
             <p className="font-mono text-xs md:text-sm uppercase tracking-[0.18em] mt-2 text-black/60">
-              /// WHITE BOARD POSTS / CURATED ARCHIVE
+              /// 화이트보드 게시물 / 큐레이션 보관함
             </p>
           </div>
-          <p className="font-mono text-sm uppercase tracking-widest mb-2 bg-black text-white px-2">
-            /// DO NOT DISTRIBUTE
-          </p>
+          <div className="flex flex-col items-start md:items-end gap-3">
+            <p className="font-mono text-sm uppercase tracking-widest bg-black text-white px-2">
+              /// onlyfans
+            </p>
+            <Link
+              href="/admin/collections"
+              className="inline-flex items-center gap-2 border-2 border-black bg-white px-3 py-2 font-mono text-xs uppercase tracking-widest hover:bg-black hover:text-white transition-colors"
+            >
+              <SquarePen size={14} strokeWidth={1.7} />
+              글쓰기
+            </Link>
+          </div>
         </div>
 
+        {collectionLoadError && collections === null && (
+          <div className="mb-6 border border-black/20 bg-white/80 px-4 py-3 font-mono text-[11px] text-black/60">
+            컬렉션 DB 로드 실패로 기본 게시물을 표시 중입니다.
+          </div>
+        )}
+
+        {isLoadingCollections && collections === null ? (
+          <div className="border-2 border-black bg-white p-10 font-mono text-sm text-black/70 text-center">
+            컬렉션 게시물 불러오는 중...
+          </div>
+        ) : visibleCollections.length === 0 ? (
+          <div className="border-2 border-black bg-white p-10 text-center">
+            <p className="font-heading text-4xl uppercase leading-none">컬렉션 없음</p>
+            <p className="font-mono text-xs text-black/60 mt-4">
+              `/admin/collections`에서 새 컬렉션 게시물을 작성하세요.
+            </p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-          {collections.map((collection, index) => (
+          {visibleCollections.map((collection, index) => (
             <motion.div
               key={collection.id}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -120,16 +251,22 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
                 {/* Image Area */}
                 <div className="relative aspect-[4/5] overflow-hidden border border-black mb-6">
                    <div className="absolute inset-0 bg-[#00ffd1] mix-blend-multiply opacity-0 group-hover:opacity-40 transition-opacity duration-300 z-10" />
-                   <img 
-                     src={collection.image} 
-                     alt={collection.title}
-                     className="w-full h-full object-cover grayscale contrast-125 group-hover:scale-110 transition-transform duration-700"
-                   />
+                   {collection.image ? (
+                     <img 
+                       src={collection.image} 
+                       alt={collection.title}
+                       className="w-full h-full object-cover grayscale contrast-125 group-hover:scale-110 transition-transform duration-700"
+                     />
+                   ) : (
+                     <div className="w-full h-full bg-white flex items-center justify-center font-mono text-xs text-black/50">
+                       이미지 없음
+                     </div>
+                   )}
                    
                    {/* "STAMP" */}
                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-4 border-[#00ffd1] rounded-full flex items-center justify-center -rotate-12 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20 mix-blend-hard-light">
                      <span className="text-[#00ffd1] font-heading font-bold text-xl uppercase text-center leading-none">
-                       CONFIDENTIAL<br/>EVIDENCE
+                       기밀<br/>기록물
                      </span>
                    </div>
                 </div>
@@ -137,7 +274,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
                 {/* Text Area */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center border-b border-black pb-2">
-                    <span className="font-mono text-xs font-bold bg-black text-white px-1">CASE #{collection.id}</span>
+                    <span className="font-mono text-xs font-bold bg-black text-white px-1">파일 #{collection.id}</span>
                     <span className="font-mono text-xs text-gray-500">{collection.season}</span>
                   </div>
                   
@@ -151,7 +288,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
 
                   <div className="pt-4 flex justify-end">
                     <span className="text-xs font-bold font-mono underline decoration-2 decoration-[#00ffd1] group-hover:bg-[#00ffd1] group-hover:text-black group-hover:no-underline px-1 transition-all">
-                      VIEW DOSSIER →
+                      기록 보기 →
                     </span>
                   </div>
                 </div>
@@ -162,6 +299,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
             </motion.div>
           ))}
         </div>
+        )}
       </div>
     </section>
   );

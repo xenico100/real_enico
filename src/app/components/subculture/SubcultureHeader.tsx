@@ -14,7 +14,12 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
   const { cart } = useFashionCart();
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
-  const navItems = ['ABOUT', 'CONTACT', 'ACCOUNT', 'MYPAGE'] as const;
+  const navItems = [
+    { key: 'about' as const, label: '소개' },
+    { key: 'contact' as const, label: '연락' },
+    { key: 'account' as const, label: '계정' },
+    { key: 'mypage' as const, label: '마이페이지' },
+  ];
 
   const glitchText = (text: string) => (
     <span className="relative inline-block group cursor-pointer overflow-hidden">
@@ -37,11 +42,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
             className="relative z-50"
           >
             <h1 className="text-4xl md:text-6xl font-[900] tracking-tighter uppercase font-heading leading-[0.8]">
-              ENICO VECK
+              에니코 벡
               <span className="text-[#00ffd1] text-base md:text-xl align-top ml-1">®</span>
             </h1>
             <p className="font-mono text-[10px] md:text-xs tracking-widest mt-1 opacity-60">
-              PROJECT_MAYHEM_V2.0
+              프로젝트_메이헴_2.0
             </p>
           </motion.div>
 
@@ -49,18 +54,18 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
           <nav className="hidden md:flex flex-col items-end gap-2 font-mono text-sm">
             {navItems.map((item, i) => (
               (() => {
-                const isFunctional = item === 'ACCOUNT' || item === 'MYPAGE';
+                const isFunctional = item.key === 'account' || item.key === 'mypage';
                 return (
               <button 
-                key={item}
-                onClick={() => onInfoClick(item.toLowerCase() as any)}
+                key={item.key}
+                onClick={() => onInfoClick(item.key)}
                 className={`w-full text-right px-2 py-1.5 transition-colors duration-0 uppercase tracking-widest border ${
                   isFunctional
                     ? 'border-[#00ffd1]/40 bg-[#00ffd1]/5 hover:bg-[#00ffd1] hover:text-black'
                     : 'border-transparent hover:bg-[#00ffd1] hover:text-black'
                 }`}
               >
-                {`0${i+1} /// ${item}`}
+                {`0${i+1} /// ${item.label}`}
               </button>
                 );
               })()
@@ -73,10 +78,10 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-mono text-[10px] tracking-[0.18em] text-[#666] group-hover:text-[#00ffd1]/70 transition-colors">
-                    05 /// CART_PANEL
+                    05 /// 장바구니_패널
                   </p>
                   <p className="font-mono text-xs mt-1 text-white group-hover:text-[#00ffd1] transition-colors">
-                    OPEN CHECKOUT WINDOW
+                    결제 창 열기
                   </p>
                 </div>
                 <div className="relative shrink-0 border border-[#333] bg-[#111] p-2 group-hover:border-[#00ffd1] transition-colors">
@@ -112,14 +117,14 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
             <nav className="flex flex-col gap-8 text-black font-heading text-6xl font-black uppercase tracking-tighter">
               {navItems.map((item) => (
                 <button 
-                  key={item}
+                  key={item.key}
                   onClick={() => {
-                    onInfoClick(item.toLowerCase() as any);
+                    onInfoClick(item.key);
                     setMenuOpen(false);
                   }}
                   className="hover:line-through decoration-4 decoration-white"
                 >
-                  {item}
+                  {item.label}
                 </button>
               ))}
               <button 
@@ -129,7 +134,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
                 }}
                 className="flex items-center gap-4 hover:line-through decoration-4 decoration-white"
               >
-                CART ({cartCount})
+                장바구니 ({cartCount})
               </button>
             </nav>
           </motion.div>

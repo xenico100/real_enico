@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from 'motion/react';
 import { useState, useEffect, useRef } from 'react';
 
 export function HeroSection() {
-  const brandName = 'ENICO VECK';
+  const brandName = '에니코 벡';
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const y2 = useTransform(scrollY, [0, 500], [0, -100]);
@@ -13,7 +13,7 @@ export function HeroSection() {
   
   // Random text flicker
   useEffect(() => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#@%&";
+    const chars = '가나다라마바사아자차카타파하0123456789$#@%&';
     const mutableIndexes = Array.from(brandName)
       .map((char, index) => (char === ' ' ? -1 : index))
       .filter((index) => index >= 0);
@@ -52,9 +52,9 @@ export function HeroSection() {
       <motion.div style={{ y: y1 }} className="absolute top-1/4 left-10 z-10 hidden md:block">
         <div className="border border-[#00ffd1] p-4 bg-black/80 backdrop-blur-sm max-w-xs rotate-[-5deg]">
           <p className="font-mono text-[10px] text-[#00ffd1] uppercase leading-relaxed">
-            "It's only after we've lost everything that we're free to do anything."
+            "전부 잃고 나서야, 뭐든 할 자유가 생긴다."
           </p>
-          <div className="mt-2 text-right text-[8px] text-white">/// RULE_01</div>
+          <div className="mt-2 text-right text-[8px] text-white">/// 규칙_01</div>
         </div>
       </motion.div>
 
@@ -66,7 +66,7 @@ export function HeroSection() {
             alt="soap"
           />
           <div className="bg-black text-white text-[10px] font-mono p-1 text-center mt-1">
-            99.44% PURE
+            99.44% 순도
           </div>
         </div>
       </motion.div>
@@ -81,7 +81,7 @@ export function HeroSection() {
             transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
             className="whitespace-nowrap flex gap-8 font-mono text-xs text-[#666]"
           >
-            {Array(20).fill("CONSUME • REPRODUCE • OBEY • SUBMIT • ").map((text, i) => (
+            {Array(20).fill('enicoveck aka 夢想人 • ').map((text, i) => (
               <span key={i}>{text}</span>
             ))}
           </motion.div>
@@ -105,10 +105,10 @@ export function HeroSection() {
         {/* Subtext */}
         <div className="mt-8 flex flex-col items-center gap-4">
           <div className="bg-[#00ffd1] text-black px-4 py-1 font-heading text-xl uppercase tracking-widest -rotate-2">
-            Warning: Graphic Content
+            경고: 고자극 콘텐츠
           </div>
           <p className="font-mono text-xs md:text-sm max-w-md text-[#888] leading-relaxed">
-            WE ARE THE MIDDLE CHILDREN OF HISTORY. NO PURPOSE OR PLACE. WE HAVE NO GREAT WAR. NO GREAT DEPRESSION. OUR GREAT WAR'S A SPIRITUAL WAR...
+            우리는 시대의 중간에 끼인 세대다. 목적도 자리도 없다. 거대한 전쟁도, 대공황도 없다. 우리의 전쟁은 정신 안에서 벌어진다...
           </p>
         </div>
 
@@ -120,7 +120,7 @@ export function HeroSection() {
         >
           <div className="absolute inset-0 w-0 bg-[#00ffd1] transition-all duration-[250ms] ease-out group-hover:w-full opacity-100" />
           <span className="relative text-white group-hover:text-black font-mono font-bold tracking-widest text-sm z-10 flex items-center gap-2">
-            ENTER CHAOS <span className="group-hover:translate-x-2 transition-transform">→</span>
+            ENTER HOPE <span className="group-hover:translate-x-2 transition-transform">→</span>
           </span>
         </button>
 
@@ -129,7 +129,7 @@ export function HeroSection() {
       {/* Scroll Down Hint */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 mix-blend-difference">
         <div className="w-[1px] h-20 bg-white animate-pulse" />
-        <span className="font-mono text-[10px] uppercase tracking-widest">Scroll</span>
+        <span className="font-mono text-[10px] uppercase tracking-widest">스크롤</span>
       </div>
     </section>
   );
