@@ -37,7 +37,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
             className="relative z-50"
           >
             <h1 className="text-4xl md:text-6xl font-[900] tracking-tighter uppercase font-heading leading-[0.8]">
-              ANARCHĒ
+              ENICO VECK
               <span className="text-[#00ffd1] text-base md:text-xl align-top ml-1">®</span>
             </h1>
             <p className="font-mono text-[10px] md:text-xs tracking-widest mt-1 opacity-60">

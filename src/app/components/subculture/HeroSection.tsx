@@ -4,27 +4,31 @@ import { motion, useScroll, useTransform } from 'motion/react';
 import { useState, useEffect, useRef } from 'react';
 
 export function HeroSection() {
+  const brandName = 'ENICO VECK';
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const y2 = useTransform(scrollY, [0, 500], [0, -100]);
   
-  const [glitchText, setGlitchText] = useState("ANARCHĒ");
+  const [glitchText, setGlitchText] = useState(brandName);
   
   // Random text flicker
   useEffect(() => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#@%&";
+    const mutableIndexes = Array.from(brandName)
+      .map((char, index) => (char === ' ' ? -1 : index))
+      .filter((index) => index >= 0);
     const interval = setInterval(() => {
       if (Math.random() > 0.9) {
         const randomChar = chars[Math.floor(Math.random() * chars.length)];
-        const pos = Math.floor(Math.random() * 7);
-        const arr = "ANARCHĒ".split('');
+        const pos = mutableIndexes[Math.floor(Math.random() * mutableIndexes.length)];
+        const arr = brandName.split('');
         arr[pos] = randomChar;
         setGlitchText(arr.join(''));
-        setTimeout(() => setGlitchText("ANARCHĒ"), 50);
+        setTimeout(() => setGlitchText(brandName), 50);
       }
     }, 100);
     return () => clearInterval(interval);
-  }, []);
+  }, [brandName]);
 
   const handleEnterChaos = () => {
     document

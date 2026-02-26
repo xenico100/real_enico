@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "../styles/index.css";
+import { AuthProvider } from "@/app/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "ANARCHE",
+  title: "ENICO VECK",
   description: "Subculture fashion storefront experience",
 };
 
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

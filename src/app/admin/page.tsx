@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pencil, Plus, RefreshCcw, Trash2, Upload, X } from 'lucide-react';
-import { AuthProvider, useAuth } from '@/app/context/AuthContext';
+import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
@@ -806,9 +806,5 @@ function AdminConsoleInner() {
 }
 
 export default function AdminPage() {
-  return (
-    <AuthProvider>
-      <AdminConsoleInner />
-    </AuthProvider>
-  );
+  return <AdminConsoleInner />;
 }

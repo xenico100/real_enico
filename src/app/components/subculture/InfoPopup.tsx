@@ -24,7 +24,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           <h3 className="text-[#00ffd1] text-xl font-bold mb-4 uppercase">/// Manifesto</h3>
           <p className="text-sm leading-relaxed mb-4">
             We are the all-singing, all-dancing crap of the world.
-            ANARCHĒ is not a brand. It is a reaction.
+            ENICO VECK is not a brand. It is a reaction.
             A reaction to the sanitized, packaged, and sold-out culture of today.
           </p>
           <p className="text-sm leading-relaxed">
@@ -36,11 +36,11 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-[#111] p-4 border border-[#333]">
             <h4 className="text-xs text-[#666] mb-2 uppercase">Rule 01</h4>
-            <p className="text-sm">You do not talk about ANARCHĒ.</p>
+            <p className="text-sm">You do not talk about ENICO VECK.</p>
           </div>
           <div className="bg-[#111] p-4 border border-[#333]">
             <h4 className="text-xs text-[#666] mb-2 uppercase">Rule 02</h4>
-            <p className="text-sm">You DO NOT talk about ANARCHĒ.</p>
+            <p className="text-sm">You DO NOT talk about ENICO VECK.</p>
           </div>
           <div className="bg-[#111] p-4 border border-[#333]">
             <h4 className="text-xs text-[#666] mb-2 uppercase">Rule 03</h4>
@@ -61,7 +61,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           <div className="space-y-6">
             <div>
               <label className="block text-[10px] text-[#666] mb-2 uppercase">Signal Frequency (Email)</label>
-              <p className="text-lg text-[#00ffd1] hover:underline cursor-pointer">join@anarche.com</p>
+              <p className="text-lg text-[#00ffd1] hover:underline cursor-pointer">join@enicoveck.com</p>
             </div>
             
             <div>

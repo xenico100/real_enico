@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
+import GoogleLoginButton from '@/app/components/GoogleLoginButton';
 
 type AuthMode = 'login' | 'signup';
 
@@ -19,7 +20,6 @@ export function AccountAuthPanel() {
     clearMessages,
     signInWithEmail,
     signUpWithEmail,
-    signInWithGoogle,
     signOut,
     deleteMyAccount,
     refreshProfile,
@@ -175,7 +175,7 @@ export function AccountAuthPanel() {
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">Quick Access</p>
             <h3 className="text-lg font-bold uppercase mt-2">
-              Google {mode === 'signup' ? 'Sign Up' : 'Login'}
+              구글 {mode === 'signup' ? '회원가입' : '로그인'}
             </h3>
             <p className="text-xs text-[#9a9a9a] mt-2 leading-relaxed">
               구글 버튼 1개로 로그인/회원가입 모두 가능합니다.
@@ -186,15 +186,12 @@ export function AccountAuthPanel() {
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void signInWithGoogle()}
+        <GoogleLoginButton
           disabled={isBusy}
-          className="w-full py-4 px-4 bg-[#00ffd1] text-black font-bold uppercase tracking-[0.16em] hover:bg-[#b8fff1] transition-colors disabled:opacity-50 flex items-center justify-between"
+          className="w-full py-4 px-4 bg-[#00ffd1] text-black font-bold uppercase tracking-[0.12em] hover:bg-[#b8fff1] transition-colors disabled:opacity-50 flex items-center justify-center gap-3"
         >
-          <span>{isBusy ? 'Processing...' : 'Continue with Google'}</span>
-          <ArrowRight size={16} />
-        </button>
+          <span>{isBusy ? '처리중...' : mode === 'signup' ? '구글 회원가입' : '구글 로그인'}</span>
+        </GoogleLoginButton>
 
         <p className="text-[10px] text-[#666] mt-3">
           첫 로그인이어도 자동으로 계정 생성(회원가입)됩니다.
