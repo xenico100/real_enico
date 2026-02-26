@@ -103,7 +103,9 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           initial={{ scale: 0.9, opacity: 0, y: 50 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 50 }}
-          className={`relative w-full ${type === 'mypage' ? 'max-w-4xl' : 'max-w-2xl'} bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
+          className={`relative w-full ${
+            type === 'mypage' ? 'max-w-4xl' : type === 'account' ? 'max-w-3xl' : 'max-w-2xl'
+          } bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
