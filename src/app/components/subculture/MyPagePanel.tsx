@@ -247,7 +247,7 @@ export function MyPagePanel() {
           </div>
         </div>
 
-        <div className="border border-[#222] bg-black/40 p-2">
+        <div className="border border-[#222] bg-black/40 p-2.5">
           <div className="flex items-center justify-between gap-3 mb-2 px-1">
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">마이페이지 탭</p>
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
@@ -255,7 +255,7 @@ export function MyPagePanel() {
             </p>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
+          <div className="flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
             {tabs.map((tab, index) => {
               const active = activeTab === tab.id;
 
@@ -264,7 +264,7 @@ export function MyPagePanel() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative min-w-[140px] flex-1 text-left border p-3 md:p-4 transition-colors ${
+                  className={`relative min-w-[156px] md:min-w-[172px] flex-1 text-left border p-4 md:p-5 transition-colors ${
                     active
                       ? 'border-[#00ffd1] bg-[linear-gradient(180deg,rgba(0,255,209,0.12),rgba(0,0,0,0.5))]'
                       : 'border-[#333] bg-[#111] hover:border-[#00ffd1]/70'
@@ -281,14 +281,14 @@ export function MyPagePanel() {
                       <p className={`text-[10px] tracking-[0.18em] uppercase ${active ? 'text-[#00ffd1]' : 'text-[#666]'}`}>
                         0{index + 1} / {tab.hint}
                       </p>
-                      <p className={`mt-2 text-sm uppercase tracking-[0.14em] font-bold ${active ? 'text-[#ecfffb]' : 'text-[#d4d4d4]'}`}>
+                      <p className={`mt-2 text-[15px] md:text-base uppercase tracking-[0.14em] font-bold ${active ? 'text-[#ecfffb]' : 'text-[#d4d4d4]'}`}>
                         {tab.label}
                       </p>
                     </div>
 
                     {typeof tab.count === 'number' && (
                       <span
-                        className={`px-2 py-1 text-[10px] border uppercase tracking-widest ${
+                        className={`px-2.5 py-1.5 text-[10px] border uppercase tracking-widest ${
                           active
                             ? 'border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]'
                             : 'border-[#333] bg-black text-[#777]'
@@ -299,7 +299,7 @@ export function MyPagePanel() {
                     )}
                   </div>
 
-                  <p className={`mt-3 text-[10px] uppercase tracking-widest ${active ? 'text-[#9cf7e8]' : 'text-[#555]'}`}>
+                  <p className={`mt-4 text-[10px] uppercase tracking-widest ${active ? 'text-[#9cf7e8]' : 'text-[#555]'}`}>
                     {active ? '선택됨' : '눌러서 열기'}
                   </p>
                 </button>
