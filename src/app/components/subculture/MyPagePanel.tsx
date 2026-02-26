@@ -47,6 +47,7 @@ export function MyPagePanel() {
     { id: 'cart', label: 'CART', hint: 'checkout', count: cart.length },
     { id: 'profile', label: 'PROFILE', hint: 'identity' },
   ];
+  const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
   if (!isAuthReady || !isAuthenticated || !user) {
     return (
@@ -244,40 +245,72 @@ export function MyPagePanel() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`text-left border p-3 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-[#00ffd1] bg-[#00ffd1]/10'
-                  : 'border-[#333] bg-[#111] hover:border-[#00ffd1]'
-              }`}
-            >
-              <p className={`text-[10px] tracking-widest uppercase ${activeTab === tab.id ? 'text-[#00ffd1]' : 'text-[#666]'}`}>
-                {tab.hint}
-              </p>
-              <div className="mt-2 flex items-end justify-between gap-2">
-                <p className={`text-xs uppercase tracking-wider ${activeTab === tab.id ? 'text-[#e5e5e5]' : 'text-[#b0b0b0]'}`}>
-                  {tab.label}
-                </p>
-                {typeof tab.count === 'number' && (
-                  <span className={`text-[10px] ${activeTab === tab.id ? 'text-[#00ffd1]' : 'text-[#777]'}`}>
-                    {tab.count}
-                  </span>
-                )}
-              </div>
-            </button>
-          ))}
+        <div className="border border-[#222] bg-black/40 p-2">
+          <div className="flex items-center justify-between gap-3 mb-2 px-1">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">MYPAGE TABS</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
+              active: {activeTabMeta.label}
+            </p>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
+            {tabs.map((tab, index) => {
+              const active = activeTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative min-w-[140px] flex-1 text-left border p-3 md:p-4 transition-colors ${
+                    active
+                      ? 'border-[#00ffd1] bg-[linear-gradient(180deg,rgba(0,255,209,0.12),rgba(0,0,0,0.5))]'
+                      : 'border-[#333] bg-[#111] hover:border-[#00ffd1]/70'
+                  }`}
+                >
+                  <span
+                    className={`absolute inset-y-0 left-0 w-[2px] ${
+                      active ? 'bg-[#00ffd1]' : 'bg-transparent'
+                    }`}
+                  />
+
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className={`text-[10px] tracking-[0.18em] uppercase ${active ? 'text-[#00ffd1]' : 'text-[#666]'}`}>
+                        0{index + 1} / {tab.hint}
+                      </p>
+                      <p className={`mt-2 text-sm uppercase tracking-[0.14em] font-bold ${active ? 'text-[#ecfffb]' : 'text-[#d4d4d4]'}`}>
+                        {tab.label}
+                      </p>
+                    </div>
+
+                    {typeof tab.count === 'number' && (
+                      <span
+                        className={`px-2 py-1 text-[10px] border uppercase tracking-widest ${
+                          active
+                            ? 'border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]'
+                            : 'border-[#333] bg-black text-[#777]'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className={`mt-3 text-[10px] uppercase tracking-widest ${active ? 'text-[#9cf7e8]' : 'text-[#555]'}`}>
+                    {active ? 'SELECTED_TAB' : 'CLICK_TO_OPEN'}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       <div className="border border-[#333] bg-[#0a0a0a] p-5">
         <div className="flex items-center justify-between gap-3 border-b border-[#222] pb-3 mb-4">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
-            {activeTab.toUpperCase()} TAB
+            {activeTabMeta.label} TAB
           </p>
           <p className="text-[10px] text-[#666] uppercase">functional ui / visible controls</p>
         </div>

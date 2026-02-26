@@ -48,13 +48,22 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
           {/* Desktop Nav */}
           <nav className="hidden md:flex flex-col items-end gap-2 font-mono text-sm">
             {navItems.map((item, i) => (
+              (() => {
+                const isFunctional = item === 'ACCOUNT' || item === 'MYPAGE';
+                return (
               <button 
                 key={item}
                 onClick={() => onInfoClick(item.toLowerCase() as any)}
-                className="hover:bg-[#00ffd1] hover:text-black px-2 py-1 transition-colors duration-0 uppercase tracking-widest text-right"
+                className={`w-full text-right px-2 py-1.5 transition-colors duration-0 uppercase tracking-widest border ${
+                  isFunctional
+                    ? 'border-[#00ffd1]/40 bg-[#00ffd1]/5 hover:bg-[#00ffd1] hover:text-black'
+                    : 'border-transparent hover:bg-[#00ffd1] hover:text-black'
+                }`}
               >
                 {`0${i+1} /// ${item}`}
               </button>
+                );
+              })()
             ))}
             
             <button

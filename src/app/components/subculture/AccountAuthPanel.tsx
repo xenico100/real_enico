@@ -29,6 +29,25 @@ export function AccountAuthPanel() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const modeConfig = {
+    login: {
+      title: '로그인',
+      english: 'LOGIN',
+      emailLabel: 'Email Login',
+      emailHint: '이메일/비밀번호로 바로 로그인합니다.',
+      submitLabel: '이메일로 로그인',
+      helper: '구글 계정으로 바로 로그인도 가능합니다.',
+    },
+    signup: {
+      title: '회원가입',
+      english: 'SIGN UP',
+      emailLabel: 'Email Sign Up',
+      emailHint: '이메일 계정으로 회원가입합니다. 이름은 선택 입력입니다.',
+      submitLabel: '이메일로 회원가입',
+      helper: '구글 버튼으로도 회원가입 가능합니다 (더 빠름).',
+    },
+  } as const;
+  const currentMode = modeConfig[mode];
 
   useEffect(() => {
     clearMessages();
@@ -170,12 +189,59 @@ export function AccountAuthPanel() {
 
   return (
     <div className="space-y-6 font-mono">
+      <div className="border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">AUTH MODE</p>
+            <p className="text-xs text-[#9a9a9a] mt-1">
+              원하는 방식으로 로그인/회원가입을 선택하세요.
+            </p>
+          </div>
+          <span className="border border-[#00ffd1]/30 bg-[#00ffd1]/10 text-[#00ffd1] text-[10px] px-2 py-1 uppercase tracking-widest">
+            {currentMode.english}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {(['login', 'signup'] as const).map((item, index) => {
+            const active = mode === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setMode(item)}
+                className={`relative border p-4 text-left transition-colors ${
+                  active
+                    ? 'border-[#00ffd1] bg-[#00ffd1]/10'
+                    : 'border-[#333] bg-[#111] hover:border-[#00ffd1]/60'
+                }`}
+              >
+                <span
+                  className={`absolute inset-x-0 top-0 h-[2px] transition-opacity ${
+                    active ? 'bg-[#00ffd1] opacity-100' : 'bg-[#00ffd1] opacity-0'
+                  }`}
+                />
+                <p className={`text-[10px] tracking-[0.18em] uppercase ${active ? 'text-[#00ffd1]' : 'text-[#666]'}`}>
+                  0{index + 1}
+                </p>
+                <p className={`mt-2 text-sm uppercase tracking-wide font-bold ${active ? 'text-[#eafffb]' : 'text-[#d0d0d0]'}`}>
+                  {item === 'login' ? '로그인' : '회원가입'}
+                </p>
+                <p className="mt-1 text-[10px] text-[#777] uppercase tracking-widest">
+                  {item === 'login' ? 'Existing account' : 'Create new account'}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="border border-[#00ffd1]/40 bg-[linear-gradient(180deg,rgba(0,255,209,0.08),rgba(0,0,0,0))] p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">Quick Access</p>
             <h3 className="text-lg font-bold uppercase mt-2">
-              구글 {mode === 'signup' ? '회원가입' : '로그인'}
+              구글 {currentMode.title}
             </h3>
             <p className="text-xs text-[#9a9a9a] mt-2 leading-relaxed">
               구글 버튼 1개로 로그인/회원가입 모두 가능합니다.
@@ -198,45 +264,43 @@ export function AccountAuthPanel() {
         </p>
       </div>
 
-      <div className="bg-[#0a0a0a] border border-[#333] p-6">
-        <div className="flex gap-2 mb-4">
-          {(['login', 'signup'] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setMode(item)}
-              className={`flex-1 py-2.5 border uppercase text-xs tracking-widest transition-colors ${
-                mode === item
-                  ? 'bg-[#00ffd1] border-[#00ffd1] text-black font-bold'
-                  : 'bg-[#111] border-[#333] text-[#888] hover:text-[#00ffd1] hover:border-[#00ffd1]'
-              }`}
-            >
-              {item === 'login' ? 'Login' : 'Sign Up'}
-            </button>
-          ))}
-        </div>
-
-        <div className="border border-[#333] bg-[#101010] p-3 mb-4">
-          <p className="text-[10px] uppercase tracking-widest text-[#666]">
-            {mode === 'login' ? 'Email Login' : 'Email Sign Up'}
-          </p>
-          <p className="text-xs text-[#9a9a9a] mt-2 leading-relaxed">
-            {mode === 'login'
-              ? '이메일/비밀번호로 로그인합니다.'
-              : '이메일 계정으로 회원가입합니다. 이름은 선택 입력입니다.'}
-          </p>
+      <div className="bg-[#0a0a0a] border border-[#333] p-5 md:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#222] pb-4 mb-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">EMAIL FLOW</p>
+            <h3 className="text-base font-bold uppercase mt-2 text-[#e5e5e5]">
+              {currentMode.emailLabel}
+            </h3>
+            <p className="text-xs text-[#9a9a9a] mt-2 leading-relaxed">
+              {currentMode.emailHint}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-center shrink-0">
+            <div className="border border-[#333] bg-[#111] px-3 py-2 min-w-[96px]">
+              <p className="text-[10px] text-[#666] uppercase tracking-widest">Mode</p>
+              <p className="text-[11px] text-[#00ffd1] uppercase tracking-widest mt-1">
+                {currentMode.english}
+              </p>
+            </div>
+            <div className="border border-[#333] bg-[#111] px-3 py-2 min-w-[96px]">
+              <p className="text-[10px] text-[#666] uppercase tracking-widest">Provider</p>
+              <p className="text-[11px] text-[#e5e5e5] uppercase tracking-widest mt-1">
+                EMAIL
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="relative my-4">
           <div className="h-px bg-[#333]" />
           <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0a0a0a] px-2 text-[10px] text-[#666] uppercase">
-            email form
+            clean form
           </span>
         </div>
 
         <form onSubmit={handleEmailAuth} className="space-y-4">
           {mode === 'signup' && (
-            <div className="border border-[#333] bg-[#0b0b0b] p-3">
+            <div className="border border-[#333] bg-[#0b0b0b] p-3 md:p-4">
               <label className="block text-[10px] text-[#666] mb-2 uppercase">
                 Full Name (optional)
               </label>
@@ -244,28 +308,28 @@ export function AccountAuthPanel() {
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] focus:ring-1 focus:ring-[#00ffd1]/30 text-[#e5e5e5] placeholder:text-[#555]"
                 placeholder="Your name"
                 autoComplete="name"
               />
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4">
-            <div>
+          <div className="grid grid-cols-1 gap-4 border border-[#222] bg-[#0d0d0d] p-3 md:p-4">
+            <div className="border border-[#333] bg-black p-3">
               <label className="block text-[10px] text-[#666] mb-2 uppercase">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] focus:ring-1 focus:ring-[#00ffd1]/30 text-[#e5e5e5] placeholder:text-[#555]"
                 placeholder="you@example.com"
                 autoComplete="email"
                 required
               />
             </div>
 
-            <div>
+            <div className="border border-[#333] bg-black p-3">
               <label className="block text-[10px] text-[#666] mb-2 uppercase">
                 Password
               </label>
@@ -273,7 +337,7 @@ export function AccountAuthPanel() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] focus:ring-1 focus:ring-[#00ffd1]/30 text-[#e5e5e5] placeholder:text-[#555]"
                 placeholder="••••••••"
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
@@ -281,25 +345,25 @@ export function AccountAuthPanel() {
             </div>
           </div>
 
-          <div className="pt-1">
+          <div className="pt-1 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-stretch">
             <button
               type="submit"
               disabled={isBusy}
               className="w-full py-3.5 bg-[#e5e5e5] text-black font-bold uppercase hover:bg-[#00ffd1] transition-colors disabled:opacity-50"
             >
-              {isBusy
-                ? 'Processing...'
-                : mode === 'login'
-                  ? 'Login with Email'
-                  : 'Create Account'}
+              {isBusy ? '처리중...' : currentMode.submitLabel}
             </button>
+            <div className="border border-[#333] bg-[#111] px-3 py-2 text-center sm:text-left">
+              <p className="text-[10px] text-[#666] uppercase tracking-widest">status</p>
+              <p className="text-[11px] text-[#00ffd1] uppercase tracking-widest mt-1">
+                {isBusy ? 'busy' : 'ready'}
+              </p>
+            </div>
           </div>
 
           <div className="text-center pt-1">
             <p className="text-[10px] text-[#555] leading-relaxed">
-              {mode === 'signup'
-                ? '구글 버튼으로도 회원가입 가능합니다 (더 빠름).'
-                : '구글 계정으로 바로 로그인도 가능합니다.'}
+              {currentMode.helper}
             </p>
           </div>
         </form>
