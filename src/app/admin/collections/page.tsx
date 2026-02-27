@@ -51,14 +51,14 @@ const emptyForm: CollectionFormState = {
 
 function normalizeImages(value: unknown) {
   if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === 'string' && item.trim());
+    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
   }
 
   if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value);
       if (Array.isArray(parsed)) {
-        return parsed.filter((item): item is string => typeof item === 'string' && item.trim());
+        return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
       }
     } catch {
       if (value.trim()) return [value.trim()];

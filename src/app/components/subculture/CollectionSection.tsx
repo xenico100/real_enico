@@ -88,12 +88,16 @@ function normalizeCollectionImages(value: unknown, primaryImage?: string | null)
   const parsed: string[] = [];
 
   if (Array.isArray(value)) {
-    parsed.push(...value.filter((item): item is string => typeof item === 'string' && item.trim()));
+    parsed.push(
+      ...value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0),
+    );
   } else if (typeof value === 'string') {
     try {
       const json = JSON.parse(value);
       if (Array.isArray(json)) {
-        parsed.push(...json.filter((item): item is string => typeof item === 'string' && item.trim()));
+        parsed.push(
+          ...json.filter((item): item is string => typeof item === 'string' && item.trim().length > 0),
+        );
       }
     } catch {
       if (value.trim()) parsed.push(value);
