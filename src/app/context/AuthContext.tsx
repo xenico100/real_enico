@@ -48,6 +48,7 @@ interface AuthContextValue {
   signInWithEmail: (credentials: EmailCredentials) => Promise<void>;
   signUpWithEmail: (credentials: SignUpCredentials) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  updatePassword: (nextPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
   deleteMyAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -263,6 +264,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const updatePassword = async (nextPassword: string) => {
+    await runAction(async () => {
+      const password = nextPassword.trim();
+      if (password.length < 8) {
+        throw new Error('비밀번호는 8자 이상으로 입력하세요.');
+      }
+
+      const supabase = requireClient();
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setStatusMessage('비밀번호가 변경되었습니다.');
+    });
+  };
+
   const signOut = async () => {
     await runAction(async () => {
       const supabase = requireClient();
@@ -309,6 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithEmail,
         signUpWithEmail,
         signInWithGoogle,
+        updatePassword,
         signOut,
         deleteMyAccount,
         refreshProfile,
