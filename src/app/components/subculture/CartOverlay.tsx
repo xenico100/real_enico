@@ -13,6 +13,10 @@ interface CartOverlayProps {
 type CheckoutMode = 'cart' | 'checkout';
 type PaymentMethod = 'card' | 'bank' | 'cod';
 
+function formatKrw(value: number) {
+  return `${Math.round(value).toLocaleString('ko-KR')}원`;
+}
+
 export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const { cart, removeFromCart, updateQuantity } = useFashionCart();
   const [mode, setMode] = useState<CheckoutMode>('cart');
@@ -123,22 +127,22 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] uppercase text-[#666]">최종 결제액</p>
-                    <p className="text-xl font-bold text-[#00ffd1]">${total}</p>
+                    <p className="text-xl font-bold text-[#00ffd1]">{formatKrw(total)}</p>
                   </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
                   <div className="border border-[#222] bg-[#111] p-2">
                     <p className="text-[#666]">상품합계</p>
-                    <p className="text-[#e5e5e5] mt-1">${subtotal}</p>
+                    <p className="text-[#e5e5e5] mt-1">{formatKrw(subtotal)}</p>
                   </div>
                   <div className="border border-[#222] bg-[#111] p-2">
                     <p className="text-[#666]">배송</p>
-                    <p className="text-[#e5e5e5] mt-1">{shipping === 0 ? '무료' : `$${shipping}`}</p>
+                    <p className="text-[#e5e5e5] mt-1">{shipping === 0 ? '무료' : formatKrw(shipping)}</p>
                   </div>
                   <div className="border border-[#222] bg-[#111] p-2">
                     <p className="text-[#666]">세금</p>
-                    <p className="text-[#e5e5e5] mt-1">${tax}</p>
+                    <p className="text-[#e5e5e5] mt-1">{formatKrw(tax)}</p>
                   </div>
                 </div>
               </div>
@@ -198,7 +202,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                                 </div>
                                 <div className="text-right">
                                   <p className="text-[10px] text-[#666] uppercase">단가</p>
-                                  <p className="text-sm text-[#e5e5e5]">${item.price}</p>
+                                  <p className="text-sm text-[#e5e5e5]">{formatKrw(item.price)}</p>
                                 </div>
                               </div>
                             </div>
@@ -351,7 +355,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div className="text-xs text-[#888]">
                     <p className="uppercase tracking-widest text-[#666]">최종 합계</p>
-                    <p className="text-lg text-[#e5e5e5] mt-1">${total}</p>
+                    <p className="text-lg text-[#e5e5e5] mt-1">{formatKrw(total)}</p>
                   </div>
                   <div className="inline-flex items-center gap-2 border border-[#333] bg-[#111] px-3 py-2 text-[10px] uppercase tracking-widest">
                     <CreditCard size={12} className="text-[#00ffd1]" />

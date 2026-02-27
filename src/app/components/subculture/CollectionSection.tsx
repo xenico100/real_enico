@@ -197,13 +197,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
             <h2 className="text-8xl md:text-[9rem] lg:text-[10rem] font-black font-heading uppercase tracking-tighter leading-[0.9]">
               컬렉션
             </h2>
-            <p className="font-mono text-xs md:text-sm uppercase tracking-[0.18em] mt-2 text-black/60">
-              /// 화이트보드 게시물 / 큐레이션 보관함
-            </p>
           </div>
-          <p className="font-mono text-sm uppercase tracking-widest bg-black text-white px-2">
-            /// curated feed
-          </p>
         </div>
 
         {collectionLoadError && collections === null && (

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AccountAuthPanel } from './AccountAuthPanel';
@@ -10,8 +11,35 @@ interface InfoPopupProps {
   onClose: () => void;
 }
 
+const CONTACT_EMAIL = 'morba9850@gmail.com';
+const DEFAULT_CONTACT_SUBJECT = '멤버십 멤버를 위한 맞춤제작 건의';
+const DEFAULT_CONTACT_BODY =
+  '멤버십 멤버를 위한 맞춤제작 건의를 드립니다.\n\n요청 내용:\n-\n\n예산/일정:\n-\n';
+
 export function InfoPopup({ type, onClose }: InfoPopupProps) {
-  
+  const [contactName, setContactName] = useState('');
+  const [contactReplyEmail, setContactReplyEmail] = useState('');
+  const [contactSubject, setContactSubject] = useState(DEFAULT_CONTACT_SUBJECT);
+  const [contactBody, setContactBody] = useState(DEFAULT_CONTACT_BODY);
+
+  const contactMailto = useMemo(() => {
+    const subject = contactSubject.trim() || DEFAULT_CONTACT_SUBJECT;
+    const bodyLines = [
+      contactBody.trim() || DEFAULT_CONTACT_BODY.trim(),
+      '',
+      `보낸 사람: ${contactName.trim() || '-'}`,
+      `회신 이메일: ${contactReplyEmail.trim() || '-'}`,
+    ];
+
+    return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
+      bodyLines.join('\n'),
+    )}`;
+  }, [contactBody, contactName, contactReplyEmail, contactSubject]);
+
+  const handleComposeMail = () => {
+    window.location.href = contactMailto;
+  };
+
   const content = {
     about: (
       <div className="space-y-8 font-mono">
@@ -21,35 +49,16 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           <div className="absolute bottom-0 left-0 w-2 h-2 bg-[#00ffd1]" />
           <div className="absolute bottom-0 right-0 w-2 h-2 bg-[#00ffd1]" />
           
-          <h3 className="text-[#00ffd1] text-xl font-bold mb-4 uppercase">/// 선언문</h3>
+          <h3 className="text-[#00ffd1] text-xl font-bold mb-4 uppercase">브랜드 소개</h3>
           <p className="text-sm leading-relaxed mb-4">
-            우리는 세상이 만든 번쩍거리는 쓰레기다.
-            에니코 벡은 브랜드가 아니다. 반응이다.
-            소독되고 포장되고 팔려 나간 지금의 문화에 대한 반응이다.
+            enico veck은 서브컬처를 좋아하는 사람들,
+            그리고 각자의 특별함을 가진 사람들을 모아
+            하나의 가족처럼 연결하려는 디자이너 브랜드입니다.
           </p>
           <p className="text-sm leading-relaxed">
-            우리는 옷을 파는 게 아니다. 무너질 때를 버틸 갑옷을 판다.
-            오래된 세계의 잔해로 조립했다.
+            옷을 통해 취향과 정체성을 함께 나누고,
+            오래 함께할 수 있는 커뮤니티를 만드는 것을 목표로 합니다.
           </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-[#111] p-4 border border-[#333]">
-            <h4 className="text-xs text-[#666] mb-2 uppercase">규칙 01</h4>
-            <p className="text-sm">에니코 벡에 대해 떠들지 마라.</p>
-          </div>
-          <div className="bg-[#111] p-4 border border-[#333]">
-            <h4 className="text-xs text-[#666] mb-2 uppercase">규칙 02</h4>
-            <p className="text-sm">진짜로, 에니코 벡에 대해 떠들지 마라.</p>
-          </div>
-          <div className="bg-[#111] p-4 border border-[#333]">
-            <h4 className="text-xs text-[#666] mb-2 uppercase">규칙 03</h4>
-            <p className="text-sm">누가 "멈춰"라고 하거나 버티지 못하면 거래는 끝이다.</p>
-          </div>
-          <div className="bg-[#111] p-4 border border-[#333]">
-            <h4 className="text-xs text-[#666] mb-2 uppercase">규칙 04</h4>
-            <p className="text-sm">한 사람당 두 개까지만 허용한다.</p>
-          </div>
         </div>
       </div>
     ),
@@ -61,7 +70,10 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           <div className="space-y-6">
             <div>
               <label className="block text-[10px] text-[#666] mb-2 uppercase">신호 주파수 (이메일)</label>
-              <p className="text-lg text-[#00ffd1] hover:underline cursor-pointer">join@enicoveck.com</p>
+              <p className="text-lg text-[#00ffd1] hover:underline cursor-pointer">{CONTACT_EMAIL}</p>
+              <p className="text-xs text-[#999] mt-2">
+                나와 함께 수익화를 진행하고 싶다면 아래 메일 작성 폼으로 제안 내용을 보내주세요.
+              </p>
             </div>
             
             <div>
@@ -74,11 +86,59 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
 
             <div className="pt-6 border-t border-[#333]">
               <p className="text-xs text-[#888]">
-                경고: 약속 없이 방문하지 마라.
-                승인되지 않은 인원은 차단된다.
+                방문 전 사전 예약과 일정 확인을 부탁드립니다.
+                승인되지 않은 방문은 응대가 어려울 수 있습니다.
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="border border-[#333] p-6 bg-[#0a0a0a] space-y-4">
+          <h4 className="text-sm font-bold uppercase text-[#00ffd1]">메일 작성</h4>
+          <p className="text-xs text-[#999]">
+            기본 메일 앱이 열리며, 수신자는 `morba9850@gmail.com`으로 자동 입력됩니다.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input
+              type="text"
+              value={contactName}
+              onChange={(event) => setContactName(event.target.value)}
+              className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+              placeholder="성함"
+            />
+            <input
+              type="email"
+              value={contactReplyEmail}
+              onChange={(event) => setContactReplyEmail(event.target.value)}
+              className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+              placeholder="회신 받을 이메일"
+            />
+          </div>
+
+          <input
+            type="text"
+            value={contactSubject}
+            onChange={(event) => setContactSubject(event.target.value)}
+            className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+            placeholder="메일 제목"
+          />
+
+          <textarea
+            value={contactBody}
+            onChange={(event) => setContactBody(event.target.value)}
+            rows={7}
+            className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5] resize-y"
+            placeholder="문의/제안 내용을 작성하세요"
+          />
+
+          <button
+            type="button"
+            onClick={handleComposeMail}
+            className="w-full py-3 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs uppercase tracking-widest"
+          >
+            메일 작성 열기 (멤버십 멤버를 위한 맞춤제작 건의)
+          </button>
         </div>
       </div>
     ),
@@ -113,10 +173,10 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
              <span className="font-heading text-2xl uppercase tracking-tighter text-[#e5e5e5]">
                {type === 'about'
                  ? '프로젝트_메이헴'
-                 : type === 'contact'
-                   ? '통신_링크'
+                   : type === 'contact'
+                     ? '통신_링크'
                    : type === 'account'
-                     ? '신원_프로토콜'
+                     ? '로그인 / 회원가입'
                      : '마이페이지'}
              </span>
              <button onClick={onClose} className="text-[#666] hover:text-[#00ffd1] transition-colors">

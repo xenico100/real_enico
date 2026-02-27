@@ -255,7 +255,9 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
             <div className="relative z-10 mt-auto pt-2">
               <div className="flex justify-between items-end mb-6">
                  <span className="font-mono text-xs text-[#666]">가격</span>
-                 <span className="font-heading text-4xl text-[#e5e5e5]">${product.price}</span>
+                 <span className="font-heading text-4xl text-[#e5e5e5]">
+                   {product.price.toLocaleString('ko-KR')}원
+                 </span>
               </div>
 
               <button

@@ -173,7 +173,9 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
            
            <div className="flex justify-between items-center mt-2">
              <span className="font-mono text-xs text-[#888]">{product.category}</span>
-             <span className="font-mono text-sm font-bold text-[#e5e5e5]">${product.price}</span>
+             <span className="font-mono text-sm font-bold text-[#e5e5e5]">
+               {product.price.toLocaleString('ko-KR')}원
+             </span>
            </div>
          </div>
       </div>
@@ -203,9 +205,6 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
             <h2 className="text-8xl md:text-[9rem] lg:text-[10rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.9]">
               의류
             </h2>
-            <p className="font-mono text-xs text-[#666] mt-2">
-              /// 의류 게시물 // 상품 피드
-            </p>
           </div>
           
           <div className="w-full md:w-auto mt-8 md:mt-0 md:min-w-[520px] flex flex-col gap-3">
@@ -214,9 +213,6 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
                 <div>
                   <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-[#00ffd1]">
                     카테고리 필터
-                  </p>
-                  <p className="font-mono text-[10px] text-[#666] mt-1">
-                    // Savage mfs only.
                   </p>
                 </div>
                 <div className="text-right font-mono">
