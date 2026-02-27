@@ -6,7 +6,14 @@ type ProductRow = {
   title: string | null;
   price: number | null;
   thumbnail_url: string | null;
+  category_id: string | null;
+  category_name_raw: string | null;
   synced_at: string | null;
+};
+
+type CategoryRow = {
+  id: string;
+  name: string | null;
 };
 
 function formatPrice(value: number | null) {
@@ -16,6 +23,7 @@ function formatPrice(value: number | null) {
 
 export default async function StudioPage() {
   let products: ProductRow[] = [];
+  let sections: Array<{ name: string; items: ProductRow[] }> = [];
   let errorMessage: string | null = null;
 
   try {
@@ -58,9 +66,57 @@ export default async function StudioPage() {
         title,
         price: Number.isFinite(price) ? price : null,
         thumbnail_url: thumbnail,
+        category_id:
+          typeof row.category_id === 'string' && row.category_id.trim()
+            ? row.category_id
+            : null,
+        category_name_raw:
+          typeof row.category_name_raw === 'string' && row.category_name_raw.trim()
+            ? row.category_name_raw.trim()
+            : null,
         synced_at: typeof row.synced_at === 'string' ? row.synced_at : null,
       };
     });
+
+    const categoryIds = Array.from(
+      new Set(
+        products
+          .map((product) => product.category_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const categoryMap = new Map<string, string>();
+
+    if (categoryIds.length > 0) {
+      const categoriesResult = await supabase
+        .from('product_categories')
+        .select('id, name')
+        .in('id', categoryIds);
+
+      if (!categoriesResult.error) {
+        for (const row of (categoriesResult.data ?? []) as CategoryRow[]) {
+          if (row.id) {
+            categoryMap.set(row.id, row.name?.trim() || '기타');
+          }
+        }
+      }
+    }
+
+    const grouped = new Map<string, ProductRow[]>();
+    for (const product of products) {
+      const categoryName =
+        (product.category_id && categoryMap.get(product.category_id)) ||
+        product.category_name_raw ||
+        '기타';
+      const current = grouped.get(categoryName) ?? [];
+      current.push(product);
+      grouped.set(categoryName, current);
+    }
+
+    sections = Array.from(grouped.entries()).map(([name, items]) => ({
+      name,
+      items,
+    }));
   } catch (error) {
     if (error && typeof error === 'object' && 'message' in error) {
       const message = (error as { message?: unknown }).message;
@@ -93,36 +149,45 @@ export default async function StudioPage() {
             표시할 상품이 없습니다.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {products.map((product) => (
-              <Link
-                key={product.id}
-                href={`/studio/${product.id}`}
-                className="border border-[#333] bg-[#0a0a0a] hover:border-[#00ffd1] transition-colors overflow-hidden"
-              >
-                <div className="aspect-[4/3] bg-black border-b border-[#222]">
-                  {product.thumbnail_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={product.thumbnail_url}
-                      alt={product.title || 'product'}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
-                      NO IMAGE
-                    </div>
-                  )}
+          <div className="space-y-8">
+            {sections.map((section) => (
+              <section key={section.name} className="space-y-3">
+                <h2 className="font-heading text-3xl uppercase tracking-tight text-[#00ffd1]">
+                  {section.name}
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {section.items.map((product) => (
+                    <Link
+                      key={product.id}
+                      href={`/studio/${product.id}`}
+                      className="border border-[#333] bg-[#0a0a0a] hover:border-[#00ffd1] transition-colors overflow-hidden"
+                    >
+                      <div className="aspect-[4/3] bg-black border-b border-[#222]">
+                        {product.thumbnail_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={product.thumbnail_url}
+                            alt={product.title || 'product'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
+                            NO IMAGE
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <h2 className="font-heading text-2xl leading-none break-words">
+                          {product.title || '(untitled)'}
+                        </h2>
+                        <p className="font-mono text-sm text-[#00ffd1]">
+                          {formatPrice(product.price)}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
                 </div>
-                <div className="p-3 space-y-2">
-                  <h2 className="font-heading text-2xl leading-none break-words">
-                    {product.title || '(untitled)'}
-                  </h2>
-                  <p className="font-mono text-sm text-[#00ffd1]">
-                    {formatPrice(product.price)}
-                  </p>
-                </div>
-              </Link>
+              </section>
             ))}
           </div>
         )}

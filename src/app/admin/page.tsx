@@ -425,24 +425,24 @@ function AdminConsoleInner() {
     setIsSyncingSmartstore(true);
 
     try {
-      const response = await fetch('/api/smartstore/sync', { method: 'POST' });
+      const response = await fetch('/api/smartstore/import', { method: 'POST' });
       const payload = (await response.json()) as {
         ok?: boolean;
-        syncedCount?: number;
+        imported?: number;
         message?: string;
       };
 
       if (!response.ok || !payload.ok) {
-        throw new Error(payload.message || '스마트스토어 동기화 실패');
+        throw new Error(payload.message || '스마트스토어 import 실패');
       }
 
       setPageMessage(
-        `스마트스토어 동기화 완료 (${payload.syncedCount ?? 0}건)`,
+        `스마트스토어 import 완료 (${payload.imported ?? 0}건)`,
       );
       await loadProducts({ forcePublishedOnly: false });
     } catch (error) {
       setPageError(
-        error instanceof Error ? error.message : '스마트스토어 동기화 실패',
+        error instanceof Error ? error.message : '스마트스토어 import 실패',
       );
     } finally {
       setIsSyncingSmartstore(false);
@@ -485,8 +485,14 @@ function AdminConsoleInner() {
                 size={14}
                 className={isSyncingSmartstore ? 'animate-spin' : ''}
               />
-              {isSyncingSmartstore ? 'Syncing...' : 'Smartstore Sync'}
+              {isSyncingSmartstore ? 'Importing...' : 'Smartstore Import'}
             </button>
+            <Link
+              href="/admin/migrate"
+              className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+            >
+              One-time Import
+            </Link>
             <Link
               href="/admin/collections"
               className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"

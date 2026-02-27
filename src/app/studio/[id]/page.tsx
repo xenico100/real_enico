@@ -109,8 +109,18 @@ export default async function StudioDetailPage({ params }: PageProps) {
     (typeof data.description === 'string' && data.description) ||
     '';
   const images = normalizeImages(data.images);
+  const allImages = Array.from(
+    new Set([thumbnailUrl, ...images].filter((item): item is string => Boolean(item))),
+  );
   const detailHtml = detailRaw.trim();
-  const sanitized = detailHtml ? sanitizeDetailHtml(detailHtml) : '';
+  let sanitized = '';
+  if (detailHtml) {
+    try {
+      sanitized = sanitizeDetailHtml(detailHtml);
+    } catch {
+      sanitized = '';
+    }
+  }
   const plainText = detailHtml
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -156,9 +166,9 @@ export default async function StudioDetailPage({ params }: PageProps) {
               )}
             </div>
 
-            {images.length > 0 && (
+            {allImages.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {images.map((image, index) => (
+                {allImages.map((image, index) => (
                   <div
                     key={`${image}-${index}`}
                     className="aspect-square border border-[#222] bg-black overflow-hidden"
