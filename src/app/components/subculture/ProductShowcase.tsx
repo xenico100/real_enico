@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
 import { motion } from 'motion/react';
+import { PRODUCT_CATEGORIES } from '@/app/constants/productCategories';
 
 export interface Product {
   id: string;
@@ -27,43 +28,43 @@ const productsSeed: ProductSeed[] = [
   },
   {
     id: '의류-002',
-    name: '아방가르드 비대칭 코트',
-    category: '아우터',
+    name: '아방가르드 그래픽 셔츠',
+    category: '셔츠',
     price: 1250,
     image: 'https://images.unsplash.com/photo-1764998112680-2f617dc9be40?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdmFudCUyMGdhcmRlJTIwZmFzaGlvbiUyMGJsYWNrfGVufDF8fHx8MTc3MDE3Mjk0NXww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '해체 디테일이 들어간 실험적 실루엣 코트',
+    description: '해체 그래픽 포인트가 들어간 오버핏 셔츠',
   },
   {
     id: '의류-003',
-    name: '디스토피아 필드 재킷',
-    category: '아우터',
+    name: '디스토피아 카고 팬츠',
+    category: '팬츠',
     price: 980,
     image: 'https://images.unsplash.com/photo-1764697584354-eb6d52727e04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkeXN0b3BpYW4lMjBmYXNoaW9uJTIwZWRpdG9yaWFsfGVufDF8fHx8MTc3MDE3Mjk0MXww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '포스트 아포칼립스 무드와 기능 디테일의 조합',
+    description: '포스트 아포칼립스 무드의 와이드 카고 팬츠',
   },
   {
     id: '의류-004',
-    name: '인더스트리얼 컴뱃 부츠',
-    category: '신발',
+    name: '인더스트리얼 카고 백',
+    category: '가방',
     price: 450,
     image: 'https://images.unsplash.com/photo-1632513985069-e2559c8fa70b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bmRlcmdyb3VuZCUyMGZhc2hpb24lMjBib290c3xlbnwxfHx8fDE3NzAxNzI5NDF8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '강화 구조 디테일이 들어간 헤비 듀티 부츠',
+    description: '강화 구조 디테일이 들어간 헤비 유틸리티 백',
   },
   {
     id: '의류-005',
-    name: '리컨스트럭트 테크 재킷',
-    category: '아우터',
+    name: '리컨스트럭트 슬립 드레스',
+    category: '드레스',
     price: 1120,
     image: 'https://images.unsplash.com/photo-1628565931779-4f4f0b4f578a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZWNvbnN0cnVjdGVkJTIwamFja2V0JTIwZmFzaGlvbnxlbnwxfHx8fDE3NzAxNzI5NDV8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '모듈형 구성의 미래지향 스트리트웨어 재킷',
+    description: '모듈형 절개 포인트가 들어간 실험적 드레스',
   },
   {
     id: '의류-006',
-    name: '아나키 체인 하네스',
-    category: '액세서리',
+    name: '아나키 스티치 인형',
+    category: '인형',
     price: 320,
     image: 'https://images.unsplash.com/photo-1558015382-8feeaeb602f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwdW5rJTIwZmFzaGlvbiUyMGFjY2Vzc29yaWVzJTIwY2hhaW5zfGVufDF8fHx8MTc3MDE3Mjk0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '커스텀 하드웨어를 적용한 인더스트리얼 체인',
+    description: '핸드 스티치 디테일이 들어간 서브컬처 무드 인형',
   },
   {
     id: '의류-007',
@@ -75,11 +76,11 @@ const productsSeed: ProductSeed[] = [
   },
   {
     id: '의류-008',
-    name: '하이퍼리얼 액세서리 키트',
-    category: '액세서리',
+    name: '하이퍼리얼 유틸리티 백',
+    category: '가방',
     price: 560,
     image: 'https://images.unsplash.com/photo-1652766540048-de0a878a3266?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmR1c3RyaWFsJTIwZmFzaGlvbiUyMGFjY2Vzc29yaWVzfGVufDF8fHx8MTc3MDE3Mjk0Mnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '인더스트리얼 무드 액세서리 풀세트 구성',
+    description: '데일리 착용 가능한 인더스트리얼 무드 크로스백',
   },
 ];
 
@@ -112,7 +113,7 @@ interface ProductShowcaseProps {
 export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
   const [activeCategory, setActiveCategory] = useState('전체');
   const [isHydrated, setIsHydrated] = useState(false);
-  const categories = ['전체', '아우터', '신발', '액세서리'];
+  const categories = ['전체', ...PRODUCT_CATEGORIES];
 
   useEffect(() => {
     setIsHydrated(true);
@@ -122,12 +123,13 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
     ? products 
     : products.filter(product => product.category === activeCategory);
 
-  const categoryCounts = {
-    전체: products.length,
-    아우터: products.filter((product) => product.category === '아우터').length,
-    신발: products.filter((product) => product.category === '신발').length,
-    액세서리: products.filter((product) => product.category === '액세서리').length,
-  };
+  const categoryCounts = categories.reduce<Record<string, number>>((accumulator, category) => {
+    accumulator[category] =
+      category === '전체'
+        ? products.length
+        : products.filter((product) => product.category === category).length;
+    return accumulator;
+  }, {});
 
   const productCards = filteredProducts.map((product) => (
     <motion.div
@@ -193,12 +195,6 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
   return (
     <section id="clothes-section" className="py-20 bg-[#050505] min-h-screen border-t border-[#333] scroll-mt-24">
       <div className="px-4 md:px-10">
-        <div className="mb-6 inline-flex items-center gap-3 border border-[#333] bg-[#0b0b0b] px-3 py-2">
-          <span className="font-mono text-[10px] tracking-[0.2em] text-[#00ffd1]">구역_01</span>
-          <span className="h-3 w-px bg-[#333]" />
-          <span className="font-mono text-[13px] md:text-sm tracking-[0.18em] text-[#b8b8b8]">의류</span>
-        </div>
-        
         {/* Header - Industrial Label Style */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#333] pb-4">
           <div>

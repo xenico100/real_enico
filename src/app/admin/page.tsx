@@ -5,11 +5,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pencil, Plus, RefreshCcw, Trash2, Upload, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
+import {
+  DEFAULT_PRODUCT_CATEGORY,
+  PRODUCT_CATEGORIES,
+  isProductCategory,
+  type ProductCategory,
+} from '@/app/constants/productCategories';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type ProductRow = {
   id: string;
   title: string | null;
+  category: string | null;
   description: string | null;
   price: number | string | null;
   currency: string | null;
@@ -21,6 +28,7 @@ type ProductRow = {
 
 type ProductFormState = {
   title: string;
+  category: ProductCategory;
   description: string;
   price: string;
   currency: string;
@@ -37,6 +45,7 @@ const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 const emptyForm: ProductFormState = {
   title: '',
+  category: DEFAULT_PRODUCT_CATEGORY,
   description: '',
   price: '',
   currency: 'KRW',
@@ -147,7 +156,7 @@ function AdminConsoleInner() {
       const supabase = getSupabaseOrThrow();
       let query = supabase
         .from('products')
-        .select('id, title, description, price, currency, images, is_published, created_at, updated_at');
+        .select('id, title, category, description, price, currency, images, is_published, created_at, updated_at');
 
       const publishedOnly = opts?.forcePublishedOnly ?? !canManageProducts;
       if (publishedOnly) {
@@ -241,8 +250,10 @@ function AdminConsoleInner() {
   const startEditProduct = (product: ProductRow) => {
     clearMessages();
     setEditingProductId(product.id);
+    const categoryValue = product.category ?? '';
     setForm({
       title: product.title ?? '',
+      category: isProductCategory(categoryValue) ? categoryValue : DEFAULT_PRODUCT_CATEGORY,
       description: product.description ?? '',
       price: product.price === null || product.price === undefined ? '' : String(product.price),
       currency: product.currency ?? 'KRW',
@@ -328,6 +339,10 @@ function AdminConsoleInner() {
       setPageError('price는 필수입니다.');
       return;
     }
+    if (!isProductCategory(form.category)) {
+      setPageError('카테고리를 선택하세요.');
+      return;
+    }
 
     const parsedPrice = Number.parseInt(form.price, 10);
     if (Number.isNaN(parsedPrice)) {
@@ -343,6 +358,7 @@ function AdminConsoleInner() {
       const now = new Date().toISOString();
       const payload = {
         title: form.title.trim(),
+        category: form.category,
         description: form.description.trim() || null,
         price: parsedPrice,
         currency: form.currency.trim().toUpperCase() || 'KRW',
@@ -514,6 +530,30 @@ function AdminConsoleInner() {
                       placeholder="상품명"
                       required
                     />
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                      Category
+                    </label>
+                    <select
+                      value={form.category}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          category: isProductCategory(e.target.value)
+                            ? e.target.value
+                            : DEFAULT_PRODUCT_CATEGORY,
+                        }))
+                      }
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                    >
+                      {PRODUCT_CATEGORIES.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -755,6 +795,11 @@ function AdminConsoleInner() {
                               <h3 className="font-heading text-2xl uppercase tracking-tight leading-none break-words">
                                 {product.title || '(untitled)'}
                               </h3>
+                              <p className="font-mono text-[10px] text-[#00ffd1] mt-2 uppercase tracking-widest">
+                                {isProductCategory(product.category ?? '')
+                                  ? product.category
+                                  : DEFAULT_PRODUCT_CATEGORY}
+                              </p>
                               <p className="font-mono text-[10px] text-[#666] mt-2 break-all">
                                 {product.id}
                               </p>

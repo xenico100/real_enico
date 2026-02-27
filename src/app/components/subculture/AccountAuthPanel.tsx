@@ -91,18 +91,6 @@ export function AccountAuthPanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <div className="border border-[#333] bg-[#111] p-3">
-              <p className="text-[#666] mb-1">로그인 수단</p>
-              <p className="text-[#e5e5e5] uppercase">
-                {profile?.provider === 'google' ? '구글' : '이메일'}
-              </p>
-            </div>
-            <div className="border border-[#333] bg-[#111] p-3">
-              <p className="text-[#666] mb-1">사용자 식별값</p>
-              <p className="text-[#aaa] break-all">{user.id}</p>
-            </div>
-          </div>
         </div>
 
         {(statusMessage || errorMessage) && (

@@ -45,13 +45,10 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
               에니코 벡
               <span className="text-[#00ffd1] text-base md:text-xl align-top ml-1">®</span>
             </h1>
-            <p className="font-mono text-[10px] md:text-xs tracking-widest mt-1 opacity-60">
-              프로젝트_메이헴_2.0
-            </p>
           </motion.div>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex flex-col items-end gap-2 font-mono text-sm">
+          <nav className="hidden md:flex flex-col items-end gap-2 font-mono text-sm mr-4 lg:mr-8">
             {navItems.map((item, i) => (
               (() => {
                 const isFunctional = item.key === 'account' || item.key === 'mypage';
@@ -78,7 +75,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-mono text-[10px] tracking-[0.18em] text-[#666] group-hover:text-[#00ffd1]/70 transition-colors">
-                    05 /// 장바구니_패널
+                    장바구니
                   </p>
                   <p className="font-mono text-xs mt-1 text-white group-hover:text-[#00ffd1] transition-colors">
                     결제 창 열기

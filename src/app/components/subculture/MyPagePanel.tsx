@@ -6,7 +6,14 @@ import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { AccountAuthPanel } from './AccountAuthPanel';
 
-type MyPageTab = 'overview' | 'orders' | 'saved' | 'cart' | 'profile' | 'members';
+type MyPageTab =
+  | 'overview'
+  | 'orders'
+  | 'saved'
+  | 'cart'
+  | 'profile'
+  | 'members'
+  | 'adminOrders';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 type MemberRecord = {
@@ -26,6 +33,43 @@ type MemberDraft = {
   phone: string;
   address: string;
   password: string;
+};
+
+type AdminOrderItem = {
+  id: string;
+  name: string;
+  category: string;
+  selectedSize: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+type AdminOrderRecord = {
+  id: string;
+  orderCode: string;
+  channel: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  currency: string;
+  amountSubtotal: number;
+  amountShipping: number;
+  amountTax: number;
+  amountTotal: number;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerCountry: string;
+  customerAddress: string;
+  bankName: string;
+  bankAccountNumber: string;
+  paypalOrderId: string;
+  paypalCaptureId: string;
+  paypalCurrency: string;
+  paypalValue: string;
+  items: AdminOrderItem[];
+  createdAt: string | null;
+  updatedAt: string | null;
 };
 
 function formatDate(value: string | undefined) {
@@ -59,6 +103,11 @@ export function MyPagePanel() {
   const [membersLoaded, setMembersLoaded] = useState(false);
   const [memberMessage, setMemberMessage] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [adminOrders, setAdminOrders] = useState<AdminOrderRecord[]>([]);
+  const [adminOrdersLoaded, setAdminOrdersLoaded] = useState(false);
+  const [isLoadingAdminOrders, setIsLoadingAdminOrders] = useState(false);
+  const [adminOrderMessage, setAdminOrderMessage] = useState<string | null>(null);
+  const [adminOrderError, setAdminOrderError] = useState<string | null>(null);
   const isPrimaryAdmin = (user?.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
 
   const userDisplayName = useMemo(() => {
@@ -87,12 +136,18 @@ export function MyPagePanel() {
   ];
   if (isPrimaryAdmin) {
     tabs.push({ id: 'members', label: '회원관리', hint: '관리', count: members.length });
+    tabs.push({ id: 'adminOrders', label: '주문관리', hint: '거래', count: adminOrders.length });
   }
   const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
   const resetMemberMessages = () => {
     setMemberMessage(null);
     setMemberError(null);
+  };
+
+  const resetAdminOrderMessages = () => {
+    setAdminOrderMessage(null);
+    setAdminOrderError(null);
   };
 
   const loadMembers = useCallback(async () => {
@@ -238,8 +293,41 @@ export function MyPagePanel() {
     }
   };
 
+  const loadAdminOrders = useCallback(async () => {
+    if (!isPrimaryAdmin) return;
+    if (!session?.access_token) return;
+
+    resetAdminOrderMessages();
+    setIsLoadingAdminOrders(true);
+    try {
+      const response = await fetch('/api/admin/orders?limit=300', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const payload = (await response.json()) as {
+        orders?: AdminOrderRecord[];
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.message || '주문 목록 로드 실패');
+      }
+
+      const nextOrders = Array.isArray(payload.orders) ? payload.orders : [];
+      setAdminOrders(nextOrders);
+      setAdminOrdersLoaded(true);
+      setAdminOrderMessage(`주문 ${nextOrders.length}건 로드 완료`);
+    } catch (error) {
+      setAdminOrderError(error instanceof Error ? error.message : '주문 목록 로드 실패');
+    } finally {
+      setIsLoadingAdminOrders(false);
+    }
+  }, [isPrimaryAdmin, session?.access_token]);
+
   useEffect(() => {
-    if (!isPrimaryAdmin && activeTab === 'members') {
+    if (!isPrimaryAdmin && (activeTab === 'members' || activeTab === 'adminOrders')) {
       setActiveTab('overview');
     }
   }, [activeTab, isPrimaryAdmin]);
@@ -250,6 +338,13 @@ export function MyPagePanel() {
     if (membersLoaded) return;
     void loadMembers();
   }, [activeTab, isPrimaryAdmin, membersLoaded, loadMembers]);
+
+  useEffect(() => {
+    if (!isPrimaryAdmin) return;
+    if (activeTab !== 'adminOrders') return;
+    if (adminOrdersLoaded) return;
+    void loadAdminOrders();
+  }, [activeTab, adminOrdersLoaded, isPrimaryAdmin, loadAdminOrders]);
 
   if (!isAuthReady || !isAuthenticated || !user) {
     return (
@@ -424,6 +519,132 @@ export function MyPagePanel() {
         <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4">
           <p className="text-xs text-[#666]">향후 프로필 수정 폼(닉네임, 아바타 업로드) 연결 예정</p>
         </div>
+      </div>
+    ),
+    adminOrders: (
+      <div className="space-y-4">
+        {!isPrimaryAdmin ? (
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+            관리자 계정에서만 접근 가능한 탭입니다.
+          </div>
+        ) : (
+          <>
+            <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">주문 관리</p>
+                  <p className="text-xs text-[#9a9a9a] mt-2">
+                    계좌이체/PayPal 주문 목록을 확인할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadAdminOrders()}
+                  disabled={isLoadingAdminOrders}
+                  className="px-3 py-2 border border-[#333] bg-[#111] text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors disabled:opacity-50"
+                >
+                  {isLoadingAdminOrders ? '새로고침 중...' : '주문 새로고침'}
+                </button>
+              </div>
+            </div>
+
+            {(adminOrderMessage || adminOrderError) && (
+              <div
+                className={`border p-3 text-xs ${
+                  adminOrderError
+                    ? 'border-red-700 bg-red-950/20 text-red-300'
+                    : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+                }`}
+              >
+                {adminOrderError || adminOrderMessage}
+              </div>
+            )}
+
+            {isLoadingAdminOrders && adminOrders.length === 0 ? (
+              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+                주문 목록을 불러오는 중입니다...
+              </div>
+            ) : adminOrders.length === 0 ? (
+              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+                저장된 주문이 없습니다. 결제 완료 후 목록이 표시됩니다.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {adminOrders.map((order) => (
+                  <article key={order.id} className="border border-[#333] bg-[#111] p-4 space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-[#e5e5e5] break-all">
+                          주문번호: {order.orderCode || order.id}
+                        </p>
+                        <p className="text-[10px] text-[#666] mt-1">
+                          생성일: {formatDate(order.createdAt || undefined)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                        <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                          {order.paymentMethod || '-'}
+                        </span>
+                        <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                          {order.paymentStatus || '-'}
+                        </span>
+                        <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                          {order.channel || '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                      <div className="border border-[#333] bg-black p-3">
+                        <p className="text-[#666] mb-1">주문자</p>
+                        <p className="text-[#e5e5e5]">{order.customerName || '-'}</p>
+                        <p className="text-[#888] mt-1 break-all">{order.customerEmail || '-'}</p>
+                      </div>
+                      <div className="border border-[#333] bg-black p-3">
+                        <p className="text-[#666] mb-1">연락처</p>
+                        <p className="text-[#e5e5e5]">{order.customerPhone || '-'}</p>
+                        <p className="text-[#888] mt-1">{order.customerCountry || '-'}</p>
+                      </div>
+                      <div className="border border-[#333] bg-black p-3">
+                        <p className="text-[#666] mb-1">주문 금액</p>
+                        <p className="text-[#00ffd1] font-bold">
+                          {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
+                        </p>
+                        <p className="text-[#888] mt-1">
+                          항목 {Array.isArray(order.items) ? order.items.length : 0}개
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border border-[#333] bg-[#0d0d0d] p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-[#666] mb-2">배송지</p>
+                      <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
+                    </div>
+
+                    {Array.isArray(order.items) && order.items.length > 0 && (
+                      <div className="space-y-2">
+                        {order.items.map((item, index) => (
+                          <div
+                            key={`${order.id}-${item.id}-${index}`}
+                            className="border border-[#333] bg-[#0f0f0f] px-3 py-2 flex items-center justify-between gap-3 text-xs"
+                          >
+                            <p className="text-[#e5e5e5] truncate">
+                              {item.name} ({item.category || '-'})
+                              {item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : ''}
+                            </p>
+                            <p className="text-[#00ffd1] shrink-0">
+                              ×{item.quantity || 1} / {Number(item.lineTotal || 0).toLocaleString('ko-KR')}원
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     ),
     members: (
@@ -616,7 +837,7 @@ export function MyPagePanel() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
               <Link
                 href="/admin"
                 className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
@@ -629,6 +850,13 @@ export function MyPagePanel() {
               >
                 collection 게시물 관리
               </Link>
+              <button
+                type="button"
+                onClick={() => setActiveTab('adminOrders')}
+                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+              >
+                주문 목록 보기
+              </button>
             </div>
           </div>
         )}

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Trash2, CreditCard, Minus, Plus, ShieldCheck, Truck } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
+import { useAuth } from '@/app/context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface CartOverlayProps {
@@ -11,28 +12,189 @@ interface CartOverlayProps {
 }
 
 type CheckoutMode = 'cart' | 'checkout';
-type PaymentMethod = 'card' | 'bank' | 'cod';
+type OrderChannel = 'member' | 'guest';
+
+const BANK_NAME = '카카오뱅크';
+const BANK_ACCOUNT_NUMBER = '3333-09-2834967';
+const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
+const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
+const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpperCase();
+
+type PayPalClickActions = {
+  resolve: () => Promise<void>;
+  reject: () => Promise<void>;
+};
+
+type PayPalOrderActions = {
+  order: {
+    create: (payload: {
+      purchase_units: Array<{
+        amount: {
+          currency_code: string;
+          value: string;
+        };
+        description: string;
+      }>;
+    }) => Promise<string>;
+    capture: () => Promise<unknown>;
+  };
+};
+
+type PayPalButtonsInstance = {
+  render: (container: HTMLElement) => Promise<void>;
+  close?: () => Promise<void> | void;
+};
+
+type PayPalNamespace = {
+  Buttons: (options: {
+    onClick?: (_data: unknown, actions: PayPalClickActions) => Promise<void>;
+    createOrder: (_data: unknown, actions: PayPalOrderActions) => Promise<string>;
+    onApprove: (data: { orderID: string }, actions: PayPalOrderActions) => Promise<void>;
+    onError?: (_error: unknown) => void;
+    style?: {
+      layout?: 'vertical' | 'horizontal';
+      shape?: 'rect' | 'pill';
+      color?: 'gold' | 'blue' | 'silver' | 'white' | 'black';
+      label?: 'paypal' | 'checkout' | 'buynow' | 'pay' | 'installment';
+    };
+  }) => PayPalButtonsInstance;
+};
+
+declare global {
+  interface Window {
+    paypal?: PayPalNamespace;
+  }
+}
+
+function parsePayPalCapture(payload: unknown) {
+  if (!payload || typeof payload !== 'object') {
+    return {
+      status: null as string | null,
+      payerEmail: null as string | null,
+      captureId: null as string | null,
+      capturedAmount: {
+        currency: null as string | null,
+        value: null as string | null,
+      },
+    };
+  }
+
+  const target = payload as {
+    status?: unknown;
+    payer?: { email_address?: unknown };
+    purchase_units?: Array<{
+      amount?: { currency_code?: unknown; value?: unknown };
+      payments?: {
+        captures?: Array<{ id?: unknown }>;
+      };
+    }>;
+  };
+
+  const capture =
+    Array.isArray(target.purchase_units) &&
+    target.purchase_units[0] &&
+    target.purchase_units[0].payments &&
+    Array.isArray(target.purchase_units[0].payments?.captures)
+      ? target.purchase_units[0].payments?.captures?.[0]
+      : undefined;
+  const amount =
+    Array.isArray(target.purchase_units) && target.purchase_units[0]
+      ? target.purchase_units[0].amount
+      : undefined;
+
+  return {
+    status: typeof target.status === 'string' ? target.status : null,
+    payerEmail: typeof target.payer?.email_address === 'string' ? target.payer.email_address : null,
+    captureId: typeof capture?.id === 'string' ? capture.id : null,
+    capturedAmount: {
+      currency: typeof amount?.currency_code === 'string' ? amount.currency_code : null,
+      value: typeof amount?.value === 'string' ? amount.value : null,
+    },
+  };
+}
 
 function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
 export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
-  const { cart, removeFromCart, updateQuantity } = useFashionCart();
+  const { cart, removeFromCart, updateQuantity, clearCart } = useFashionCart();
+  const { isAuthenticated, user } = useAuth();
+  const paypalContainerRef = useRef<HTMLDivElement | null>(null);
+  const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
   const [mode, setMode] = useState<CheckoutMode>('cart');
   const [transactionId, setTransactionId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [checkoutEmail, setCheckoutEmail] = useState('');
   const [checkoutCountry, setCheckoutCountry] = useState('구역_1 (미국)');
   const [checkoutName, setCheckoutName] = useState('');
   const [checkoutAddress, setCheckoutAddress] = useState('');
+  const [checkoutPhone, setCheckoutPhone] = useState('');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [paypalSdkReady, setPaypalSdkReady] = useState(false);
+  const [paypalError, setPaypalError] = useState<string | null>(null);
+  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
     setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
     setMode('cart');
+    setCheckoutMessage(null);
+    setCheckoutError(null);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.email) return;
+    setCheckoutEmail((previous) => previous || user.email || '');
+  }, [isAuthenticated, user?.email]);
+
+  useEffect(() => {
+    if (!isOpen || mode !== 'checkout') return;
+    if (!PAYPAL_CLIENT_ID) {
+      setPaypalError('PayPal Client ID가 설정되지 않았습니다.');
+      return;
+    }
+    if (typeof window === 'undefined') return;
+
+    if (window.paypal) {
+      setPaypalSdkReady(true);
+      return;
+    }
+
+    const existingScript = document.getElementById(PAYPAL_SDK_SCRIPT_ID) as HTMLScriptElement | null;
+    const handleLoad = () => {
+      setPaypalSdkReady(true);
+      setPaypalError(null);
+    };
+    const handleError = () => {
+      setPaypalError('PayPal SDK 로드에 실패했습니다.');
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad);
+      existingScript.addEventListener('error', handleError);
+      return () => {
+        existingScript.removeEventListener('load', handleLoad);
+        existingScript.removeEventListener('error', handleError);
+      };
+    }
+
+    const script = document.createElement('script');
+    script.id = PAYPAL_SDK_SCRIPT_ID;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
+      PAYPAL_CLIENT_ID,
+    )}&currency=${encodeURIComponent(PAYPAL_CURRENCY)}&intent=capture&components=buttons`;
+    script.async = true;
+    script.addEventListener('load', handleLoad);
+    script.addEventListener('error', handleError);
+    document.body.appendChild(script);
+
+    return () => {
+      script.removeEventListener('load', handleLoad);
+      script.removeEventListener('error', handleError);
+    };
+  }, [isOpen, mode]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const shipping = subtotal > 500 ? 0 : 25;
@@ -40,6 +202,258 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const total = subtotal + shipping + tax;
   const canCheckout = cart.length > 0;
   const itemCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  const paypalOrderAmount =
+    PAYPAL_CURRENCY === 'KRW'
+      ? Math.max(1, Math.round(total)).toString()
+      : Math.max(1, Math.round((total / 1350) * 100) / 100).toFixed(2);
+
+  const validateCheckoutFields = (emailOverride?: string) => {
+    const normalizedName = checkoutName.trim();
+    const normalizedAddress = checkoutAddress.trim();
+    const normalizedPhone = checkoutPhone.trim();
+    const normalizedEmail = (emailOverride ?? checkoutEmail).trim();
+
+    if (!normalizedName || !normalizedAddress || !normalizedPhone || !normalizedEmail) {
+      setCheckoutError('이름, 주소, 핸드폰 번호, 이메일을 모두 입력하세요.');
+      return false;
+    }
+
+    if (!canCheckout) {
+      setCheckoutError('장바구니가 비어 있습니다.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const submitBankTransferOrder = async (channel: OrderChannel) => {
+    const normalizedName = checkoutName.trim();
+    const normalizedAddress = checkoutAddress.trim();
+    const normalizedPhone = checkoutPhone.trim();
+    const normalizedEmail = (channel === 'member' ? user?.email || checkoutEmail : checkoutEmail).trim();
+
+    setCheckoutMessage(null);
+    setCheckoutError(null);
+
+    if (!validateCheckoutFields(normalizedEmail)) return;
+
+    if (channel === 'member' && !isAuthenticated) {
+      setCheckoutError('회원 구매는 로그인 상태에서만 가능합니다.');
+      return;
+    }
+
+    setIsSubmittingOrder(true);
+    try {
+      const response = await fetch('/api/orders/bank-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId,
+          channel,
+          customer: {
+            name: normalizedName,
+            email: normalizedEmail,
+            phone: normalizedPhone,
+            country: checkoutCountry,
+            address: normalizedAddress,
+          },
+          bankAccount: {
+            bankName: BANK_NAME,
+            accountNumber: BANK_ACCOUNT_NUMBER,
+          },
+          pricing: {
+            subtotal,
+            shipping,
+            tax,
+            total,
+            currency: 'KRW',
+          },
+          items: cart.map((item) => {
+            const quantity = item.quantity || 1;
+            return {
+              id: item.id,
+              name: item.name,
+              category: item.category || '기타',
+              selectedSize: item.selectedSize || null,
+              quantity,
+              unitPrice: item.price,
+              lineTotal: item.price * quantity,
+            };
+          }),
+        }),
+      });
+
+      const payload = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message || '주문 접수 중 오류가 발생했습니다.');
+      }
+
+      setCheckoutMessage('주문이 접수되었습니다. 입금 확인 후 순차 처리됩니다.');
+      clearCart();
+      setMode('cart');
+      setCheckoutName('');
+      setCheckoutAddress('');
+      setCheckoutPhone('');
+      setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : '주문 전송에 실패했습니다.');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || mode !== 'checkout') return;
+    if (!paypalSdkReady || !window.paypal || !paypalContainerRef.current) return;
+    if (!canCheckout) return;
+
+    setPaypalError(null);
+    paypalContainerRef.current.innerHTML = '';
+
+    const paypalButtons = window.paypal.Buttons({
+      style: {
+        layout: 'vertical',
+        shape: 'rect',
+        color: 'gold',
+        label: 'paypal',
+      },
+      onClick: async (_data, actions) => {
+        setCheckoutError(null);
+        setCheckoutMessage(null);
+
+        if (!validateCheckoutFields()) {
+          await actions.reject();
+          return;
+        }
+
+        await actions.resolve();
+      },
+      createOrder: async (_data, actions) =>
+        actions.order.create({
+          purchase_units: [
+            {
+              amount: {
+                currency_code: PAYPAL_CURRENCY,
+                value: paypalOrderAmount,
+              },
+              description: `ENICO VECK ORDER ${transactionId}`,
+            },
+          ],
+        }),
+      onApprove: async (data, actions) => {
+        setCheckoutError(null);
+        setCheckoutMessage(null);
+        setIsSubmittingOrder(true);
+        try {
+          const capturePayload = await actions.order.capture();
+          const capture = parsePayPalCapture(capturePayload);
+          const normalizedName = checkoutName.trim();
+          const normalizedAddress = checkoutAddress.trim();
+          const normalizedPhone = checkoutPhone.trim();
+          const normalizedEmail =
+            capture.payerEmail || checkoutEmail.trim() || user?.email || '';
+          const channel: OrderChannel = isAuthenticated ? 'member' : 'guest';
+
+          const response = await fetch('/api/orders/paypal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transactionId,
+              channel,
+              customer: {
+                name: normalizedName,
+                email: normalizedEmail,
+                phone: normalizedPhone,
+                country: checkoutCountry,
+                address: normalizedAddress,
+              },
+              pricing: {
+                subtotal,
+                shipping,
+                tax,
+                total,
+                currency: 'KRW',
+              },
+              paypal: {
+                orderId: data.orderID,
+                captureId: capture.captureId,
+                status: capture.status,
+                currency: capture.capturedAmount.currency || PAYPAL_CURRENCY,
+                value: capture.capturedAmount.value || paypalOrderAmount,
+              },
+              items: cart.map((item) => {
+                const quantity = item.quantity || 1;
+                return {
+                  id: item.id,
+                  name: item.name,
+                  category: item.category || '기타',
+                  selectedSize: item.selectedSize || null,
+                  quantity,
+                  unitPrice: item.price,
+                  lineTotal: item.price * quantity,
+                };
+              }),
+            }),
+          });
+
+          const payload = (await response.json()) as { message?: string };
+          if (!response.ok) {
+            throw new Error(payload.message || 'PayPal 주문 후처리에 실패했습니다.');
+          }
+
+          setCheckoutMessage('PayPal 결제가 완료되었습니다. 주문이 접수되었습니다.');
+          clearCart();
+          setMode('cart');
+          setCheckoutName('');
+          setCheckoutAddress('');
+          setCheckoutPhone('');
+          setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
+        } catch (error) {
+          setCheckoutError(error instanceof Error ? error.message : 'PayPal 결제 처리 중 오류가 발생했습니다.');
+        } finally {
+          setIsSubmittingOrder(false);
+        }
+      },
+      onError: (error) => {
+        const message =
+          error instanceof Error ? error.message : 'PayPal 결제 처리 중 오류가 발생했습니다.';
+        setPaypalError(message);
+      },
+    });
+
+    paypalButtonsInstanceRef.current = paypalButtons;
+    void paypalButtons
+      .render(paypalContainerRef.current)
+      .catch(() => setPaypalError('PayPal 버튼 렌더링에 실패했습니다.'));
+
+    return () => {
+      const instance = paypalButtonsInstanceRef.current;
+      if (instance?.close) {
+        void instance.close();
+      }
+      paypalButtonsInstanceRef.current = null;
+    };
+  }, [
+    canCheckout,
+    cart,
+    checkoutAddress,
+    checkoutCountry,
+    checkoutEmail,
+    checkoutName,
+    checkoutPhone,
+    clearCart,
+    isAuthenticated,
+    isOpen,
+    mode,
+    paypalOrderAmount,
+    paypalSdkReady,
+    shipping,
+    subtotal,
+    tax,
+    total,
+    transactionId,
+    user?.email,
+  ]);
 
   return (
     <AnimatePresence>
@@ -231,6 +645,18 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                       <div>
                         <label className="block text-[10px] text-[#666] mb-2 uppercase">
+                          핸드폰 번호
+                        </label>
+                        <input
+                          type="tel"
+                          value={checkoutPhone}
+                          onChange={(e) => setCheckoutPhone(e.target.value)}
+                          placeholder="010-0000-0000"
+                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-[#666] mb-2 uppercase">
                           수령인 이름
                         </label>
                         <input
@@ -275,77 +701,44 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </div>
 
                   <div className="border border-[#333] bg-[#111] p-4">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-3">결제 수단</p>
-                    <div className="grid grid-cols-3 gap-2 mb-4">
-                      {([
-                        { id: 'card', label: '카드' },
-                        { id: 'bank', label: '계좌' },
-                        { id: 'cod', label: '착불' },
-                      ] as const).map((option) => (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => setPaymentMethod(option.id)}
-                          className={`border px-2 py-3 text-xs uppercase tracking-widest transition-colors ${
-                            paymentMethod === option.id
-                              ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#e5e5e5]'
-                              : 'border-[#333] bg-black text-[#888] hover:border-[#00ffd1] hover:text-[#00ffd1]'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-3">계좌이체 안내</p>
+                    <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/10 p-4">
+                      <p className="text-[10px] uppercase tracking-widest text-[#88ffe8]">입금 계좌</p>
+                      <p className="text-lg font-bold text-[#e5e5e5] mt-2">
+                        {BANK_NAME} {BANK_ACCOUNT_NUMBER}
+                      </p>
+                      <p className="text-xs text-[#9adfd1] mt-3 leading-relaxed">
+                        주문 접수 후 위 계좌로 입금해 주세요. 입금자명은 수령인 이름과 동일하게 입력해 주세요.
+                      </p>
                     </div>
-
-                    {paymentMethod === 'card' && (
-                      <div className="space-y-3">
-                        <input
-                          type="text"
-                          placeholder="카드 번호"
-                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1]"
-                        />
-                        <div className="grid grid-cols-2 gap-3">
-                          <input
-                            type="text"
-                            placeholder="월 / 연도"
-                            className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1]"
-                          />
-                          <input
-                            type="text"
-                            placeholder="보안코드"
-                            className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1]"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {paymentMethod === 'bank' && (
-                      <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-3 text-xs text-[#888]">
-                        승인 후 계좌이체 안내가 표시됩니다.
-                      </div>
-                    )}
-
-                    {paymentMethod === 'cod' && (
-                      <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-3 text-xs text-[#888]">
-                        착불이 선택되었습니다. 추가 확인이 필요할 수 있습니다.
-                      </div>
-                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div className="border border-[#333] bg-[#0d0d0d] p-3 flex items-start gap-2">
                       <ShieldCheck size={14} className="text-[#00ffd1] mt-0.5 shrink-0" />
                       <p className="text-[#999] leading-relaxed">
-                        안전 결제용 자리표시 UI입니다. 다음 단계에서 실제 결제 연동을 붙이세요.
+                        주문이 접수되면 관리자 메일로 주문자 정보와 주문 금액이 전달됩니다.
                       </p>
                     </div>
                     <div className="border border-[#333] bg-[#0d0d0d] p-3 flex items-start gap-2">
                       <Truck size={14} className="text-[#00ffd1] mt-0.5 shrink-0" />
                       <p className="text-[#999] leading-relaxed">
-                        실제 배송 연동 후 예상 배송 정보가 갱신됩니다.
+                        입금 확인 후 배송 절차가 시작되며, 확인 연락은 입력한 이메일로 안내됩니다.
                       </p>
                     </div>
                   </div>
+
+                  {(checkoutMessage || checkoutError) && (
+                    <div
+                      className={`border p-3 text-xs ${
+                        checkoutError
+                          ? 'border-red-700 bg-red-950/20 text-red-300'
+                          : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+                      }`}
+                    >
+                      {checkoutError || checkoutMessage}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -359,7 +752,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </div>
                   <div className="inline-flex items-center gap-2 border border-[#333] bg-[#111] px-3 py-2 text-[10px] uppercase tracking-widest">
                     <CreditCard size={12} className="text-[#00ffd1]" />
-                    <span className="text-[#aaa]">결제 준비 완료</span>
+                    <span className="text-[#aaa]">계좌이체 주문</span>
                   </div>
                 </div>
 
@@ -371,15 +764,51 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     결제로 이동
                   </button>
                 ) : (
-                  <div className="flex gap-3">
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void submitBankTransferOrder('member')}
+                        disabled={isSubmittingOrder || !isAuthenticated}
+                        className="py-4 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors uppercase text-xs tracking-widest disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[#00ffd1]"
+                      >
+                        {isSubmittingOrder ? '처리중...' : '회원 계좌이체 구매'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void submitBankTransferOrder('guest')}
+                        disabled={isSubmittingOrder}
+                        className="py-4 bg-[#00ffd1] text-black font-heading uppercase text-lg hover:bg-white transition-colors tracking-widest disabled:opacity-50"
+                      >
+                        {isSubmittingOrder ? '처리중...' : '비회원 구매'}
+                      </button>
+                    </div>
+                    <div className="border border-[#333] bg-[#0a0a0a] p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">
+                        PayPal 결제 (Sandbox)
+                      </p>
+                      <p className="text-[10px] text-[#777] mb-3">
+                        테스트 결제용 버튼입니다. 결제 완료 후 주문 메일이 발송됩니다.
+                      </p>
+                      {paypalError && (
+                        <p className="text-[10px] text-red-300 mb-2">{paypalError}</p>
+                      )}
+                      <div
+                        ref={paypalContainerRef}
+                        className="min-h-[44px]"
+                        aria-label="paypal-sandbox-button"
+                      />
+                    </div>
+                    {!isAuthenticated && (
+                      <p className="text-[10px] text-[#888]">
+                        회원 계좌이체 구매는 로그인 후 사용할 수 있습니다. 지금은 비회원 구매를 사용할 수 있습니다.
+                      </p>
+                    )}
                     <button
                       onClick={() => setMode('cart')}
-                      className="flex-1 py-4 border border-[#333] text-[#888] hover:text-[#e5e5e5] hover:border-[#e5e5e5] uppercase text-xs tracking-widest transition-colors"
+                      className="w-full py-3 border border-[#333] text-[#888] hover:text-[#e5e5e5] hover:border-[#e5e5e5] uppercase text-xs tracking-widest transition-colors"
                     >
                       장바구니로
-                    </button>
-                    <button className="flex-[2] py-4 bg-[#00ffd1] text-black font-heading uppercase text-xl hover:bg-white transition-colors tracking-widest">
-                      결제 승인
                     </button>
                   </div>
                 )}
