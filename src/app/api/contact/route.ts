@@ -19,8 +19,10 @@ function isEmail(value: string) {
 
 export async function POST(request: Request) {
   let payload: {
+    category?: string;
     name?: string;
     replyEmail?: string;
+    phone?: string;
     subject?: string;
     body?: string;
   } = {};
@@ -31,14 +33,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
   }
 
+  const category = normalizeText(payload.category) || '기타 문의';
   const name = normalizeText(payload.name);
   const replyEmail = normalizeText(payload.replyEmail).toLowerCase();
+  const phone = normalizeText(payload.phone);
   const subject = normalizeText(payload.subject);
   const body = normalizeBody(payload.body);
 
-  if (!name || !replyEmail || !subject || !body) {
+  if (!category || !name || !replyEmail || !subject || !body) {
     return NextResponse.json(
-      { message: '성함, 회신 이메일, 제목, 내용을 모두 입력해 주세요.' },
+      { message: '유형, 성함, 회신 이메일, 제목, 내용을 모두 입력해 주세요.' },
       { status: 400 },
     );
   }
@@ -58,23 +62,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const to = (
-    process.env.CONTACT_NOTIFICATION_EMAIL ||
-    process.env.ORDER_NOTIFICATION_EMAIL ||
-    DEFAULT_CONTACT_RECEIVER_EMAIL
-  ).trim();
+  const to = DEFAULT_CONTACT_RECEIVER_EMAIL;
   const from = (
     process.env.CONTACT_FROM_EMAIL ||
     process.env.ORDER_FROM_EMAIL ||
     'Enico Veck Contact <onboarding@resend.dev>'
   ).trim();
 
-  const subjectLine = `[연락문의] ${subject}`;
+  const subjectLine = `[연락게시글][${category}] ${subject}`;
   const text = [
-    '[사이트 연락 폼 문의]',
+    '[사이트 연락 게시글 접수]',
     '',
+    `문의 유형: ${category}`,
     `보낸 사람: ${name}`,
     `회신 이메일: ${replyEmail}`,
+    `연락처: ${phone || '-'}`,
     '',
     '[내용]',
     body,

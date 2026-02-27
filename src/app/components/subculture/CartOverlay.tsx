@@ -199,9 +199,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   }, [isOpen, mode]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-  const shipping = subtotal > 500 ? 0 : 25;
-  const tax = Math.round(subtotal * 0.08);
-  const total = subtotal + shipping + tax;
+  const shipping = 0;
+  const tax = 0;
+  const total = subtotal;
   const canCheckout = cart.length > 0;
   const itemCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
   const paypalOrderAmount =
@@ -523,9 +523,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             <div className="p-6 md:p-7 border-b border-[#333] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] text-[#00ffd1] uppercase tracking-[0.2em]">
-                    장바구니 / 결제 콘솔
-                  </p>
+                  <p className="text-[10px] text-[#00ffd1] uppercase tracking-[0.2em]">결제 콘솔</p>
                   <h2 className="text-3xl md:text-4xl font-heading font-black uppercase tracking-tighter leading-none mt-2">
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
@@ -553,7 +551,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 >
                   <p className="text-[10px] uppercase tracking-widest text-[#666]">단계 01</p>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-xs uppercase tracking-widest">장바구니</span>
+                    <span className="text-xs uppercase tracking-widest">상품</span>
                     <span className="text-[10px] text-[#00ffd1]">{itemCount}</span>
                   </div>
                 </button>
@@ -568,9 +566,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   } disabled:opacity-50 disabled:hover:border-[#333]`}
                 >
                   <p className="text-[10px] uppercase tracking-widest text-[#666]">단계 02</p>
-                  <div className="mt-2 flex items-center justify-between">
+                  <div className="mt-2">
                     <span className="text-xs uppercase tracking-widest">결제</span>
-                    <span className="text-[10px] text-[#00ffd1]">{canCheckout ? '준비됨' : '잠김'}</span>
                   </div>
                 </button>
               </div>
@@ -582,28 +579,36 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">주문 요약</p>
                     <p className="text-xs text-[#9a9a9a] mt-2">
-                      {itemCount}개 / {canCheckout ? '결제 가능' : '장바구니 비어있음'}
+                      {itemCount}개 상품
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] uppercase text-[#666]">최종 결제액</p>
-                    <p className="text-xl font-bold text-[#00ffd1]">{formatKrw(total)}</p>
+                    <p className="text-[10px] uppercase text-[#666]">주문 합계</p>
+                    <p className="text-xl font-bold text-[#00ffd1]">{formatKrw(subtotal)}</p>
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
-                  <div className="border border-[#222] bg-[#111] p-2">
-                    <p className="text-[#666]">상품합계</p>
-                    <p className="text-[#e5e5e5] mt-1">{formatKrw(subtotal)}</p>
-                  </div>
-                  <div className="border border-[#222] bg-[#111] p-2">
-                    <p className="text-[#666]">배송</p>
-                    <p className="text-[#e5e5e5] mt-1">{shipping === 0 ? '무료' : formatKrw(shipping)}</p>
-                  </div>
-                  <div className="border border-[#222] bg-[#111] p-2">
-                    <p className="text-[#666]">세금</p>
-                    <p className="text-[#e5e5e5] mt-1">{formatKrw(tax)}</p>
-                  </div>
+                <div className="mt-3 border border-[#222] bg-[#111] p-3 space-y-2">
+                  {canCheckout ? (
+                    cart.map((item) => {
+                      const quantity = item.quantity || 1;
+                      const lineTotal = item.price * quantity;
+                      return (
+                        <div
+                          key={`summary-${item.id}-${item.selectedSize ?? 'na'}`}
+                          className="flex items-center justify-between gap-3 text-[11px]"
+                        >
+                          <p className="text-[#d5d5d5] truncate">
+                            {item.name}
+                            {quantity > 1 ? ` x${quantity}` : ''}
+                          </p>
+                          <p className="text-[#e5e5e5] shrink-0">{formatKrw(lineTotal)}</p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-[11px] text-[#777]">주문할 상품이 없습니다.</p>
+                  )}
                 </div>
               </div>
 
@@ -810,8 +815,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               <div className="border-t border-[#333] bg-[#050505] p-6 md:p-7">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div className="text-xs text-[#888]">
-                    <p className="uppercase tracking-widest text-[#666]">최종 합계</p>
-                    <p className="text-lg text-[#e5e5e5] mt-1">{formatKrw(total)}</p>
+                    <p className="uppercase tracking-widest text-[#666]">주문 합계</p>
+                    <p className="text-lg text-[#e5e5e5] mt-1">{formatKrw(subtotal)}</p>
                   </div>
                   <div className="inline-flex items-center gap-2 border border-[#333] bg-[#111] px-3 py-2 text-[10px] uppercase tracking-widest">
                     <CreditCard size={12} className="text-[#00ffd1]" />

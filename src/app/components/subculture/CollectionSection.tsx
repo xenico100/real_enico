@@ -188,7 +188,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
       <div className="px-6 md:px-12 relative z-10">
         <div className="flex flex-col md:flex-row justify-between items-end mb-20 border-b-4 border-black pb-4">
           <div>
-            <h2 className="text-[9rem] md:text-[10.5rem] lg:text-[12rem] font-black font-heading uppercase tracking-tighter leading-[0.86]">
+            <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-black font-heading uppercase tracking-tighter leading-[0.86]">
               컬렉션
             </h2>
           </div>
@@ -254,8 +254,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
 
                 {/* Text Area */}
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center border-b border-black pb-2">
-                    <span className="font-mono text-xs font-bold bg-black text-white px-1">파일 #{collection.id}</span>
+                  <div className="border-b border-black pb-2">
                     <span className="font-mono text-xs text-gray-500">{collection.season}</span>
                   </div>
                   

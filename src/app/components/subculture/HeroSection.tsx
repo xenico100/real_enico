@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from 'motion/react';
 import { useState, useEffect, useRef } from 'react';
 
 export function HeroSection() {
-  const brandName = '에니코 벡';
+  const brandName = 'ENICO VECK';
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const y2 = useTransform(scrollY, [0, 500], [0, -100]);

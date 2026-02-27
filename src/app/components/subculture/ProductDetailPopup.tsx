@@ -13,7 +13,6 @@ interface ProductDetailPopupProps {
 
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
   const { addToCart } = useFashionCart();
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const productImages = useMemo(() => {
@@ -46,7 +45,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   };
 
   const handleAddToCart = () => {
-    addToCart({ ...product, quantity: 1, selectedSize });
+    addToCart({ ...product, quantity: 1 });
     onClose();
   };
 
@@ -104,10 +103,6 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                   이미지 없음
                 </div>
               )}
-
-              <div className="absolute bottom-4 left-4 z-20 bg-black text-[#00ffd1] px-2 py-1 font-mono text-xs border border-[#00ffd1]">
-                도면 {product.id} // {activeImageIndex + 1}/{Math.max(productImages.length, 1)}
-              </div>
 
               {canSlide && (
                 <>
@@ -199,26 +194,6 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 </p>
               </div>
 
-              {/* Sizes */}
-              <div className="mb-8">
-                <p className="font-mono text-xs text-[#666] mb-3 uppercase">옵션 선택:</p>
-                <div className="flex gap-2">
-                  {['초소', '소', '중', '대', '특대'].map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      className={`w-10 h-10 flex items-center justify-center font-mono text-xs border ${
-                        selectedSize === size 
-                          ? 'bg-[#00ffd1] text-black border-[#00ffd1] font-bold' 
-                          : 'bg-transparent text-[#666] border-[#333] hover:border-[#e5e5e5] hover:text-[#e5e5e5]'
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Extended Detail Sections (scrollable) */}
               <div className="mb-10 space-y-6 border-t border-[#333] pt-6">
                 <div className="grid grid-cols-2 gap-3 font-mono text-[11px]">
@@ -262,16 +237,11 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
 
               <button
                 onClick={handleAddToCart}
-                disabled={!selectedSize}
-                className={`w-full py-4 px-6 font-mono font-bold text-sm uppercase tracking-widest border transition-all duration-300 relative overflow-hidden group ${
-                  !selectedSize 
-                    ? 'bg-[#1a1a1a] text-[#444] border-[#333] cursor-not-allowed' 
-                    : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
-                }`}
+                className="w-full py-4 px-6 font-mono font-bold text-sm uppercase tracking-widest border transition-all duration-300 relative overflow-hidden group bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black"
               >
-                 <div className={`absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out ${!selectedSize ? 'hidden' : ''}`} />
+                 <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
                  <span className="relative z-10 flex justify-between items-center w-full">
-                    <span>{selectedSize ? '장바구니 담기' : '사이즈 선택'}</span>
+                    <span>장바구니 담기</span>
                     <span>→</span>
                  </span>
               </button>

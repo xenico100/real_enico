@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
 import { motion } from 'motion/react';
-import { PRODUCT_CATEGORIES } from '@/app/constants/productCategories';
+import {
+  DEFAULT_PRODUCT_CATEGORY,
+  PRODUCT_CATEGORIES,
+  isProductCategory,
+  type ProductCategory,
+} from '@/app/constants/productCategories';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export interface Product {
   id: string;
@@ -93,7 +99,7 @@ const detailImagePool = [
   'https://images.unsplash.com/photo-1504593811423-6dd665756598?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
 ];
 
-const products: Product[] = productsSeed.map((product, index) => {
+const fallbackProducts: Product[] = productsSeed.map((product, index) => {
   const extraImages = [
     detailImagePool[index % detailImagePool.length],
     detailImagePool[(index + 2) % detailImagePool.length],
@@ -106,6 +112,241 @@ const products: Product[] = productsSeed.map((product, index) => {
   };
 });
 
+type SmartstoreProductRow = {
+  id: string;
+  source: string | null;
+  smartstore_channel_product_no: number | string | null;
+  title: string | null;
+  price: number | string | null;
+  thumbnail_url: string | null;
+  images: unknown;
+  detail_html: string | null;
+  raw: unknown;
+  synced_at: string | null;
+};
+
+const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
+
+function normalizeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
+}
+
+function extractRawText(raw: unknown, keys: string[]) {
+  if (!raw || typeof raw !== 'object') return '';
+  const target = raw as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = target[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+}
+
+function extractRawImages(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const target = raw as Record<string, unknown>;
+  const candidates: string[] = [];
+
+  const push = (value: unknown) => {
+    candidates.push(...normalizeStringArray(value));
+  };
+
+  push(target.images);
+  push(target.image_urls);
+  push(target.imageUrls);
+  push(target.productImages);
+  push(target.additionalImages);
+  push(target.optionalImages);
+  push(target.detailImages);
+
+  const singleKeys = [
+    'thumbnail_url',
+    'thumbnailUrl',
+    'representImageUrl',
+    'represent_image_url',
+    'imageUrl',
+    'image_url',
+    'originImageUrl',
+  ];
+
+  for (const key of singleKeys) {
+    const value = target[key];
+    if (typeof value === 'string' && value.trim()) {
+      candidates.push(value.trim());
+    }
+  }
+
+  return candidates;
+}
+
+function normalizeImagesForProduct(
+  imagesValue: unknown,
+  thumbnailUrl: string | null,
+  raw: unknown,
+) {
+  const merged = [
+    ...normalizeStringArray(imagesValue),
+    ...extractRawImages(raw),
+    ...(thumbnailUrl ? [thumbnailUrl.trim()] : []),
+  ].filter((item) => item.length > 0);
+
+  return Array.from(new Set(merged));
+}
+
+function htmlToPlainText(value: string | null) {
+  if (!value) return '';
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function inferCategory(text: string): ProductCategory {
+  const normalized = text.toLowerCase();
+
+  if (
+    normalized.includes('셔츠') ||
+    normalized.includes('남방') ||
+    normalized.includes('블라우스') ||
+    normalized.includes('shirt')
+  ) {
+    return '셔츠';
+  }
+
+  if (
+    normalized.includes('팬츠') ||
+    normalized.includes('바지') ||
+    normalized.includes('슬랙스') ||
+    normalized.includes('데님') ||
+    normalized.includes('pants') ||
+    normalized.includes('jean')
+  ) {
+    return '팬츠';
+  }
+
+  if (
+    normalized.includes('가방') ||
+    normalized.includes('백') ||
+    normalized.includes('bag') ||
+    normalized.includes('backpack') ||
+    normalized.includes('토트')
+  ) {
+    return '가방';
+  }
+
+  if (
+    normalized.includes('인형') ||
+    normalized.includes('doll') ||
+    normalized.includes('toy') ||
+    normalized.includes('plush')
+  ) {
+    return '인형';
+  }
+
+  if (
+    normalized.includes('드레스') ||
+    normalized.includes('원피스') ||
+    normalized.includes('dress') ||
+    normalized.includes('skirt')
+  ) {
+    return '드레스';
+  }
+
+  if (
+    normalized.includes('아우터') ||
+    normalized.includes('자켓') ||
+    normalized.includes('점퍼') ||
+    normalized.includes('코트') ||
+    normalized.includes('베스트') ||
+    normalized.includes('outer') ||
+    normalized.includes('jacket') ||
+    normalized.includes('coat') ||
+    normalized.includes('vest')
+  ) {
+    return '아우터';
+  }
+
+  return DEFAULT_PRODUCT_CATEGORY;
+}
+
+function resolveCategory(row: SmartstoreProductRow) {
+  const explicit = extractRawText(row.raw, [
+    'category',
+    'category_name',
+    'categoryName',
+    'wholeCategoryName',
+    'firstCategoryName',
+    'secondCategoryName',
+    'leafCategoryName',
+  ]);
+
+  if (isProductCategory(explicit)) {
+    return explicit;
+  }
+
+  return inferCategory(`${explicit} ${row.title || ''}`);
+}
+
+function mapSmartstoreRowToProduct(row: SmartstoreProductRow): Product | null {
+  const images = normalizeImagesForProduct(row.images, row.thumbnail_url, row.raw);
+  const plainDetail = htmlToPlainText(row.detail_html);
+  const rawDescription = extractRawText(row.raw, [
+    'description',
+    'summary',
+    'content',
+    'detail',
+    'detailSummary',
+  ]);
+
+  const title =
+    row.title?.trim() ||
+    `상품 ${row.smartstore_channel_product_no || row.id}`;
+  const numericPrice = Number(row.price);
+  const price = Number.isFinite(numericPrice) ? numericPrice : 0;
+  const description = plainDetail || rawDescription || `${title} 상세 페이지`;
+
+  return {
+    id: row.id,
+    name: title,
+    category: resolveCategory(row),
+    price,
+    image: images[0] || FALLBACK_IMAGE_URL,
+    images: images.length > 0 ? images : [FALLBACK_IMAGE_URL],
+    description,
+  };
+}
+
 interface ProductShowcaseProps {
   onProductClick: (product: Product) => void;
 }
@@ -113,21 +354,68 @@ interface ProductShowcaseProps {
 export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
   const [activeCategory, setActiveCategory] = useState('전체');
   const [isHydrated, setIsHydrated] = useState(false);
+  const [dbProducts, setDbProducts] = useState<Product[] | null>(null);
+  const [isLoadingDbProducts, setIsLoadingDbProducts] = useState(false);
+  const [dbLoadError, setDbLoadError] = useState<string | null>(null);
   const categories = ['전체', ...PRODUCT_CATEGORIES];
 
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadSmartstoreProducts = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+
+      setIsLoadingDbProducts(true);
+      setDbLoadError(null);
+
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select(
+            'id, source, smartstore_channel_product_no, title, price, thumbnail_url, images, detail_html, raw, synced_at',
+          )
+          .order('synced_at', { ascending: false });
+
+        if (error) throw error;
+        if (!active) return;
+
+        const normalized = ((data ?? []) as SmartstoreProductRow[])
+          .map(mapSmartstoreRowToProduct)
+          .filter((item): item is Product => Boolean(item));
+
+        setDbProducts(normalized.length > 0 ? normalized : null);
+      } catch (error) {
+        if (!active) return;
+        setDbLoadError(
+          error instanceof Error ? error.message : '스마트스토어 게시물 로드 실패',
+        );
+      } finally {
+        if (active) setIsLoadingDbProducts(false);
+      }
+    };
+
+    void loadSmartstoreProducts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const catalogProducts = dbProducts && dbProducts.length > 0 ? dbProducts : fallbackProducts;
+
   const filteredProducts = activeCategory === '전체' 
-    ? products 
-    : products.filter(product => product.category === activeCategory);
+    ? catalogProducts 
+    : catalogProducts.filter(product => product.category === activeCategory);
 
   const categoryCounts = categories.reduce<Record<string, number>>((accumulator, category) => {
     accumulator[category] =
       category === '전체'
-        ? products.length
-        : products.filter((product) => product.category === category).length;
+        ? catalogProducts.length
+        : catalogProducts.filter((product) => product.category === category).length;
     return accumulator;
   }, {});
 
@@ -164,11 +452,6 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
          <div className="absolute inset-0 bg-[#0a0a0a] z-0" />
          
          <div className="relative z-10 flex flex-col gap-2">
-           <div className="flex justify-between items-start border-b border-[#333] pb-2 mb-2">
-             <span className="font-mono text-[10px] text-[#00ffd1]">{product.id}</span>
-             <span className="font-mono text-[10px] text-[#666]">재고있음</span>
-           </div>
-           
            <h3 className="font-heading text-xl uppercase leading-none text-[#e5e5e5] group-hover:text-[#00ffd1] transition-colors">
              {product.name}
            </h3>
@@ -182,13 +465,6 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
          </div>
       </div>
 
-      {/* "Sticker" */}
-      <div className="absolute top-2 right-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform rotate-12">
-         <div className="bg-[#00ffd1] text-black font-heading text-xs px-2 py-1 uppercase tracking-tighter border border-white">
-           도면.0{product.id.split('-')[1]}
-         </div>
-      </div>
-
     </motion.div>
   ));
 
@@ -198,7 +474,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
         {/* Header - Industrial Label Style */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#333] pb-4">
           <div>
-            <h2 className="text-[9rem] md:text-[10.5rem] lg:text-[12rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.86]">
+            <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.86]">
               의류
             </h2>
           </div>
@@ -214,7 +490,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
                 <div className="text-right font-mono">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">표시 수</p>
                   <p className="text-sm text-[#e5e5e5]">
-                    <span className="text-[#00ffd1] font-bold">{filteredProducts.length}</span> / {products.length}
+                    <span className="text-[#00ffd1] font-bold">{filteredProducts.length}</span> / {catalogProducts.length}
                   </p>
                 </div>
               </div>
@@ -287,6 +563,18 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
             </div>
           </div>
         </div>
+
+        {(isLoadingDbProducts || dbLoadError) && (
+          <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px]">
+            {isLoadingDbProducts ? (
+              <p className="text-[#9a9a9a]">스마트스토어 게시물 불러오는 중...</p>
+            ) : (
+              <p className="text-[#ff9f9f]">
+                스마트스토어 게시물 로드 실패로 기본 게시물을 표시합니다.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Grid */}
         {isHydrated ? (

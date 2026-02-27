@@ -103,6 +103,7 @@ function AdminConsoleInner() {
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isSyncingSmartstore, setIsSyncingSmartstore] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -414,6 +415,40 @@ function AdminConsoleInner() {
     }
   };
 
+  const handleSyncSmartstore = async () => {
+    if (!canManageProducts) {
+      setPageError('관리자만 동기화를 실행할 수 있습니다.');
+      return;
+    }
+
+    clearMessages();
+    setIsSyncingSmartstore(true);
+
+    try {
+      const response = await fetch('/api/smartstore/sync', { method: 'POST' });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        syncedCount?: number;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || '스마트스토어 동기화 실패');
+      }
+
+      setPageMessage(
+        `스마트스토어 동기화 완료 (${payload.syncedCount ?? 0}건)`,
+      );
+      await loadProducts({ forcePublishedOnly: false });
+    } catch (error) {
+      setPageError(
+        error instanceof Error ? error.message : '스마트스토어 동기화 실패',
+      );
+    } finally {
+      setIsSyncingSmartstore(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-[#e5e5e5]">
       <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 md:py-12">
@@ -439,6 +474,18 @@ function AdminConsoleInner() {
             >
               <RefreshCcw size={14} className={isLoadingProducts ? 'animate-spin' : ''} />
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSyncSmartstore()}
+              disabled={!canManageProducts || isSyncingSmartstore}
+              className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors disabled:opacity-50"
+            >
+              <RefreshCcw
+                size={14}
+                className={isSyncingSmartstore ? 'animate-spin' : ''}
+              />
+              {isSyncingSmartstore ? 'Syncing...' : 'Smartstore Sync'}
             </button>
             <Link
               href="/admin/collections"
