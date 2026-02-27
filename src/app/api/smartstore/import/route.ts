@@ -1,14 +1,24 @@
 export const runtime = 'nodejs';
 
-console.log('DEBUG ENV ID:', process.env.NAVER_COMMERCE_CLIENT_ID);
-console.log('DEBUG ENV SECRET:', process.env.NAVER_COMMERCE_CLIENT_SECRET);
-
 import { NextResponse } from 'next/server';
 import { importAllSmartStoreProducts } from '@/lib/smartstoreImport';
 
 export async function POST() {
   if (process.env.NODE_ENV !== 'development') {
     return NextResponse.json({ ok: false, error: 'dev_only' }, { status: 403 });
+  }
+
+  const CLIENT_ID = process.env.NAVER_COMMERCE_CLIENT_ID;
+  const CLIENT_SECRET = process.env.NAVER_COMMERCE_CLIENT_SECRET;
+
+  console.log('DEBUG ENV ID:', CLIENT_ID);
+  console.log('DEBUG ENV SECRET:', CLIENT_SECRET);
+
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    return NextResponse.json(
+      { ok: false, error: 'env_missing' },
+      { status: 500 },
+    );
   }
 
   try {

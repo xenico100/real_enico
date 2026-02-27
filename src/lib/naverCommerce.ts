@@ -1,8 +1,5 @@
 import crypto from 'crypto';
 
-const CLIENT_ID = process.env.NAVER_COMMERCE_CLIENT_ID!;
-const CLIENT_SECRET = process.env.NAVER_COMMERCE_CLIENT_SECRET!;
-
 function base64url(input: Buffer) {
   return input
     .toString('base64')
@@ -12,6 +9,9 @@ function base64url(input: Buffer) {
 }
 
 export async function getAccessToken() {
+  const CLIENT_ID = process.env.NAVER_COMMERCE_CLIENT_ID;
+  const CLIENT_SECRET = process.env.NAVER_COMMERCE_CLIENT_SECRET;
+
   if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error(
       'NAVER_COMMERCE_CLIENT_ID / NAVER_COMMERCE_CLIENT_SECRET 환경변수가 필요합니다.',

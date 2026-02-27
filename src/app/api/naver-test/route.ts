@@ -1,6 +1,3 @@
-console.log('ID:', process.env.NAVER_COMMERCE_CLIENT_ID);
-console.log('SECRET:', process.env.NAVER_COMMERCE_CLIENT_SECRET);
-
 export async function GET() {
   return Response.json(
     {
