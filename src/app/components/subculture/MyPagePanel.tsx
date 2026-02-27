@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { AccountAuthPanel } from './AccountAuthPanel';
 
 type MyPageTab = 'overview' | 'orders' | 'saved' | 'cart' | 'profile';
+const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 function formatDate(value: string | undefined) {
   if (!value) return '-';
@@ -22,6 +24,7 @@ export function MyPagePanel() {
   const { isAuthenticated, isAuthReady, user, profile } = useAuth();
   const { cart } = useFashionCart();
   const [activeTab, setActiveTab] = useState<MyPageTab>('overview');
+  const isPrimaryAdmin = (user?.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
 
   const userDisplayName = useMemo(() => {
     if (!user) return null;
@@ -246,6 +249,37 @@ export function MyPagePanel() {
             {(userDisplayName || '?').slice(0, 1).toUpperCase()}
           </div>
         </div>
+
+        {isPrimaryAdmin && (
+          <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4 mb-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">관리자 작성 도구</p>
+                <p className="text-xs text-[#9a9a9a] mt-2">
+                  의류(clothes)와 컬렉션(collection) 게시물 작성은 관리자 계정에서만 가능합니다.
+                </p>
+              </div>
+              <span className="border border-[#00ffd1]/40 bg-black px-2 py-1 text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                {PRIMARY_ADMIN_EMAIL}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+              <Link
+                href="/admin"
+                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+              >
+                clothes 게시물 작성
+              </Link>
+              <Link
+                href="/admin/collections"
+                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+              >
+                collection 게시물 작성
+              </Link>
+            </div>
+          </div>
+        )}
 
         <div className="border border-[#222] bg-black/40 p-2.5">
           <div className="flex items-center justify-between gap-3 mb-2 px-1">

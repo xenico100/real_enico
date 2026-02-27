@@ -20,6 +20,7 @@ export function AccountAuthPanel() {
     clearMessages,
     signInWithEmail,
     signUpWithEmail,
+    signInWithGoogle,
     signOut,
     deleteMyAccount,
     refreshProfile,
@@ -257,6 +258,7 @@ export function AccountAuthPanel() {
         </div>
 
         <GoogleLoginButton
+          onLogin={() => signInWithGoogle()}
           disabled={isBusy}
           className="w-full py-4 px-4 bg-[#00ffd1] text-black font-bold uppercase tracking-[0.12em] hover:bg-[#b8fff1] transition-colors disabled:opacity-50 flex items-center justify-center gap-3"
         >

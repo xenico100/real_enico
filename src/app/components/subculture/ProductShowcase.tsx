@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { SquarePen } from 'lucide-react';
 import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
 import { motion } from 'motion/react';
 
@@ -12,10 +10,13 @@ export interface Product {
   category: string;
   price: number;
   image: string;
+  images: string[];
   description: string;
 }
 
-const products: Product[] = [
+type ProductSeed = Omit<Product, 'images'>;
+
+const productsSeed: ProductSeed[] = [
   {
     id: '의류-001',
     name: '전술 해체 베스트',
@@ -81,6 +82,28 @@ const products: Product[] = [
     description: '인더스트리얼 무드 액세서리 풀세트 구성',
   },
 ];
+
+const detailImagePool = [
+  'https://images.unsplash.com/photo-1483985988355-763728e1935b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
+  'https://images.unsplash.com/photo-1496747611176-843222e1e57c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
+  'https://images.unsplash.com/photo-1445205170230-053b83016050?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
+  'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
+  'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
+  'https://images.unsplash.com/photo-1504593811423-6dd665756598?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
+];
+
+const products: Product[] = productsSeed.map((product, index) => {
+  const extraImages = [
+    detailImagePool[index % detailImagePool.length],
+    detailImagePool[(index + 2) % detailImagePool.length],
+    detailImagePool[(index + 4) % detailImagePool.length],
+  ];
+
+  return {
+    ...product,
+    images: Array.from(new Set([product.image, ...extraImages])),
+  };
+});
 
 interface ProductShowcaseProps {
   onProductClick: (product: Product) => void;
@@ -186,31 +209,6 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
           </div>
           
           <div className="w-full md:w-auto mt-8 md:mt-0 md:min-w-[520px] flex flex-col gap-3">
-            <div className="border border-[#333] bg-[#090909] p-3 md:p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-[#00ffd1]">
-                    의류 게시물
-                  </p>
-                  <p className="font-mono text-[10px] text-[#666] mt-1">
-                    작성한 게시물만 노출할 거면 여기서 바로 글쓰기 진입
-                  </p>
-                </div>
-                <Link
-                  href="/admin"
-                  className="group inline-flex items-center justify-between gap-3 border border-[#333] bg-[#0b0b0b] px-3 py-2.5 hover:border-[#00ffd1] hover:bg-[#101010] transition-colors"
-                >
-                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#666] group-hover:text-[#00ffd1]/70 transition-colors">
-                    관리자
-                  </span>
-                  <span className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-[#e5e5e5] group-hover:text-[#00ffd1] transition-colors">
-                    <SquarePen size={14} strokeWidth={1.6} />
-                    글쓰기
-                  </span>
-                </Link>
-              </div>
-            </div>
-
             <div className="border border-[#333] bg-[#090909] p-3 md:p-4">
               <div className="flex items-center justify-between gap-4 mb-3">
                 <div>

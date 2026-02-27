@@ -52,9 +52,9 @@ export function HeroSection() {
       <motion.div style={{ y: y1 }} className="absolute top-1/4 left-10 z-10 hidden md:block">
         <div className="border border-[#00ffd1] p-4 bg-black/80 backdrop-blur-sm max-w-xs rotate-[-5deg]">
           <p className="font-mono text-[10px] text-[#00ffd1] uppercase leading-relaxed">
-            "전부 잃고 나서야, 뭐든 할 자유가 생긴다."
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           </p>
-          <div className="mt-2 text-right text-[8px] text-white">/// 규칙_01</div>
+          <div className="mt-2 text-right text-[8px] text-white">/// xxxxx_xx</div>
         </div>
       </motion.div>
 
@@ -108,7 +108,7 @@ export function HeroSection() {
             경고: 고자극 콘텐츠
           </div>
           <p className="font-mono text-xs md:text-sm max-w-md text-[#888] leading-relaxed">
-            우리는 시대의 중간에 끼인 세대다. 목적도 자리도 없다. 거대한 전쟁도, 대공황도 없다. 우리의 전쟁은 정신 안에서 벌어진다...
+            반지하 원룸에서 옷만드는 미친놈 옷 보기
           </p>
         </div>
 

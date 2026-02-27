@@ -1,18 +1,49 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 interface ProductDetailPopupProps {
-  product: any;
+  product: Product;
   onClose: () => void;
 }
 
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
   const { addToCart } = useFashionCart();
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  const productImages = useMemo(() => {
+    const normalized = Array.isArray(product.images)
+      ? product.images.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : [];
+
+    if (normalized.length > 0) {
+      return Array.from(new Set(normalized.map((item) => item.trim())));
+    }
+
+    if (typeof product.image === 'string' && product.image.trim().length > 0) {
+      return [product.image.trim()];
+    }
+
+    return [];
+  }, [product.image, product.images]);
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [product.id]);
+
+  const canSlide = productImages.length > 1;
+  const activeImage = productImages[activeImageIndex] || '';
+
+  const moveImage = (direction: 'next' | 'prev') => {
+    if (!canSlide) return;
+    const delta = direction === 'next' ? 1 : -1;
+    setActiveImageIndex((prev) => (prev + delta + productImages.length) % productImages.length);
+  };
 
   const handleAddToCart = () => {
     addToCart({ ...product, quantity: 1, selectedSize });
@@ -58,61 +89,89 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
             <X size={24} />
           </button>
 
-          {/* Left: Images (Scrollable Gallery) */}
-          <div className="w-full md:w-1/2 min-h-0 relative bg-black overflow-y-auto scrollbar-hide">
-             {/* Main Image */}
-             <div className="relative w-full aspect-[3/4] group">
-               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay z-10" />
-               <img 
-                 src={product.image} 
-                 alt={product.name} 
-                 className="w-full h-full object-cover contrast-125 brightness-90 group-hover:scale-105 transition-transform duration-700 ease-out"
-               />
-               <div className="absolute bottom-4 left-4 z-20 bg-black text-[#00ffd1] px-2 py-1 font-mono text-xs border border-[#00ffd1]">
-                 도면 {product.id} // 메인
-               </div>
-               {/* Scan line */}
-               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#00ffd1]/10 to-transparent h-[10px] w-full animate-[scan_2s_linear_infinite] pointer-events-none z-20 mix-blend-screen opacity-50" />
-             </div>
+          {/* Left: Images (Shopping Gallery) */}
+          <div className="w-full md:w-1/2 min-h-0 relative bg-black border-b md:border-b-0 md:border-r border-[#333]">
+            <div className="relative w-full aspect-[3/4] group">
+              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay z-10" />
+              {activeImage ? (
+                <img
+                  src={activeImage}
+                  alt={`${product.name} 상세 이미지 ${activeImageIndex + 1}`}
+                  className="w-full h-full object-cover contrast-125 brightness-90 group-hover:scale-105 transition-transform duration-700 ease-out"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-[#111] text-[#666] font-mono text-xs">
+                  이미지 없음
+                </div>
+              )}
 
-             {/* Detail Shot 1 - Grayscale High Contrast */}
-             <div className="relative w-full aspect-square group border-t border-[#333]">
-                <img 
-                 src={product.image} 
-                 alt="상세 이미지 1" 
-                 className="w-full h-full object-cover grayscale contrast-150 brightness-75 group-hover:scale-110 transition-transform duration-700"
-               />
-               <div className="absolute top-4 left-4 z-20 bg-black text-white px-2 py-1 font-mono text-xs border border-white">
-                 상세 // 텍스처
-               </div>
-             </div>
+              <div className="absolute bottom-4 left-4 z-20 bg-black text-[#00ffd1] px-2 py-1 font-mono text-xs border border-[#00ffd1]">
+                도면 {product.id} // {activeImageIndex + 1}/{Math.max(productImages.length, 1)}
+              </div>
 
-             {/* Detail Shot 2 - Inverted / X-Ray */}
-             <div className="relative w-full aspect-[4/3] group border-t border-[#333] overflow-hidden">
-                <img 
-                 src={product.image} 
-                 alt="상세 이미지 2" 
-                 className="w-full h-full object-cover invert hue-rotate-180 mix-blend-difference opacity-80 group-hover:scale-105 transition-transform duration-700"
-               />
-               <div className="absolute bottom-4 right-4 z-20 bg-[#00ffd1] text-black px-2 py-1 font-mono text-xs border border-black">
-                 스캔모드 // 엑스레이
-               </div>
-             </div>
-             
-             {/* Detail Shot 3 - Zoomed */}
-             <div className="relative w-full aspect-square group border-t border-[#333] overflow-hidden">
-                <img 
-                 src={product.image} 
-                 alt="상세 이미지 3" 
-                 className="w-full h-full object-cover scale-150 group-hover:scale-[1.6] transition-transform duration-700"
-               />
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 border border-[#00ffd1] w-20 h-20 rounded-full flex items-center justify-center">
-                 <div className="w-1 h-1 bg-[#00ffd1]" />
-               </div>
-               <div className="absolute bottom-4 left-4 z-20 bg-black text-white px-2 py-1 font-mono text-xs border border-white">
-                 확대 // 매크로
-               </div>
-             </div>
+              {canSlide && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="이전 이미지"
+                    onClick={() => moveImage('prev')}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 border border-[#333] bg-black/80 text-[#e5e5e5] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors flex items-center justify-center"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="다음 이미지"
+                    onClick={() => moveImage('next')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 border border-[#333] bg-black/80 text-[#e5e5e5] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors flex items-center justify-center"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-[#333] bg-[#0a0a0a]">
+              <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-[#666] mb-3">
+                상세 사진 {Math.max(productImages.length, 1)}장
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {(productImages.length > 0 ? productImages : ['']).map((image, index) => {
+                  const active = index === activeImageIndex;
+                  return (
+                    <button
+                      key={`${product.id}-thumb-${index}`}
+                      type="button"
+                      onClick={() => setActiveImageIndex(index)}
+                      className={`relative aspect-square overflow-hidden border ${
+                        active ? 'border-[#00ffd1]' : 'border-[#333] hover:border-[#00ffd1]/70'
+                      } transition-colors`}
+                    >
+                      {image ? (
+                        <img
+                          src={image}
+                          alt={`${product.name} 썸네일 ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-[#111] flex items-center justify-center text-[10px] text-[#555] font-mono">
+                          없음
+                        </div>
+                      )}
+                      <span
+                        className={`absolute left-1 top-1 text-[10px] font-mono px-1 border ${
+                          active
+                            ? 'bg-[#00ffd1] text-black border-[#00ffd1]'
+                            : 'bg-black/80 text-[#aaa] border-[#333]'
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Right: Info (Terminal) */}

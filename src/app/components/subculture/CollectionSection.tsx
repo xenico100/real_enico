@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { SquarePen } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
@@ -203,18 +201,9 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
               /// 화이트보드 게시물 / 큐레이션 보관함
             </p>
           </div>
-          <div className="flex flex-col items-start md:items-end gap-3">
-            <p className="font-mono text-sm uppercase tracking-widest bg-black text-white px-2">
-              /// onlyfans
-            </p>
-            <Link
-              href="/admin/collections"
-              className="inline-flex items-center gap-2 border-2 border-black bg-white px-3 py-2 font-mono text-xs uppercase tracking-widest hover:bg-black hover:text-white transition-colors"
-            >
-              <SquarePen size={14} strokeWidth={1.7} />
-              글쓰기
-            </Link>
-          </div>
+          <p className="font-mono text-sm uppercase tracking-widest bg-black text-white px-2">
+            /// curated feed
+          </p>
         </div>
 
         {collectionLoadError && collections === null && (
@@ -231,7 +220,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
           <div className="border-2 border-black bg-white p-10 text-center">
             <p className="font-heading text-4xl uppercase leading-none">컬렉션 없음</p>
             <p className="font-mono text-xs text-black/60 mt-4">
-              `/admin/collections`에서 새 컬렉션 게시물을 작성하세요.
+              곧 새로운 컬렉션 게시물이 올라옵니다.
             </p>
           </div>
         ) : (

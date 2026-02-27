@@ -33,6 +33,8 @@ type AdminRow = {
   created_at?: string | null;
 };
 
+const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
+
 const emptyForm: ProductFormState = {
   title: '',
   description: '',
@@ -186,6 +188,15 @@ function AdminConsoleInner() {
       }
 
       if (active) setIsCheckingAdmin(true);
+
+      const normalizedEmail = (user.email || '').toLowerCase();
+      if (normalizedEmail === PRIMARY_ADMIN_EMAIL) {
+        if (active) {
+          setIsAdmin(true);
+          setIsCheckingAdmin(false);
+        }
+        return;
+      }
 
       try {
         const supabase = getSupabaseOrThrow();

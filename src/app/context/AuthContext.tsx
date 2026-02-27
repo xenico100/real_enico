@@ -56,16 +56,32 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function getFriendlyErrorMessage(error: unknown) {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'message' in error &&
-    typeof error.message === 'string'
-  ) {
-    return error.message;
+  if (typeof error === 'string') {
+    return error;
   }
 
-  return 'Unknown error';
+  if (error && typeof error === 'object') {
+    const payload = error as Record<string, unknown>;
+    const message =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.msg === 'string' && payload.msg) ||
+      (typeof payload.error_description === 'string' && payload.error_description) ||
+      '';
+
+    const normalized = message.toLowerCase();
+    if (
+      normalized.includes('unsupported provider') ||
+      normalized.includes('provider is not enabled')
+    ) {
+      return '구글 로그인이 비활성화되어 있습니다. Supabase 대시보드 > Authentication > Providers > Google에서 Enable 후 Client ID/Secret을 저장하세요.';
+    }
+
+    if (message) {
+      return message;
+    }
+  }
+
+  return '알 수 없는 오류가 발생했습니다.';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

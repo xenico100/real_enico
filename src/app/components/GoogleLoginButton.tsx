@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { supabase } from '@/lib/supabase/client';
 
 interface GoogleLoginButtonProps {
   className?: string;
   disabled?: boolean;
   children?: ReactNode;
+  onLogin?: () => Promise<void> | void;
 }
 
 function GoogleIcon() {
@@ -36,21 +36,17 @@ export default function GoogleLoginButton({
   className,
   disabled,
   children,
+  onLogin,
 }: GoogleLoginButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const login = async () => {
     if (disabled || isLoading) return;
-    if (!supabase) return;
+    if (!onLogin) return;
 
     setIsLoading(true);
     try {
-      await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(location.pathname)}`,
-        },
-      });
+      await onLogin();
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +55,7 @@ export default function GoogleLoginButton({
   return (
     <button
       onClick={login}
-      disabled={disabled || isLoading || !supabase}
+      disabled={disabled || isLoading || !onLogin}
       className={className ?? 'inline-flex items-center gap-3 px-4 py-2 border border-[#333] bg-[#111] text-white'}
       type="button"
       aria-label="구글 로그인"

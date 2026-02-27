@@ -12,11 +12,12 @@ import { ProductDetailPopup } from '@/app/components/subculture/ProductDetailPop
 import { CollectionDetailPopup } from '@/app/components/subculture/CollectionDetailPopup';
 import { FashionCartProvider } from '@/app/context/FashionCartContext';
 import type { Collection } from '@/app/components/subculture/CollectionSection';
+import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'account' | 'mypage' | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [isGlitching, setIsGlitching] = useState(false);
   const [isBootFxActive, setIsBootFxActive] = useState(true);
