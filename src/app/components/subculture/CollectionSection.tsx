@@ -186,15 +186,9 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
       <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/crumpled-paper.png')]" />
 
       <div className="px-6 md:px-12 relative z-10">
-        <div className="mb-6 inline-flex items-center gap-3 border-2 border-black bg-white/90 px-3 py-2">
-          <span className="font-mono text-[10px] tracking-[0.2em] text-black">구역_02</span>
-          <span className="h-3 w-px bg-black/30" />
-          <span className="font-mono text-[13px] md:text-sm tracking-[0.18em] text-black">컬렉션</span>
-        </div>
-
         <div className="flex flex-col md:flex-row justify-between items-end mb-20 border-b-4 border-black pb-4">
           <div>
-            <h2 className="text-8xl md:text-[9rem] lg:text-[10rem] font-black font-heading uppercase tracking-tighter leading-[0.9]">
+            <h2 className="text-[9rem] md:text-[10.5rem] lg:text-[12rem] font-black font-heading uppercase tracking-tighter leading-[0.86]">
               컬렉션
             </h2>
           </div>

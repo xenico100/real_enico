@@ -198,7 +198,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
         {/* Header - Industrial Label Style */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#333] pb-4">
           <div>
-            <h2 className="text-8xl md:text-[9rem] lg:text-[10rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.9]">
+            <h2 className="text-[9rem] md:text-[10.5rem] lg:text-[12rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.86]">
               의류
             </h2>
           </div>

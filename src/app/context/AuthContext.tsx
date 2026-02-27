@@ -32,6 +32,8 @@ interface EmailCredentials {
 
 interface SignUpCredentials extends EmailCredentials {
   fullName?: string;
+  phone?: string;
+  address?: string;
 }
 
 interface AuthContextValue {
@@ -227,6 +229,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email,
     password,
     fullName,
+    phone,
+    address,
   }: SignUpCredentials) => {
     await runAction(async () => {
       const supabase = requireClient();
@@ -236,6 +240,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: {
           data: {
             full_name: fullName?.trim() || undefined,
+            phone: phone?.trim() || undefined,
+            address: address?.trim() || undefined,
           },
         },
       });

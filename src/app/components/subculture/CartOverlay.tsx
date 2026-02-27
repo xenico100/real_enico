@@ -129,6 +129,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [checkoutName, setCheckoutName] = useState('');
   const [checkoutAddress, setCheckoutAddress] = useState('');
   const [checkoutPhone, setCheckoutPhone] = useState('');
+  const [guestLookupPassword, setGuestLookupPassword] = useState('');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [paypalSdkReady, setPaypalSdkReady] = useState(false);
   const [paypalError, setPaypalError] = useState<string | null>(null);
@@ -142,6 +143,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     setMode('cart');
     setCheckoutMessage(null);
     setCheckoutError(null);
+    setGuestLookupPassword('');
   }, [isOpen]);
 
   useEffect(() => {
@@ -242,6 +244,12 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       return;
     }
 
+    const normalizedGuestLookupPassword = guestLookupPassword.trim();
+    if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
+      setCheckoutError('비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.');
+      return;
+    }
+
     setIsSubmittingOrder(true);
     try {
       const response = await fetch('/api/orders/bank-transfer', {
@@ -268,6 +276,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             total,
             currency: 'KRW',
           },
+          guestLookupPassword:
+            channel === 'guest' ? normalizedGuestLookupPassword : undefined,
           items: cart.map((item) => {
             const quantity = item.quantity || 1;
             return {
@@ -283,17 +293,30 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
         }),
       });
 
-      const payload = (await response.json()) as { message?: string };
+      const payload = (await response.json()) as {
+        message?: string;
+        guestOrderNumber?: string | null;
+      };
       if (!response.ok) {
         throw new Error(payload.message || '주문 접수 중 오류가 발생했습니다.');
       }
 
-      setCheckoutMessage('주문이 접수되었습니다. 입금 확인 후 순차 처리됩니다.');
+      if (channel === 'guest' && payload.guestOrderNumber) {
+        window.alert(
+          `비회원 주문번호는 ${payload.guestOrderNumber} 입니다. 로그인 탭의 비회원 주문조회에서 사용하세요.`,
+        );
+        setCheckoutMessage(
+          `비회원 주문이 접수되었습니다. 주문번호: ${payload.guestOrderNumber} (로그인 탭의 비회원 주문조회에서 사용)`,
+        );
+      } else {
+        setCheckoutMessage('주문이 접수되었습니다. 입금 확인 후 순차 처리됩니다.');
+      }
       clearCart();
       setMode('cart');
       setCheckoutName('');
       setCheckoutAddress('');
       setCheckoutPhone('');
+      setGuestLookupPassword('');
       setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : '주문 전송에 실패했습니다.');
@@ -326,6 +349,12 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           return;
         }
 
+        if (!isAuthenticated && guestLookupPassword.trim().length < 4) {
+          setCheckoutError('비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.');
+          await actions.reject();
+          return;
+        }
+
         await actions.resolve();
       },
       createOrder: async (_data, actions) =>
@@ -353,6 +382,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           const normalizedEmail =
             capture.payerEmail || checkoutEmail.trim() || user?.email || '';
           const channel: OrderChannel = isAuthenticated ? 'member' : 'guest';
+          const normalizedGuestLookupPassword = guestLookupPassword.trim();
 
           const response = await fetch('/api/orders/paypal', {
             method: 'POST',
@@ -374,6 +404,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 total,
                 currency: 'KRW',
               },
+              guestLookupPassword:
+                channel === 'guest' ? normalizedGuestLookupPassword : undefined,
               paypal: {
                 orderId: data.orderID,
                 captureId: capture.captureId,
@@ -396,17 +428,30 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             }),
           });
 
-          const payload = (await response.json()) as { message?: string };
+          const payload = (await response.json()) as {
+            message?: string;
+            guestOrderNumber?: string | null;
+          };
           if (!response.ok) {
             throw new Error(payload.message || 'PayPal 주문 후처리에 실패했습니다.');
           }
 
-          setCheckoutMessage('PayPal 결제가 완료되었습니다. 주문이 접수되었습니다.');
+          if (channel === 'guest' && payload.guestOrderNumber) {
+            window.alert(
+              `비회원 주문번호는 ${payload.guestOrderNumber} 입니다. 로그인 탭의 비회원 주문조회에서 사용하세요.`,
+            );
+            setCheckoutMessage(
+              `PayPal 결제 완료. 비회원 주문번호: ${payload.guestOrderNumber} (로그인 탭의 비회원 주문조회에서 사용)`,
+            );
+          } else {
+            setCheckoutMessage('PayPal 결제가 완료되었습니다. 주문이 접수되었습니다.');
+          }
           clearCart();
           setMode('cart');
           setCheckoutName('');
           setCheckoutAddress('');
           setCheckoutPhone('');
+          setGuestLookupPassword('');
           setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
         } catch (error) {
           setCheckoutError(error instanceof Error ? error.message : 'PayPal 결제 처리 중 오류가 발생했습니다.');
@@ -439,6 +484,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     checkoutAddress,
     checkoutCountry,
     checkoutEmail,
+    guestLookupPassword,
     checkoutName,
     checkoutPhone,
     clearCart,
@@ -697,6 +743,23 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5] resize-none"
                         />
                       </div>
+                      {!isAuthenticated && (
+                        <div>
+                          <label className="block text-[10px] text-[#666] mb-2 uppercase">
+                            비회원 주문조회 비밀번호 (4자 이상)
+                          </label>
+                          <input
+                            type="password"
+                            value={guestLookupPassword}
+                            onChange={(e) => setGuestLookupPassword(e.target.value)}
+                            placeholder="비회원 주문조회용 비밀번호 입력"
+                            className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          />
+                          <p className="text-[10px] text-[#777] mt-2">
+                            비회원 주문 완료 후 발급되는 주문번호 + 이 비밀번호로 배송조회가 가능합니다.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -801,7 +864,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     </div>
                     {!isAuthenticated && (
                       <p className="text-[10px] text-[#888]">
-                        회원 계좌이체 구매는 로그인 후 사용할 수 있습니다. 지금은 비회원 구매를 사용할 수 있습니다.
+                        회원 계좌이체 구매는 로그인 후 사용할 수 있습니다. 비회원은 결제 시 설정한 비밀번호와 주문번호로 배송조회가 가능합니다.
                       </p>
                     )}
                     <button

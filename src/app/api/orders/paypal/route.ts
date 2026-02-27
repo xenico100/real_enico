@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import {
+  generateGuestOrderNumber,
+  hashGuestLookupPassword,
+} from '@/lib/orders/guestLookup';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -19,6 +23,7 @@ type OrderItem = {
 type PayPalOrderPayload = {
   transactionId: string;
   channel: OrderChannel;
+  guestLookupPassword: string | null;
   customer: {
     name: string;
     email: string;
@@ -43,6 +48,11 @@ type PayPalOrderPayload = {
   items: OrderItem[];
 };
 
+type PersistGuestMeta = {
+  guestOrderNumber: string | null;
+  guestPasswordHash: string | null;
+};
+
 function getServerConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -64,6 +74,13 @@ function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
+function normalizeGuestLookupPassword(payload: Partial<PayPalOrderPayload>) {
+  if (payload.channel !== 'guest') return null;
+  if (!isNonEmptyString(payload.guestLookupPassword)) return null;
+  const normalized = payload.guestLookupPassword.trim();
+  return normalized.length >= 4 ? normalized : null;
+}
+
 function validatePayload(body: unknown): PayPalOrderPayload | null {
   if (!body || typeof body !== 'object') return null;
   const payload = body as Partial<PayPalOrderPayload>;
@@ -79,6 +96,7 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
   const pricing = payload.pricing;
   const paypal = payload.paypal;
   const items = payload.items;
+  const normalizedGuestLookupPassword = normalizeGuestLookupPassword(payload);
 
   if (
     !customer ||
@@ -96,6 +114,10 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
     !isNonEmptyString(paypal.currency) ||
     !isNonEmptyString(paypal.value)
   ) {
+    return null;
+  }
+
+  if (payload.channel === 'guest' && !normalizedGuestLookupPassword) {
     return null;
   }
 
@@ -152,6 +174,7 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
   return {
     transactionId: payload.transactionId.trim(),
     channel: payload.channel,
+    guestLookupPassword: normalizedGuestLookupPassword,
     customer: {
       name: customer.name.trim(),
       email: customer.email.trim(),
@@ -177,7 +200,14 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
   };
 }
 
-function buildEmailText(payload: PayPalOrderPayload) {
+function buildRawPayload(payload: PayPalOrderPayload) {
+  return {
+    ...payload,
+    guestLookupPassword: payload.channel === 'guest' ? '[REDACTED]' : null,
+  };
+}
+
+function buildEmailText(payload: PayPalOrderPayload, guestOrderNumber: string | null) {
   const lines = payload.items.map((item, index) => {
     const sizeText = item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : '';
     return `${index + 1}. ${item.name} (${item.category}${sizeText}) x${item.quantity} = ${formatKrw(item.lineTotal)}`;
@@ -187,6 +217,7 @@ function buildEmailText(payload: PayPalOrderPayload) {
     '[PayPal 주문 접수]',
     `거래번호: ${payload.transactionId}`,
     `구매유형: ${payload.channel === 'member' ? '회원 구매' : '비회원 구매'}`,
+    ...(guestOrderNumber ? [`비회원 주문조회 번호: ${guestOrderNumber}`] : []),
     '',
     '[PayPal 결제 정보]',
     `Order ID: ${payload.paypal.orderId}`,
@@ -212,7 +243,7 @@ function buildEmailText(payload: PayPalOrderPayload) {
   ].join('\n');
 }
 
-async function sendOrderEmail(payload: PayPalOrderPayload) {
+async function sendOrderEmail(payload: PayPalOrderPayload, guestOrderNumber: string | null) {
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
     throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
@@ -232,7 +263,7 @@ async function sendOrderEmail(payload: PayPalOrderPayload) {
       from,
       to: [to],
       subject,
-      text: buildEmailText(payload),
+      text: buildEmailText(payload, guestOrderNumber),
       reply_to: payload.customer.email,
     }),
   });
@@ -247,7 +278,7 @@ async function sendOrderEmail(payload: PayPalOrderPayload) {
   }
 }
 
-async function persistOrder(payload: PayPalOrderPayload) {
+async function persistOrder(payload: PayPalOrderPayload, guestMeta: PersistGuestMeta) {
   const config = getServerConfig();
   if (!config) {
     throw new Error(
@@ -278,13 +309,21 @@ async function persistOrder(payload: PayPalOrderPayload) {
     paypal_capture_id: payload.paypal.captureId,
     paypal_currency: payload.paypal.currency,
     paypal_value: payload.paypal.value,
+    guest_order_number: guestMeta.guestOrderNumber,
+    guest_password_hash: guestMeta.guestPasswordHash,
+    shipping_status: 'preparing',
     items: payload.items,
-    raw_payload: payload,
+    raw_payload: buildRawPayload(payload),
   });
 
   if (error) {
     if (error.code === '42P01') {
       throw new Error('orders 테이블이 없습니다. sql/orders_setup.sql을 먼저 실행하세요.');
+    }
+    if (error.code === '42703') {
+      throw new Error(
+        'orders 테이블 컬럼이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행해 주세요.',
+      );
     }
     throw new Error(`주문 저장 실패: ${error.message}`);
   }
@@ -301,10 +340,21 @@ export async function POST(request: Request) {
       );
     }
 
-    await persistOrder(payload);
-    await sendOrderEmail(payload);
+    const guestOrderNumber =
+      payload.channel === 'guest' ? generateGuestOrderNumber() : null;
+    const guestPasswordHash =
+      payload.channel === 'guest' && payload.guestLookupPassword
+        ? hashGuestLookupPassword(payload.guestLookupPassword)
+        : null;
 
-    return NextResponse.json({ ok: true, message: 'PayPal 주문 접수 및 메일 발송 완료' });
+    await persistOrder(payload, { guestOrderNumber, guestPasswordHash });
+    await sendOrderEmail(payload, guestOrderNumber);
+
+    return NextResponse.json({
+      ok: true,
+      message: 'PayPal 주문 접수 및 메일 발송 완료',
+      guestOrderNumber,
+    });
   } catch (error) {
     return NextResponse.json(
       {

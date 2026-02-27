@@ -45,9 +45,12 @@ type AdminOrderItem = {
   lineTotal: number;
 };
 
-type AdminOrderRecord = {
+type ShippingStatus = 'preparing' | 'shipping' | 'delivered';
+
+type OrderRecord = {
   id: string;
   orderCode: string;
+  guestOrderNumber: string;
   channel: string;
   paymentMethod: string;
   paymentStatus: string;
@@ -68,8 +71,24 @@ type AdminOrderRecord = {
   paypalCurrency: string;
   paypalValue: string;
   items: AdminOrderItem[];
+  shippingStatus: ShippingStatus;
+  shippingCompany: string;
+  trackingNumber: string;
+  shippingNote: string;
+  shippedAt: string | null;
+  deliveredAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+};
+
+type AdminOrderRecord = OrderRecord;
+type MemberOrderRecord = OrderRecord;
+
+type AdminOrderDraft = {
+  shippingStatus: ShippingStatus;
+  shippingCompany: string;
+  trackingNumber: string;
+  shippingNote: string;
 };
 
 function formatDate(value: string | undefined) {
@@ -83,6 +102,25 @@ function formatDate(value: string | undefined) {
   }).format(date);
 }
 
+function formatDateTime(value: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function getShippingStatusLabel(status: ShippingStatus) {
+  if (status === 'shipping') return '배송중';
+  if (status === 'delivered') return '배송완료';
+  return '배송준비중';
+}
+
 function createMemberDraft(member: MemberRecord): MemberDraft {
   return {
     email: member.email || '',
@@ -90,6 +128,15 @@ function createMemberDraft(member: MemberRecord): MemberDraft {
     phone: member.phone || '',
     address: member.address || '',
     password: '',
+  };
+}
+
+function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
+  return {
+    shippingStatus: order.shippingStatus || 'preparing',
+    shippingCompany: order.shippingCompany || '',
+    trackingNumber: order.trackingNumber || '',
+    shippingNote: order.shippingNote || '',
   };
 }
 
@@ -103,7 +150,13 @@ export function MyPagePanel() {
   const [membersLoaded, setMembersLoaded] = useState(false);
   const [memberMessage, setMemberMessage] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [memberOrders, setMemberOrders] = useState<MemberOrderRecord[]>([]);
+  const [memberOrdersLoaded, setMemberOrdersLoaded] = useState(false);
+  const [isLoadingMemberOrders, setIsLoadingMemberOrders] = useState(false);
+  const [memberOrderMessage, setMemberOrderMessage] = useState<string | null>(null);
+  const [memberOrderError, setMemberOrderError] = useState<string | null>(null);
   const [adminOrders, setAdminOrders] = useState<AdminOrderRecord[]>([]);
+  const [adminOrderDrafts, setAdminOrderDrafts] = useState<Record<string, AdminOrderDraft>>({});
   const [adminOrdersLoaded, setAdminOrdersLoaded] = useState(false);
   const [isLoadingAdminOrders, setIsLoadingAdminOrders] = useState(false);
   const [adminOrderMessage, setAdminOrderMessage] = useState<string | null>(null);
@@ -129,7 +182,7 @@ export function MyPagePanel() {
 
   const tabs: { id: MyPageTab; label: string; hint: string; count?: number }[] = [
     { id: 'overview', label: '개요', hint: '요약' },
-    { id: 'orders', label: '주문', hint: '이력', count: 0 },
+    { id: 'orders', label: '주문', hint: '이력', count: memberOrders.length },
     { id: 'saved', label: '저장됨', hint: '게시물', count: 0 },
     { id: 'cart', label: '장바구니', hint: '결제', count: cart.length },
     { id: 'profile', label: '프로필', hint: '신원', count: undefined },
@@ -143,6 +196,11 @@ export function MyPagePanel() {
   const resetMemberMessages = () => {
     setMemberMessage(null);
     setMemberError(null);
+  };
+
+  const resetMemberOrderMessages = () => {
+    setMemberOrderMessage(null);
+    setMemberOrderError(null);
   };
 
   const resetAdminOrderMessages = () => {
@@ -293,6 +351,117 @@ export function MyPagePanel() {
     }
   };
 
+  const loadMemberOrders = useCallback(async () => {
+    if (!session?.access_token) return;
+
+    resetMemberOrderMessages();
+    setIsLoadingMemberOrders(true);
+    try {
+      const response = await fetch('/api/orders/my', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const payload = (await response.json()) as {
+        orders?: MemberOrderRecord[];
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.message || '주문 내역 로드 실패');
+      }
+
+      const nextOrders = Array.isArray(payload.orders) ? payload.orders : [];
+      setMemberOrders(nextOrders);
+      setMemberOrdersLoaded(true);
+      setMemberOrderMessage(`주문 ${nextOrders.length}건 로드 완료`);
+    } catch (error) {
+      setMemberOrderError(error instanceof Error ? error.message : '주문 내역 로드 실패');
+    } finally {
+      setIsLoadingMemberOrders(false);
+    }
+  }, [session?.access_token]);
+
+  const updateAdminOrderDraft = (
+    orderId: string,
+    field: keyof AdminOrderDraft,
+    value: string,
+  ) => {
+    setAdminOrderDrafts((prev) => {
+      const current = prev[orderId];
+      if (!current) return prev;
+
+      if (field === 'shippingStatus') {
+        const normalized =
+          value === 'preparing' || value === 'shipping' || value === 'delivered'
+            ? value
+            : current.shippingStatus;
+        return {
+          ...prev,
+          [orderId]: {
+            ...current,
+            shippingStatus: normalized,
+          },
+        };
+      }
+
+      return {
+        ...prev,
+        [orderId]: {
+          ...current,
+          [field]: value,
+        },
+      };
+    });
+  };
+
+  const handleSaveOrderShipping = async (orderId: string) => {
+    if (!session?.access_token) return;
+    const draft = adminOrderDrafts[orderId];
+    if (!draft) return;
+
+    resetAdminOrderMessages();
+    try {
+      const response = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          id: orderId,
+          shippingStatus: draft.shippingStatus,
+          shippingCompany: draft.shippingCompany,
+          trackingNumber: draft.trackingNumber,
+          shippingNote: draft.shippingNote,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        message?: string;
+        order?: AdminOrderRecord;
+      };
+      if (!response.ok) {
+        throw new Error(payload.message || '배송 정보 저장 실패');
+      }
+
+      if (payload.order) {
+        setAdminOrders((prev) =>
+          prev.map((order) => (order.id === orderId ? payload.order || order : order)),
+        );
+        setAdminOrderDrafts((prev) => ({
+          ...prev,
+          [orderId]: payload.order ? createAdminOrderDraft(payload.order) : prev[orderId],
+        }));
+      }
+
+      setAdminOrderMessage(payload.message || '배송 정보가 저장되었습니다.');
+    } catch (error) {
+      setAdminOrderError(error instanceof Error ? error.message : '배송 정보 저장 실패');
+    }
+  };
+
   const loadAdminOrders = useCallback(async () => {
     if (!isPrimaryAdmin) return;
     if (!session?.access_token) return;
@@ -317,6 +486,14 @@ export function MyPagePanel() {
 
       const nextOrders = Array.isArray(payload.orders) ? payload.orders : [];
       setAdminOrders(nextOrders);
+      setAdminOrderDrafts((prev) => {
+        const next: Record<string, AdminOrderDraft> = {};
+        nextOrders.forEach((order) => {
+          const previousDraft = prev[order.id];
+          next[order.id] = previousDraft || createAdminOrderDraft(order);
+        });
+        return next;
+      });
       setAdminOrdersLoaded(true);
       setAdminOrderMessage(`주문 ${nextOrders.length}건 로드 완료`);
     } catch (error) {
@@ -338,6 +515,12 @@ export function MyPagePanel() {
     if (membersLoaded) return;
     void loadMembers();
   }, [activeTab, isPrimaryAdmin, membersLoaded, loadMembers]);
+
+  useEffect(() => {
+    if (activeTab !== 'orders') return;
+    if (memberOrdersLoaded) return;
+    void loadMemberOrders();
+  }, [activeTab, memberOrdersLoaded, loadMemberOrders]);
 
   useEffect(() => {
     if (!isPrimaryAdmin) return;
@@ -409,14 +592,105 @@ export function MyPagePanel() {
       </div>
     ),
     orders: (
-      <div className="space-y-3">
-        <div className="border border-[#333] bg-[#111] p-4">
-          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">주문 피드</p>
-          <p className="text-xs text-[#999]">아직 주문 내역이 없습니다. 주문 테이블 연결 시 이 영역이 실제 카드 리스트로 바뀝니다.</p>
+      <div className="space-y-4">
+        <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">내 주문 / 배송조회</p>
+              <p className="text-xs text-[#9a9a9a] mt-2">
+                배송상태, 택배사, 운송장번호를 확인할 수 있습니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadMemberOrders()}
+              disabled={isLoadingMemberOrders}
+              className="px-3 py-2 border border-[#333] bg-[#111] text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors disabled:opacity-50"
+            >
+              {isLoadingMemberOrders ? '새로고침 중...' : '주문 새로고침'}
+            </button>
+          </div>
         </div>
-        <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4">
-          <p className="text-xs text-[#666]">자리표시 행: 주문식별값 / 상태 / 합계 / 생성일시</p>
-        </div>
+
+        {(memberOrderMessage || memberOrderError) && (
+          <div
+            className={`border p-3 text-xs ${
+              memberOrderError
+                ? 'border-red-700 bg-red-950/20 text-red-300'
+                : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+            }`}
+          >
+            {memberOrderError || memberOrderMessage}
+          </div>
+        )}
+
+        {isLoadingMemberOrders && memberOrders.length === 0 ? (
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+            주문 목록을 불러오는 중입니다...
+          </div>
+        ) : memberOrders.length === 0 ? (
+          <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+            주문 내역이 없습니다.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {memberOrders.map((order) => (
+              <article key={order.id} className="border border-[#333] bg-[#111] p-4 space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-[#e5e5e5] break-all">
+                      주문번호: {order.orderCode || order.guestOrderNumber || order.id}
+                    </p>
+                    <p className="text-[10px] text-[#666] mt-1">
+                      생성일: {formatDate(order.createdAt || undefined)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                    <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                      {getShippingStatusLabel(order.shippingStatus)}
+                    </span>
+                    <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                      {order.paymentMethod || '-'}
+                    </span>
+                    <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                      {order.paymentStatus || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                  <div className="border border-[#333] bg-black p-3">
+                    <p className="text-[#666] mb-1">주문 금액</p>
+                    <p className="text-[#00ffd1] font-bold">
+                      {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
+                    </p>
+                    <p className="text-[#888] mt-1">항목 {order.items.length}개</p>
+                  </div>
+                  <div className="border border-[#333] bg-black p-3">
+                    <p className="text-[#666] mb-1">택배사</p>
+                    <p className="text-[#e5e5e5]">{order.shippingCompany || '-'}</p>
+                    <p className="text-[#888] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
+                  </div>
+                  <div className="border border-[#333] bg-black p-3">
+                    <p className="text-[#666] mb-1">운송장번호</p>
+                    <p className="text-[#e5e5e5] break-all">{order.trackingNumber || '-'}</p>
+                    <p className="text-[#888] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
+                  </div>
+                </div>
+
+                <div className="border border-[#333] bg-[#0d0d0d] p-3">
+                  <p className="text-[10px] uppercase tracking-widest text-[#666] mb-2">배송지</p>
+                  <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
+                </div>
+
+                <div className="border border-[#333] bg-[#0d0d0d] p-3">
+                  <p className="text-[10px] uppercase tracking-widest text-[#666] mb-2">배송 메모</p>
+                  <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     ),
     saved: (
@@ -534,7 +808,7 @@ export function MyPagePanel() {
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">주문 관리</p>
                   <p className="text-xs text-[#9a9a9a] mt-2">
-                    계좌이체/PayPal 주문 목록을 확인할 수 있습니다.
+                    주문 목록과 배송정보(상태/택배사/운송장번호)를 관리할 수 있습니다.
                   </p>
                 </div>
                 <button
@@ -575,13 +849,21 @@ export function MyPagePanel() {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                       <div>
                         <p className="text-xs text-[#e5e5e5] break-all">
-                          주문번호: {order.orderCode || order.id}
+                          주문번호: {order.orderCode || order.guestOrderNumber || order.id}
                         </p>
+                        {order.guestOrderNumber && (
+                          <p className="text-[10px] text-[#00ffd1] mt-1 break-all">
+                            비회원조회번호: {order.guestOrderNumber}
+                          </p>
+                        )}
                         <p className="text-[10px] text-[#666] mt-1">
                           생성일: {formatDate(order.createdAt || undefined)}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                        <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                          {getShippingStatusLabel(order.shippingStatus)}
+                        </span>
                         <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
                           {order.paymentMethod || '-'}
                         </span>
@@ -619,6 +901,67 @@ export function MyPagePanel() {
                     <div className="border border-[#333] bg-[#0d0d0d] p-3">
                       <p className="text-[10px] uppercase tracking-widest text-[#666] mb-2">배송지</p>
                       <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
+                    </div>
+
+                    <div className="border border-[#333] bg-black p-3 space-y-2">
+                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">배송정보 입력</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        <select
+                          value={adminOrderDrafts[order.id]?.shippingStatus || 'preparing'}
+                          onChange={(event) =>
+                            updateAdminOrderDraft(order.id, 'shippingStatus', event.target.value)
+                          }
+                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                        >
+                          <option value="preparing">배송준비중</option>
+                          <option value="shipping">배송중</option>
+                          <option value="delivered">배송완료</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={adminOrderDrafts[order.id]?.shippingCompany || ''}
+                          onChange={(event) =>
+                            updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
+                          }
+                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          placeholder="택배사"
+                        />
+                        <input
+                          type="text"
+                          value={adminOrderDrafts[order.id]?.trackingNumber || ''}
+                          onChange={(event) =>
+                            updateAdminOrderDraft(order.id, 'trackingNumber', event.target.value)
+                          }
+                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          placeholder="운송장번호"
+                        />
+                        <input
+                          type="text"
+                          value={adminOrderDrafts[order.id]?.shippingNote || ''}
+                          onChange={(event) =>
+                            updateAdminOrderDraft(order.id, 'shippingNote', event.target.value)
+                          }
+                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          placeholder="배송 메모"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                        <div className="border border-[#333] bg-[#0d0d0d] p-2">
+                          <p className="text-[#666]">발송일시</p>
+                          <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.shippedAt)}</p>
+                        </div>
+                        <div className="border border-[#333] bg-[#0d0d0d] p-2">
+                          <p className="text-[#666]">배송완료일시</p>
+                          <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.deliveredAt)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveOrderShipping(order.id)}
+                          className="py-2 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors uppercase text-xs tracking-widest"
+                        >
+                          배송정보 저장
+                        </button>
+                      </div>
                     </div>
 
                     {Array.isArray(order.items) && order.items.length > 0 && (
