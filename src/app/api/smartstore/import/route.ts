@@ -1,3 +1,8 @@
+export const runtime = 'nodejs';
+
+console.log('DEBUG ENV ID:', process.env.NAVER_COMMERCE_CLIENT_ID);
+console.log('DEBUG ENV SECRET:', process.env.NAVER_COMMERCE_CLIENT_SECRET);
+
 import { NextResponse } from 'next/server';
 import { importAllSmartStoreProducts } from '@/lib/smartstoreImport';
 

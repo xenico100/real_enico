@@ -234,6 +234,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       });
       if (error) throw error;
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      await syncSession(sessionData.session ?? null);
       setStatusMessage('Signed in.');
     });
   };
@@ -261,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       if (data.session) {
+        await syncSession(data.session);
         setStatusMessage('Sign-up complete. You are signed in.');
       } else {
         setStatusMessage(
@@ -302,6 +306,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabase = requireClient();
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      await syncSession(null);
       setProfile(null);
       setStatusMessage('Signed out.');
     });
