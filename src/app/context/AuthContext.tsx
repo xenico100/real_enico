@@ -320,7 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user,
         profile,
-        isAuthenticated: Boolean(session?.user),
+        isAuthenticated: Boolean(user || session?.user),
         isAuthReady,
         isConfigured,
         isBusy,

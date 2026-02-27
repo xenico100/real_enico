@@ -9,7 +9,6 @@ import {
   isProductCategory,
   type ProductCategory,
 } from '@/app/constants/productCategories';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export interface Product {
   id: string;
@@ -123,6 +122,8 @@ type SmartstoreProductRow = {
   detail_html: string | null;
   raw: unknown;
   synced_at: string | null;
+  category_name: string | null;
+  category_name_raw: string | null;
 };
 
 const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
@@ -301,6 +302,14 @@ function inferCategory(text: string): ProductCategory {
 }
 
 function resolveCategory(row: SmartstoreProductRow) {
+  if (row.category_name && isProductCategory(row.category_name)) {
+    return row.category_name;
+  }
+
+  if (row.category_name_raw && isProductCategory(row.category_name_raw)) {
+    return row.category_name_raw;
+  }
+
   const explicit = extractRawText(row.raw, [
     'category',
     'category_name',
@@ -367,33 +376,35 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
     let active = true;
 
     const loadSmartstoreProducts = async () => {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) return;
-
       setIsLoadingDbProducts(true);
       setDbLoadError(null);
 
       try {
-        const { data, error } = await supabase
-          .from('products')
-          .select(
-            'id, source, smartstore_channel_product_no, title, price, thumbnail_url, images, detail_html, raw, synced_at',
-          )
-          .order('synced_at', { ascending: false });
-
-        if (error) throw error;
+        const response = await fetch('/api/products', {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          message?: string;
+          products?: SmartstoreProductRow[];
+        };
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || '스마트스토어 게시물 로드 실패');
+        }
         if (!active) return;
 
-        const normalized = ((data ?? []) as SmartstoreProductRow[])
+        const normalized = (payload.products ?? [])
           .map(mapSmartstoreRowToProduct)
           .filter((item): item is Product => Boolean(item));
 
-        setDbProducts(normalized.length > 0 ? normalized : null);
+        setDbProducts(normalized);
       } catch (error) {
         if (!active) return;
         setDbLoadError(
           error instanceof Error ? error.message : '스마트스토어 게시물 로드 실패',
         );
+        setDbProducts([]);
       } finally {
         if (active) setIsLoadingDbProducts(false);
       }
@@ -405,7 +416,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
     };
   }, []);
 
-  const catalogProducts = dbProducts && dbProducts.length > 0 ? dbProducts : fallbackProducts;
+  const catalogProducts = dbProducts ?? [];
 
   const filteredProducts = activeCategory === '전체' 
     ? catalogProducts 
@@ -570,9 +581,15 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
               <p className="text-[#9a9a9a]">스마트스토어 게시물 불러오는 중...</p>
             ) : (
               <p className="text-[#ff9f9f]">
-                스마트스토어 게시물 로드 실패로 기본 게시물을 표시합니다.
+                스마트스토어 게시물 로드 실패: {dbLoadError}
               </p>
             )}
+          </div>
+        )}
+
+        {!isLoadingDbProducts && !dbLoadError && catalogProducts.length === 0 && (
+          <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] text-[#9a9a9a]">
+            스마트스토어 게시물이 없습니다. `/admin/migrate`에서 import를 먼저 실행하세요.
           </div>
         )}
 

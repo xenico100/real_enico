@@ -13,13 +13,18 @@ interface SubcultureHeaderProps {
 
 export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderProps) {
   const { cart } = useFashionCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthReady } = useAuth();
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
+  const myPageLabel = isAuthenticated
+    ? '마이페이지'
+    : isAuthReady
+      ? '로그인 / 회원가입'
+      : '마이페이지';
   const navItems = [
     { key: 'about' as const, label: '소개' },
     { key: 'contact' as const, label: '연락' },
-    { key: 'mypage' as const, label: isAuthenticated ? '마이페이지' : '로그인 / 회원가입' },
+    { key: 'mypage' as const, label: myPageLabel },
   ];
 
   const glitchText = (text: string) => (

@@ -18,7 +18,7 @@ const DEFAULT_CONTACT_BODY =
 const DEFAULT_CONTACT_CATEGORY = '멤버십/맞춤제작';
 
 export function InfoPopup({ type, onClose }: InfoPopupProps) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthReady } = useAuth();
   const [contactCategory, setContactCategory] = useState(DEFAULT_CONTACT_CATEGORY);
   const [contactName, setContactName] = useState('');
   const [contactReplyEmail, setContactReplyEmail] = useState('');
@@ -73,7 +73,8 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
     }
   };
 
-  const myPageTitle = isAuthenticated ? '마이페이지' : '로그인 / 회원가입';
+  const myPageTitle =
+    isAuthenticated || !isAuthReady ? '마이페이지' : '로그인 / 회원가입';
 
   const content = {
     about: (

@@ -529,7 +529,17 @@ export function MyPagePanel() {
     void loadAdminOrders();
   }, [activeTab, adminOrdersLoaded, isPrimaryAdmin, loadAdminOrders]);
 
-  if (!isAuthReady || !isAuthenticated || !user) {
+  if (!isAuthReady) {
+    return (
+      <div className="space-y-4 font-mono">
+        <div className="border border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9a9a9a]">
+          인증 상태 확인 중...
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
     return (
       <div className="space-y-4 font-mono">
         <AccountAuthPanel />
