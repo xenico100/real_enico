@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AccountAuthPanel } from './AccountAuthPanel';
 import { MyPagePanel } from './MyPagePanel';
+import { useAuth } from '@/app/context/AuthContext';
 
 interface InfoPopupProps {
   type: 'about' | 'contact' | 'account' | 'mypage';
@@ -17,28 +18,56 @@ const DEFAULT_CONTACT_BODY =
   '멤버십 멤버를 위한 맞춤제작 건의를 드립니다.\n\n요청 내용:\n-\n\n예산/일정:\n-\n';
 
 export function InfoPopup({ type, onClose }: InfoPopupProps) {
+  const { isAuthenticated } = useAuth();
   const [contactName, setContactName] = useState('');
   const [contactReplyEmail, setContactReplyEmail] = useState('');
   const [contactSubject, setContactSubject] = useState(DEFAULT_CONTACT_SUBJECT);
   const [contactBody, setContactBody] = useState(DEFAULT_CONTACT_BODY);
+  const [isContactSubmitting, setIsContactSubmitting] = useState(false);
+  const [contactMessage, setContactMessage] = useState<string | null>(null);
+  const [contactError, setContactError] = useState<string | null>(null);
 
-  const contactMailto = useMemo(() => {
+  const handleSendContact = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setContactMessage(null);
+    setContactError(null);
+
+    const name = contactName.trim();
+    const replyEmail = contactReplyEmail.trim();
     const subject = contactSubject.trim() || DEFAULT_CONTACT_SUBJECT;
-    const bodyLines = [
-      contactBody.trim() || DEFAULT_CONTACT_BODY.trim(),
-      '',
-      `보낸 사람: ${contactName.trim() || '-'}`,
-      `회신 이메일: ${contactReplyEmail.trim() || '-'}`,
-    ];
+    const body = contactBody.trim();
 
-    return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-      bodyLines.join('\n'),
-    )}`;
-  }, [contactBody, contactName, contactReplyEmail, contactSubject]);
+    if (!name || !replyEmail || !subject || !body) {
+      setContactError('성함, 회신 이메일, 제목, 내용을 모두 입력해 주세요.');
+      return;
+    }
 
-  const handleComposeMail = () => {
-    window.location.href = contactMailto;
+    setIsContactSubmitting(true);
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, replyEmail, subject, body }),
+      });
+
+      const payload = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message || '문의 전송 실패');
+      }
+
+      setContactMessage(payload.message || '문의가 전송되었습니다.');
+      setContactName('');
+      setContactReplyEmail('');
+      setContactSubject(DEFAULT_CONTACT_SUBJECT);
+      setContactBody(DEFAULT_CONTACT_BODY);
+    } catch (error) {
+      setContactError(error instanceof Error ? error.message : '문의 전송 실패');
+    } finally {
+      setIsContactSubmitting(false);
+    }
   };
+
+  const myPageTitle = isAuthenticated ? '마이페이지' : '로그인 / 회원가입';
 
   const content = {
     about: (
@@ -93,10 +122,13 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           </div>
         </div>
 
-        <div className="border border-[#333] p-6 bg-[#0a0a0a] space-y-4">
+        <form
+          onSubmit={handleSendContact}
+          className="border border-[#333] p-6 bg-[#0a0a0a] space-y-4"
+        >
           <h4 className="text-sm font-bold uppercase text-[#00ffd1]">메일 작성</h4>
           <p className="text-xs text-[#999]">
-            기본 메일 앱이 열리며, 수신자는 `morba9850@gmail.com`으로 자동 입력됩니다.
+            사이트 안에서 바로 문의를 전송합니다. 수신자는 `morba9850@gmail.com`입니다.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -106,6 +138,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
               onChange={(event) => setContactName(event.target.value)}
               className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
               placeholder="성함"
+              required
             />
             <input
               type="email"
@@ -113,6 +146,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
               onChange={(event) => setContactReplyEmail(event.target.value)}
               className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
               placeholder="회신 받을 이메일"
+              required
             />
           </div>
 
@@ -122,6 +156,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
             onChange={(event) => setContactSubject(event.target.value)}
             className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
             placeholder="메일 제목"
+            required
           />
 
           <textarea
@@ -130,16 +165,29 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
             rows={7}
             className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5] resize-y"
             placeholder="문의/제안 내용을 작성하세요"
+            required
           />
 
+          {(contactMessage || contactError) && (
+            <div
+              className={`border p-3 text-xs ${
+                contactError
+                  ? 'border-red-700 bg-red-950/20 text-red-300'
+                  : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+              }`}
+            >
+              {contactError || contactMessage}
+            </div>
+          )}
+
           <button
-            type="button"
-            onClick={handleComposeMail}
+            type="submit"
+            disabled={isContactSubmitting}
             className="w-full py-3 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs uppercase tracking-widest"
           >
-            메일 작성 열기 (멤버십 멤버를 위한 맞춤제작 건의)
+            {isContactSubmitting ? '전송 중...' : '문의 전송'}
           </button>
-        </div>
+        </form>
       </div>
     ),
     account: (
@@ -164,7 +212,13 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 50 }}
           className={`relative w-full ${
-            type === 'mypage' ? 'max-w-4xl' : type === 'account' ? 'max-w-3xl' : 'max-w-2xl'
+            type === 'mypage'
+              ? isAuthenticated
+                ? 'max-w-4xl'
+                : 'max-w-3xl'
+              : type === 'account'
+                ? 'max-w-3xl'
+                : 'max-w-2xl'
           } bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
@@ -177,7 +231,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
                      ? '통신_링크'
                    : type === 'account'
                      ? '로그인 / 회원가입'
-                     : '마이페이지'}
+                     : myPageTitle}
              </span>
              <button onClick={onClose} className="text-[#666] hover:text-[#00ffd1] transition-colors">
                <X size={24} />

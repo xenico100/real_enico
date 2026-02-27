@@ -531,17 +531,7 @@ export function MyPagePanel() {
 
   if (!isAuthReady || !isAuthenticated || !user) {
     return (
-      <div className="space-y-6 font-mono">
-        <div className="border border-[#333] bg-[#0a0a0a] p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-bold uppercase text-[#00ffd1] mb-2">마이페이지 / 기능 허브</h3>
-            </div>
-            <span className="border border-[#333] bg-[#111] px-2 py-1 text-[10px] text-[#666] uppercase tracking-widest">
-              잠김
-            </span>
-          </div>
-        </div>
+      <div className="space-y-4 font-mono">
         <AccountAuthPanel />
       </div>
     );

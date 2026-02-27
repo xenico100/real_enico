@@ -4,6 +4,7 @@ import { ShoppingBag, Menu, X } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '@/app/context/AuthContext';
 
 interface SubcultureHeaderProps {
   onCartClick: () => void;
@@ -12,13 +13,14 @@ interface SubcultureHeaderProps {
 
 export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderProps) {
   const { cart } = useFashionCart();
+  const { isAuthenticated } = useAuth();
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
   const navItems = [
     { key: 'about' as const, label: '소개' },
     { key: 'contact' as const, label: '연락' },
     { key: 'account' as const, label: '계정' },
-    { key: 'mypage' as const, label: '마이페이지' },
+    { key: 'mypage' as const, label: isAuthenticated ? '마이페이지' : '로그인 / 회원가입' },
   ];
 
   const glitchText = (text: string) => (
