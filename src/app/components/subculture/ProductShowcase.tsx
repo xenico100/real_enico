@@ -9,6 +9,7 @@ import {
   isProductCategory,
   type ProductCategory,
 } from '@/app/constants/productCategories';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export interface Product {
   id: string;
@@ -111,19 +112,17 @@ const fallbackProducts: Product[] = productsSeed.map((product, index) => {
   };
 });
 
-type SmartstoreProductRow = {
+type ProductDbRow = {
   id: string;
-  source: string | null;
-  smartstore_channel_product_no: number | string | null;
   title: string | null;
+  category: string | null;
+  description: string | null;
   price: number | string | null;
   thumbnail_url: string | null;
   images: unknown;
   detail_html: string | null;
   raw: unknown;
-  synced_at: string | null;
-  category_name: string | null;
-  category_name_raw: string | null;
+  is_published: boolean | null;
 };
 
 const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
@@ -301,13 +300,9 @@ function inferCategory(text: string): ProductCategory {
   return DEFAULT_PRODUCT_CATEGORY;
 }
 
-function resolveCategory(row: SmartstoreProductRow) {
-  if (row.category_name && isProductCategory(row.category_name)) {
-    return row.category_name;
-  }
-
-  if (row.category_name_raw && isProductCategory(row.category_name_raw)) {
-    return row.category_name_raw;
+function resolveCategory(row: ProductDbRow) {
+  if (row.category && isProductCategory(row.category)) {
+    return row.category;
   }
 
   const explicit = extractRawText(row.raw, [
@@ -327,9 +322,10 @@ function resolveCategory(row: SmartstoreProductRow) {
   return inferCategory(`${explicit} ${row.title || ''}`);
 }
 
-function mapSmartstoreRowToProduct(row: SmartstoreProductRow): Product | null {
+function mapDbRowToProduct(row: ProductDbRow): Product | null {
   const images = normalizeImagesForProduct(row.images, row.thumbnail_url, row.raw);
   const plainDetail = htmlToPlainText(row.detail_html);
+  const explicitDescription = (row.description || '').trim();
   const rawDescription = extractRawText(row.raw, [
     'description',
     'summary',
@@ -340,10 +336,11 @@ function mapSmartstoreRowToProduct(row: SmartstoreProductRow): Product | null {
 
   const title =
     row.title?.trim() ||
-    `상품 ${row.smartstore_channel_product_no || row.id}`;
+    `상품 ${row.id}`;
   const numericPrice = Number(row.price);
   const price = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const description = plainDetail || rawDescription || `${title} 상세 페이지`;
+  const description =
+    explicitDescription || plainDetail || rawDescription || `${title} 상세 페이지`;
 
   return {
     id: row.id,
@@ -364,6 +361,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
   const [activeCategory, setActiveCategory] = useState('전체');
   const [isHydrated, setIsHydrated] = useState(false);
   const [dbProducts, setDbProducts] = useState<Product[] | null>(null);
+  const [isUsingFallbackCatalog, setIsUsingFallbackCatalog] = useState(false);
   const [isLoadingDbProducts, setIsLoadingDbProducts] = useState(false);
   const [dbLoadError, setDbLoadError] = useState<string | null>(null);
   const categories = ['전체', ...PRODUCT_CATEGORIES];
@@ -375,48 +373,58 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
   useEffect(() => {
     let active = true;
 
-    const loadSmartstoreProducts = async () => {
+    const loadProducts = async () => {
       setIsLoadingDbProducts(true);
       setDbLoadError(null);
 
       try {
-        const response = await fetch('/api/products', {
-          method: 'GET',
-          cache: 'no-store',
-        });
-        const payload = (await response.json()) as {
-          ok?: boolean;
-          message?: string;
-          products?: SmartstoreProductRow[];
-        };
-        if (!response.ok || !payload.ok) {
-          throw new Error(payload.message || '스마트스토어 게시물 로드 실패');
+        const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          throw new Error(
+            'Supabase env가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 확인하세요.',
+          );
         }
+
+        const { data, error } = await supabase
+          .from('products')
+          .select(
+            'id, title, category, description, price, thumbnail_url, images, detail_html, raw, is_published',
+          )
+          .eq('is_published', true)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
         if (!active) return;
 
-        const normalized = (payload.products ?? [])
-          .map(mapSmartstoreRowToProduct)
+        const normalized = ((data ?? []) as ProductDbRow[])
+          .map(mapDbRowToProduct)
           .filter((item): item is Product => Boolean(item));
 
-        setDbProducts(normalized);
+        if (normalized.length === 0) {
+          setDbProducts(fallbackProducts);
+          setIsUsingFallbackCatalog(true);
+        } else {
+          setDbProducts(normalized);
+          setIsUsingFallbackCatalog(false);
+        }
       } catch (error) {
         if (!active) return;
         setDbLoadError(
-          error instanceof Error ? error.message : '스마트스토어 게시물 로드 실패',
+          error instanceof Error ? error.message : '게시물 로드 실패',
         );
-        setDbProducts([]);
+        setDbProducts(fallbackProducts);
+        setIsUsingFallbackCatalog(true);
       } finally {
         if (active) setIsLoadingDbProducts(false);
       }
     };
 
-    void loadSmartstoreProducts();
+    void loadProducts();
     return () => {
       active = false;
     };
   }, []);
 
-  const catalogProducts = dbProducts ?? [];
+  const catalogProducts = dbProducts ?? fallbackProducts;
 
   const filteredProducts = activeCategory === '전체' 
     ? catalogProducts 
@@ -578,18 +586,18 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
         {(isLoadingDbProducts || dbLoadError) && (
           <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px]">
             {isLoadingDbProducts ? (
-              <p className="text-[#9a9a9a]">스마트스토어 게시물 불러오는 중...</p>
+              <p className="text-[#9a9a9a]">게시물 불러오는 중...</p>
             ) : (
               <p className="text-[#ff9f9f]">
-                스마트스토어 게시물 로드 실패: {dbLoadError}
+                게시물 로드 실패: {dbLoadError}
               </p>
             )}
           </div>
         )}
 
-        {!isLoadingDbProducts && !dbLoadError && catalogProducts.length === 0 && (
+        {!isLoadingDbProducts && isUsingFallbackCatalog && !dbLoadError && (
           <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] text-[#9a9a9a]">
-            스마트스토어 게시물이 없습니다. `/admin/migrate`에서 import를 먼저 실행하세요.
+            등록된 게시글이 없어 임의 게시글을 표시합니다. `/admin`에서 게시글을 업로드해 주세요.
           </div>
         )}
 

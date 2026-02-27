@@ -11,9 +11,6 @@ export async function POST() {
   const CLIENT_ID = process.env.NAVER_COMMERCE_CLIENT_ID;
   const CLIENT_SECRET = process.env.NAVER_COMMERCE_CLIENT_SECRET;
 
-  console.log('DEBUG ENV ID:', CLIENT_ID);
-  console.log('DEBUG ENV SECRET:', CLIENT_SECRET);
-
   if (!CLIENT_ID || !CLIENT_SECRET) {
     return NextResponse.json(
       { ok: false, error: 'env_missing' },

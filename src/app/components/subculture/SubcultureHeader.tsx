@@ -2,9 +2,10 @@
 
 import { ShoppingBag, Menu, X } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/app/context/AuthContext';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface SubcultureHeaderProps {
   onCartClick: () => void;
@@ -13,10 +14,39 @@ interface SubcultureHeaderProps {
 
 export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderProps) {
   const { cart } = useFashionCart();
-  const { isAuthenticated, isAuthReady } = useAuth();
+  const { isAuthenticated, isAuthReady, user, session } = useAuth();
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
-  const myPageLabel = isAuthenticated
+  const [hasRuntimeSession, setHasRuntimeSession] = useState(false);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    let active = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setHasRuntimeSession(Boolean(data.session?.access_token));
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setHasRuntimeSession(Boolean(nextSession?.access_token));
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const isSignedIn =
+    isAuthenticated ||
+    Boolean(user || session?.user || hasRuntimeSession);
+
+  const myPageLabel = isSignedIn
     ? '마이페이지'
     : isAuthReady
       ? '로그인 / 회원가입'
