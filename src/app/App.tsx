@@ -16,7 +16,7 @@ import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'account' | 'mypage' | null>(null);
+  const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'mypage' | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [isGlitching, setIsGlitching] = useState(false);

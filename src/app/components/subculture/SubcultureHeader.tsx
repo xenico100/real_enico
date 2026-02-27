@@ -8,7 +8,7 @@ import { useAuth } from '@/app/context/AuthContext';
 
 interface SubcultureHeaderProps {
   onCartClick: () => void;
-  onInfoClick: (type: 'about' | 'contact' | 'account' | 'mypage') => void;
+  onInfoClick: (type: 'about' | 'contact' | 'mypage') => void;
 }
 
 export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderProps) {
@@ -19,7 +19,6 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
   const navItems = [
     { key: 'about' as const, label: '소개' },
     { key: 'contact' as const, label: '연락' },
-    { key: 'account' as const, label: '계정' },
     { key: 'mypage' as const, label: isAuthenticated ? '마이페이지' : '로그인 / 회원가입' },
   ];
 
@@ -44,7 +43,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
             className="relative z-50"
           >
             <h1 className="text-4xl md:text-6xl font-[900] tracking-tighter uppercase font-heading leading-[0.8]">
-              에니코 벡
+              ENICO VECK
               <span className="text-[#00ffd1] text-base md:text-xl align-top ml-1">®</span>
             </h1>
           </motion.div>
@@ -53,7 +52,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
           <nav className="hidden md:flex flex-col items-end gap-2 font-mono text-sm mr-4 lg:mr-8">
             {navItems.map((item, i) => (
               (() => {
-                const isFunctional = item.key === 'account' || item.key === 'mypage';
+                const isFunctional = item.key === 'mypage';
                 return (
               <button 
                 key={item.key}

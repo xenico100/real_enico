@@ -50,6 +50,34 @@ function getShippingStatusLabel(status: ShippingStatus) {
   return '배송준비중';
 }
 
+function GoogleIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M22 12.2727C22 11.4218 21.9236 10.6036 21.7818 9.81818H12V13.84H17.5855C17.3455 15.1331 16.6182 16.2291 15.5222 16.9636V19.5727H18.8836C20.8509 17.7618 22 15.0964 22 12.2727Z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 22.4545C14.8036 22.4545 17.1527 21.5255 18.8836 19.5727L15.5222 16.9636C14.5931 17.5855 13.4055 17.9545 12 17.9545C9.29454 17.9545 7.00363 16.1273 6.18726 13.6709H2.71271V16.3655C4.43635 19.7909 7.9818 22.4545 12 22.4545Z"
+        fill="#34A853"
+      />
+      <path
+        d="M6.18727 13.6709C5.97909 13.0482 5.86091 12.3818 5.86091 11.6955C5.86091 11.0091 5.97909 10.3427 6.18727 9.72001V7.02545H2.71272C2.00454 8.43636 1.6 10.0309 1.6 11.6955C1.6 13.36 2.00454 14.9545 2.71272 16.3655L6.18727 13.6709Z"
+        fill="#FBBC04"
+      />
+      <path
+        d="M12 5.43636C13.5331 5.43636 14.9091 5.96364 15.9909 7L18.96 4.03091C17.1482 2.34636 14.7991 1.27273 12 1.27273C7.98182 1.27273 4.43636 3.93636 2.71272 7.36182L6.18727 10.0564C7.00364 7.60001 9.29455 5.43636 12 5.43636Z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
 export function AccountAuthPanel() {
   const {
     user,
@@ -431,9 +459,10 @@ export function AccountAuthPanel() {
             type="button"
             onClick={() => void handleGoogleAuth()}
             disabled={isBusy}
-            className="w-full py-3.5 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors uppercase text-xs tracking-widest disabled:opacity-50"
+            className="w-full py-3.5 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isBusy ? '처리중...' : '구글 로그인'}
+            <GoogleIcon />
+            <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
           </button>
 
           <form onSubmit={handleEmailAuth} className="space-y-3">

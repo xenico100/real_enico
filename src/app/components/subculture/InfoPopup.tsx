@@ -3,12 +3,11 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AccountAuthPanel } from './AccountAuthPanel';
 import { MyPagePanel } from './MyPagePanel';
 import { useAuth } from '@/app/context/AuthContext';
 
 interface InfoPopupProps {
-  type: 'about' | 'contact' | 'account' | 'mypage';
+  type: 'about' | 'contact' | 'mypage';
   onClose: () => void;
 }
 
@@ -190,9 +189,6 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
         </form>
       </div>
     ),
-    account: (
-      <AccountAuthPanel />
-    ),
     mypage: (
       <MyPagePanel />
     )
@@ -216,9 +212,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
               ? isAuthenticated
                 ? 'max-w-4xl'
                 : 'max-w-3xl'
-              : type === 'account'
-                ? 'max-w-3xl'
-                : 'max-w-2xl'
+              : 'max-w-2xl'
           } bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
@@ -229,8 +223,6 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
                  ? '프로젝트_메이헴'
                    : type === 'contact'
                      ? '통신_링크'
-                   : type === 'account'
-                     ? '로그인 / 회원가입'
                      : myPageTitle}
              </span>
              <button onClick={onClose} className="text-[#666] hover:text-[#00ffd1] transition-colors">
