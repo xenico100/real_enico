@@ -35,6 +35,7 @@ const MEMBER_REFRESH_MS = 10_000;
 const MESSAGE_REFRESH_MS = 2_000;
 const TYPING_TIMEOUT_MS = 2_500;
 const TYPING_THROTTLE_MS = 600;
+const PRESENCE_TRACK_MS = 20_000;
 
 function generateDisplayName() {
   const digits = Math.floor(1000 + Math.random() * 9000);
@@ -97,8 +98,11 @@ export function useRandomChat(enabled: boolean) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const memberIntervalRef = useRef<number | null>(null);
   const messageIntervalRef = useRef<number | null>(null);
+  const presenceTrackIntervalRef = useRef<number | null>(null);
   const typingTimersRef = useRef<Record<string, number>>({});
   const typingUsersByIdRef = useRef<Record<string, string>>({});
+  const dbMemberCountRef = useRef(0);
+  const presenceMemberCountRef = useRef(0);
   const typingLastSentAtRef = useRef(0);
   const isTypingRef = useRef(false);
   const myDisplayNameRef = useRef('');
@@ -135,6 +139,13 @@ export function useRandomChat(enabled: boolean) {
     }
   }, []);
 
+  const clearPresenceTrackInterval = useCallback(() => {
+    if (presenceTrackIntervalRef.current !== null) {
+      window.clearInterval(presenceTrackIntervalRef.current);
+      presenceTrackIntervalRef.current = null;
+    }
+  }, []);
+
   const clearTypingState = useCallback(() => {
     Object.values(typingTimersRef.current).forEach((timerId) => {
       window.clearTimeout(timerId);
@@ -145,23 +156,29 @@ export function useRandomChat(enabled: boolean) {
     isTypingRef.current = false;
   }, []);
 
+  const syncMemberCount = useCallback(() => {
+    setMemberCount(Math.max(dbMemberCountRef.current, presenceMemberCountRef.current));
+  }, []);
+
   const clearChannel = useCallback(async () => {
     if (!channelRef.current || !clientRef.current) return;
     const channel = channelRef.current;
     channelRef.current = null;
     setRealtimeConnected(false);
+    clearPresenceTrackInterval();
     await clientRef.current.removeChannel(channel);
-  }, []);
+  }, [clearPresenceTrackInterval]);
 
   const updateMemberCountFromPresence = useCallback((channel: RealtimeChannel) => {
     const presenceState = channel.presenceState() as Record<string, unknown[]>;
     const keys = Object.keys(presenceState);
     if (keys.length > 0) {
-      setMemberCount(keys.length);
+      presenceMemberCountRef.current = keys.length;
+      syncMemberCount();
       return true;
     }
     return false;
-  }, []);
+  }, [syncMemberCount]);
 
   const appendMessages = useCallback((rows: MessageRow[]) => {
     if (rows.length === 0) return;
@@ -217,9 +234,10 @@ export function useRandomChat(enabled: boolean) {
         throw new Error(countError.message);
       }
 
-      setMemberCount(typeof count === 'number' ? count : 0);
+      dbMemberCountRef.current = typeof count === 'number' ? count : 0;
+      syncMemberCount();
     },
-    [getClient],
+    [getClient, syncMemberCount],
   );
 
   const fetchRoomStatus = useCallback(
@@ -317,6 +335,7 @@ export function useRandomChat(enabled: boolean) {
       setRealtimeConnected(false);
       clearMemberInterval();
       clearMessageInterval();
+      clearPresenceTrackInterval();
       clearTypingState();
       void clearChannel();
       return;
@@ -332,6 +351,8 @@ export function useRandomChat(enabled: boolean) {
       setRealtimeConnected(false);
       setMemberCount(0);
       setRoomStatus('unknown');
+      dbMemberCountRef.current = 0;
+      presenceMemberCountRef.current = 0;
 
       const displayName = getOrCreateDisplayName();
       setMyDisplayName(displayName);
@@ -503,18 +524,41 @@ export function useRandomChat(enabled: boolean) {
           if (cancelled) return;
           if (status === 'SUBSCRIBED') {
             setRealtimeConnected(true);
+            const trackPresence = () => {
+              void channel.track({
+                user_id: nextUserId,
+                display_name: myDisplayNameRef.current || `${DISPLAY_NAME_PREFIX}0000`,
+                online_at: new Date().toISOString(),
+              });
+            };
+
+            trackPresence();
+            clearPresenceTrackInterval();
+            presenceTrackIntervalRef.current = window.setInterval(() => {
+              trackPresence();
+            }, PRESENCE_TRACK_MS);
+
+            window.setTimeout(() => {
+              updateMemberCountFromPresence(channel);
+            }, 120);
+            window.setTimeout(() => {
+              void fetchMemberCount(nextRoomId).catch(() => undefined);
+            }, 250);
+            return;
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            clearPresenceTrackInterval();
+            presenceMemberCountRef.current = 0;
+            syncMemberCount();
+            setRealtimeConnected(false);
+            return;
+          }
+          if (status === 'JOINED') {
             void channel.track({
               user_id: nextUserId,
               display_name: myDisplayNameRef.current || `${DISPLAY_NAME_PREFIX}0000`,
               online_at: new Date().toISOString(),
             });
-            window.setTimeout(() => {
-              updateMemberCountFromPresence(channel);
-            }, 120);
-            return;
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            setRealtimeConnected(false);
           }
         });
 
@@ -547,6 +591,7 @@ export function useRandomChat(enabled: boolean) {
       cancelled = true;
       clearMemberInterval();
       clearMessageInterval();
+      clearPresenceTrackInterval();
       clearTypingState();
       void clearChannel();
     };
@@ -555,12 +600,14 @@ export function useRandomChat(enabled: boolean) {
     clearChannel,
     clearMemberInterval,
     clearMessageInterval,
+    clearPresenceTrackInterval,
     clearTypingState,
     enabled,
     fetchLatestMessages,
     fetchMemberCount,
     fetchRoomStatus,
     getClient,
+    syncMemberCount,
     updateMemberCountFromPresence,
   ]);
 
