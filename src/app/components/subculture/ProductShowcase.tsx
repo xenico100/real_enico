@@ -129,6 +129,60 @@ type ProductDbRow = {
 
 const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
 
+const UPLOAD_TITLE_CATEGORY_HINTS: Array<{ title: string; category: ProductCategory }> = [
+  { title: 'enico MIX shirts', category: '셔츠' },
+  { title: 'INFINITY CASTLE Crop Shirts', category: '셔츠' },
+  { title: 'Ben’s Shirts', category: '셔츠' },
+  { title: 'Re: kevin shirts', category: '셔츠' },
+  { title: 'Flannel double-label shirt', category: '셔츠' },
+  { title: 'enico damm denim jacket', category: '아우터' },
+  { title: 'Enico Veck 1st Linen Jacket', category: '아우터' },
+  { title: 'enico veck’s denim hood jacket', category: '아우터' },
+  { title: 'enico veck 2025 denim jacket', category: '아우터' },
+  { title: 'BERSERK Jacket', category: '아우터' },
+  { title: 'INFINITY CASTLE Kimono', category: '아우터' },
+  { title: 'Mononoke Jacket', category: '아우터' },
+  { title: 'Roronoa Coat', category: '아우터' },
+  { title: 'Akira Jacket', category: '아우터' },
+  { title: 'EVA-JACEKT', category: '아우터' },
+  { title: 'Re: flower of evil jacket', category: '아우터' },
+  { title: 'enico MIX pants', category: '팬츠' },
+  { title: 'BERSERK Pants', category: '팬츠' },
+  { title: 'INFINITY CASTLE Shorts', category: '팬츠' },
+  { title: 'Ben’s Cago Pants', category: '팬츠' },
+  { title: 'Mononoke Pants', category: '팬츠' },
+  { title: "Re: kevin's pants", category: '팬츠' },
+  { title: 'BOMB DEVIL Dress+Choker', category: '드레스' },
+  { title: '퍼펙트 블루의 가면', category: '악세사리' },
+  { title: 'Mononoke Bolero', category: '악세사리' },
+  { title: '가치아쿠타의 장갑', category: '악세사리' },
+  { title: 'Knit Shark', category: '인형' },
+  { title: 'Night Kitty', category: '인형' },
+  { title: 'Night Face', category: '인형' },
+  { title: 'Night Dee', category: '인형' },
+  { title: 'Check Shark', category: '인형' },
+  { title: 'Check Kitty', category: '인형' },
+  { title: 'Desert Bat', category: '인형' },
+  { title: 'Desert Dee', category: '인형' },
+  { title: 'Desert Angry Shark', category: '인형' },
+  { title: 'Enico Dee', category: '인형' },
+  { title: '2Face Shark', category: '인형' },
+  { title: 'Where GA-O-RI', category: '인형' },
+];
+
+function normalizeCategoryHintKey(value: string) {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/['’`"“”]/g, '')
+    .replace(/[^a-z0-9가-힣]+/g, '');
+}
+
+const UPLOAD_HINT_KEYWORDS = UPLOAD_TITLE_CATEGORY_HINTS.map(({ title, category }) => ({
+  key: normalizeCategoryHintKey(title),
+  category,
+})).sort((a, b) => b.key.length - a.key.length);
+
 function normalizeStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
@@ -316,6 +370,20 @@ function inferCategory(text: string): ProductCategory {
   return DEFAULT_PRODUCT_CATEGORY;
 }
 
+function inferCategoryFromUploadHints(title: string | null | undefined): ProductCategory | null {
+  const normalizedTitle = normalizeCategoryHintKey(title || '');
+  if (!normalizedTitle) return null;
+
+  for (const hint of UPLOAD_HINT_KEYWORDS) {
+    if (!hint.key) continue;
+    if (normalizedTitle === hint.key || normalizedTitle.includes(hint.key)) {
+      return hint.category;
+    }
+  }
+
+  return null;
+}
+
 function resolveCategory(row: ProductDbRow) {
   if (row.category && isProductCategory(row.category)) {
     return row.category;
@@ -333,6 +401,11 @@ function resolveCategory(row: ProductDbRow) {
 
   if (isProductCategory(explicit)) {
     return explicit;
+  }
+
+  const hintedCategory = inferCategoryFromUploadHints(row.title);
+  if (hintedCategory) {
+    return hintedCategory;
   }
 
   return inferCategory(`${explicit} ${row.title || ''}`);
@@ -603,7 +676,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
                             : 'opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0'
                         }`}
                       >
-                        ///
+                        {'///'}
                       </span>
                       <span className={`${activeCategory === cat ? 'text-black/70' : 'text-[#8a8a8a]'} text-[10px] mt-1`}>
                         {categoryCounts[cat as keyof typeof categoryCounts]}

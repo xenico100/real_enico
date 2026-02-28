@@ -746,9 +746,9 @@ function AdminCollectionsConsoleInner() {
                       <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
                         {form.images.map((url, index) => (
                           <div key={`${url}-${index}`} className="border border-[#333] bg-[#111] p-2">
-                            <div className="aspect-square bg-black border border-[#222] overflow-hidden mb-2 relative">
+                            <div className="aspect-[4/5] bg-black border border-[#222] overflow-hidden mb-2 relative">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={url} alt="" className="w-full h-full object-cover" />
+                              <img src={url} alt="" className="w-full h-full object-contain bg-black" />
                               <div className="absolute top-1 left-1 px-1 py-0.5 bg-black/80 border border-[#333] text-[9px] font-mono text-[#aaa]">
                                 {index + 1}
                               </div>
@@ -816,7 +816,7 @@ function AdminCollectionsConsoleInner() {
               <div className="border border-[#333] bg-[#0a0a0a] p-4 flex items-center justify-between">
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-widest text-[#666]">
-                    Collection List
+                    컬렉션 게시물 목록
                   </p>
                   <p className="font-mono text-xs text-[#999] mt-1">
                     {canManageCollections
@@ -849,13 +849,13 @@ function AdminCollectionsConsoleInner() {
                         key={collection.id}
                         className="border border-[#333] bg-[#0a0a0a] overflow-hidden"
                       >
-                        <div className="aspect-[4/3] bg-black border-b border-[#222] relative">
+                        <div className="aspect-[4/5] bg-black border-b border-[#222] relative">
                           {previewImage ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={previewImage}
                               alt={collection.title || 'collection'}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain bg-black"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#555]">
@@ -882,22 +882,24 @@ function AdminCollectionsConsoleInner() {
                               </p>
                             </div>
                             {canManageCollections && (
-                              <div className="flex items-center gap-1">
+                              <div className="flex flex-col gap-1 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => startEditCollection(collection)}
-                                  className="p-2 border border-[#333] bg-[#111] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#00ffd1]/50 bg-[#00ffd1]/12 text-[#d8fff6] hover:bg-[#00ffd1]/20 transition-colors text-[11px] font-mono"
                                   aria-label="Edit collection"
                                 >
-                                  <Pencil size={14} />
+                                  <Pencil size={12} />
+                                  컬렉션 수정
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => void handleDeleteCollection(collection.id)}
-                                  className="p-2 border border-[#333] bg-[#111] hover:border-red-500 hover:text-red-400 transition-colors"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-[11px] font-mono"
                                   aria-label="Delete collection"
                                 >
-                                  <Trash2 size={14} />
+                                  <Trash2 size={12} />
+                                  컬렉션 삭제
                                 </button>
                               </div>
                             )}

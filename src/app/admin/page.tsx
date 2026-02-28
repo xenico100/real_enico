@@ -801,9 +801,9 @@ function AdminConsoleInner() {
                       <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                         {form.images.map((url, index) => (
                           <div key={`${url}-${index}`} className="border border-[#333] bg-[#111] p-2">
-                            <div className="aspect-square bg-black border border-[#222] overflow-hidden mb-2">
+                            <div className="aspect-[4/5] bg-black border border-[#222] overflow-hidden mb-2">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={url} alt="" className="w-full h-full object-cover" />
+                              <img src={url} alt="" className="w-full h-full object-contain bg-black" />
                             </div>
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-mono text-[10px] text-[#888] break-all line-clamp-3">
@@ -867,7 +867,7 @@ function AdminConsoleInner() {
               <div className="border border-[#333] bg-[#0a0a0a] p-4 flex items-center justify-between">
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-widest text-[#666]">
-                    Product List
+                    의류 게시물 목록
                   </p>
                   <p className="font-mono text-xs text-[#999] mt-1">
                     {canManageProducts
@@ -898,13 +898,13 @@ function AdminConsoleInner() {
                         key={product.id}
                         className="border border-[#333] bg-[#0a0a0a] overflow-hidden"
                       >
-                        <div className="aspect-[4/3] bg-black border-b border-[#222] relative">
+                        <div className="aspect-[4/5] bg-black border-b border-[#222] relative">
                           {imageList[0] ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={imageList[0]}
                               alt={product.title || 'product'}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain bg-black"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#555]">
@@ -936,22 +936,24 @@ function AdminConsoleInner() {
                               </p>
                             </div>
                             {canManageProducts && (
-                              <div className="flex items-center gap-1">
+                              <div className="flex flex-col gap-1 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => startEditProduct(product)}
-                                  className="p-2 border border-[#333] bg-[#111] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#7bb8ff]/50 bg-[#7bb8ff]/10 text-[#d7e9ff] hover:bg-[#7bb8ff]/20 transition-colors text-[11px] font-mono"
                                   aria-label="Edit product"
                                 >
-                                  <Pencil size={14} />
+                                  <Pencil size={12} />
+                                  의류 수정
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => void handleDeleteProduct(product.id)}
-                                  className="p-2 border border-[#333] bg-[#111] hover:border-red-500 hover:text-red-400 transition-colors"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-[11px] font-mono"
                                   aria-label="Delete product"
                                 >
-                                  <Trash2 size={14} />
+                                  <Trash2 size={12} />
+                                  의류 삭제
                                 </button>
                               </div>
                             )}

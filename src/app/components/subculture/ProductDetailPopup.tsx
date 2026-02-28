@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 interface ProductDetailPopupProps {
@@ -31,12 +31,11 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     return [];
   }, [product.image, product.images]);
 
-  useEffect(() => {
-    setActiveImageIndex(0);
-  }, [product.id]);
-
   const canSlide = productImages.length > 1;
   const activeImage = productImages[activeImageIndex] || '';
+  const detailImages = productImages
+    .map((image, index) => ({ image, index }))
+    .filter(({ index }) => index > 0);
 
   const moveImage = (direction: 'next' | 'prev') => {
     if (!canSlide) return;
@@ -166,7 +165,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
 
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-8 border-b border-[#333] pb-4">
-                <span className="font-mono text-xs text-[#666]">/// 분류_문서</span>
+                <span className="font-mono text-xs text-[#666]">{'/// 분류_문서'}</span>
                 <span className="font-mono text-xs text-[#00ffd1] animate-pulse">● 활성</span>
               </div>
 
@@ -208,6 +207,54 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       </ul>
                     ) : (
                       <p>등록된 의류 사양이 없습니다.</p>
+                    )}
+                  </div>
+                </section>
+
+                <section className="border border-[#333] bg-[#0f0f0f]">
+                  <div className="px-4 py-2 border-b border-[#333] bg-[#111]">
+                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#00ffd1]">
+                      구조 상세설명
+                    </h3>
+                  </div>
+                  <div className="p-4 max-h-52 overflow-y-auto font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed whitespace-pre-wrap">
+                    {product.description || '상세 설명이 없습니다.'}
+                  </div>
+                </section>
+
+                <section className="border border-[#333] bg-[#0f0f0f]">
+                  <div className="px-4 py-2 border-b border-[#333] bg-[#111]">
+                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#00ffd1]">
+                      상세보기 사진
+                    </h3>
+                  </div>
+                  <div className="p-3 max-h-[26rem] overflow-y-auto space-y-3">
+                    {detailImages.length > 0 ? (
+                      detailImages.map(({ image, index }) => (
+                        <button
+                          key={`${product.id}-detail-list-${index}`}
+                          type="button"
+                          onClick={() => setActiveImageIndex(index)}
+                          className={`w-full border p-2 text-left transition-colors ${
+                            activeImageIndex === index
+                              ? 'border-[#00ffd1] bg-[#001713]'
+                              : 'border-[#333] bg-[#101010] hover:border-[#00ffd1]/70'
+                          }`}
+                        >
+                          <div className="aspect-[4/5] overflow-hidden border border-[#222] bg-black">
+                            <img
+                              src={image}
+                              alt={`${product.name} 상세보기 ${index + 1}`}
+                              className="w-full h-full object-contain bg-black"
+                            />
+                          </div>
+                          <p className="mt-2 font-mono text-[10px] text-[#7e7e7e]">
+                            상세 {index + 1} / 총 {productImages.length}장
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="font-mono text-xs text-[#666]">추가 상세 이미지가 없습니다.</p>
                     )}
                   </div>
                 </section>

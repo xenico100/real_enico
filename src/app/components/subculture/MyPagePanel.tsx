@@ -743,9 +743,9 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           <div className="space-y-2">
             {cart.map((item) => (
               <div key={`${item.id}-${item.selectedSize ?? ''}`} className="border border-[#333] bg-[#0f0f0f] p-3 flex items-center gap-3">
-                <div className="w-12 h-14 border border-[#333] bg-black overflow-hidden shrink-0">
+                <div className="w-12 aspect-[4/5] border border-[#333] bg-black overflow-hidden shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.image} alt="" className="w-full h-full object-cover" />
+                  <img src={item.image} alt="" className="w-full h-full object-contain bg-black" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-[#e5e5e5] truncate">{item.name}</p>
@@ -1032,16 +1032,18 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
               <button
                 type="button"
                 onClick={() => setAdminComposer('products')}
-                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+                className="rounded-xl border border-[#7bb8ff]/45 bg-[#7bb8ff]/12 p-3 text-left text-xs text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
               >
-                clothes 게시물 작성/수정
+                <p className="font-semibold">의류 게시물 편집 열기</p>
+                <p className="text-[10px] mt-1 text-[#a9c7e7]">의류 게시글 작성/수정/삭제</p>
               </button>
               <button
                 type="button"
                 onClick={() => setAdminComposer('collections')}
-                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+                className="rounded-xl border border-[#00ffd1]/45 bg-[#00ffd1]/12 p-3 text-left text-xs text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
               >
-                collection 게시물 작성/수정
+                <p className="font-semibold">컬렉션 게시물 편집 열기</p>
+                <p className="text-[10px] mt-1 text-[#9fe6d7]">컬렉션 게시글 작성/수정/삭제</p>
               </button>
             </div>
 
@@ -1205,21 +1207,26 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             </div>
 
             {isPrimaryAdmin && (
-              <div className="rounded-xl border border-white/10 bg-[#161616] p-2 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setAdminComposer('products')}
-                  className="w-full rounded-lg border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
-                >
-                  의류 게시물 관리
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAdminComposer('collections')}
-                  className="w-full rounded-lg border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
-                >
-                  컬렉션 관리
-                </button>
+              <div className="rounded-xl border border-white/10 bg-[#161616] p-3 space-y-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#8ea8c7]">게시물 편집 허브</p>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdminComposer('products')}
+                    className="w-full rounded-lg border border-[#7bb8ff]/40 bg-[#7bb8ff]/10 px-3 py-2.5 text-left text-xs text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
+                  >
+                    <p className="font-semibold">의류 게시물 수정</p>
+                    <p className="text-[10px] text-[#a9c7e7] mt-1">의류 게시글 작성/수정/삭제 화면 열기</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminComposer('collections')}
+                    className="w-full rounded-lg border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-2.5 text-left text-xs text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
+                  >
+                    <p className="font-semibold">컬렉션 게시물 수정</p>
+                    <p className="text-[10px] text-[#9fe6d7] mt-1">컬렉션 게시글 작성/수정/삭제 화면 열기</p>
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => setActiveTab('adminOrders')}
@@ -1232,6 +1239,34 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           </aside>
 
           <section className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6">
+            {isPrimaryAdmin && (
+              <div className="mb-5 rounded-2xl border border-[#00ffd1]/50 bg-[#061612] p-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">
+                    관리자 게시물 수정
+                  </p>
+                  <p className="text-[11px] text-[#8fd4c6]">
+                    버튼 누르면 바로 게시물 수정 화면이 열립니다.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAdminComposer('products')}
+                    className="w-full rounded-xl border border-[#7bb8ff] bg-[#7bb8ff] px-4 py-3 text-sm font-semibold text-black hover:bg-[#9fcbff] transition-colors"
+                  >
+                    의류 게시물 수정 열기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminComposer('collections')}
+                    className="w-full rounded-xl border border-[#00ffd1] bg-[#00ffd1] px-4 py-3 text-sm font-semibold text-black hover:bg-[#63ffe1] transition-colors"
+                  >
+                    컬렉션 게시물 수정 열기
+                  </button>
+                </div>
+              </div>
+            )}
             {tabContent[activeTab]}
           </section>
         </div>
@@ -1247,7 +1282,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           />
 
           <div className="relative w-[min(1200px,95vw)] h-[min(860px,90vh)] rounded-3xl border border-white/15 bg-[#0d0d0d] overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.7)]">
-            <div className="h-14 border-b border-white/10 bg-[#131313] flex items-center justify-between px-4">
+            <div className="h-16 border-b border-white/10 bg-[#131313] flex items-center justify-between px-4">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1271,6 +1306,9 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 >
                   컬렉션 게시물
                 </button>
+                <p className="hidden md:block text-[11px] text-[#8a8a8a] ml-2">
+                  현재 편집: {adminComposer === 'products' ? '의류 게시물' : '컬렉션 게시물'}
+                </p>
               </div>
 
               <button
@@ -1282,7 +1320,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
               </button>
             </div>
 
-            <div className="h-[calc(100%-56px)]">
+            <div className="h-[calc(100%-64px)]">
               <iframe
                 src={adminComposer === 'products' ? '/admin?embedded=1' : '/admin/collections?embedded=1'}
                 className="w-full h-full border-0 bg-[#050505]"

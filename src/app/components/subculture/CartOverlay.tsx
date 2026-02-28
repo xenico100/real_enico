@@ -624,8 +624,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       {cart.map((item) => (
                         <div key={`${item.id}-${item.selectedSize ?? 'na'}`} className="border border-[#333] bg-[#0f0f0f] p-4">
                           <div className="flex gap-4">
-                            <div className="w-20 h-24 bg-[#111] border border-[#333] shrink-0 relative overflow-hidden">
-                              <img src={item.image} alt="" className="w-full h-full object-cover grayscale contrast-125" />
+                            <div className="w-20 aspect-[4/5] bg-[#111] border border-[#333] shrink-0 relative overflow-hidden">
+                              <img src={item.image} alt="" className="w-full h-full object-contain bg-black grayscale contrast-125" />
                               <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 hover:opacity-20 transition-opacity" />
                             </div>
 

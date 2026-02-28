@@ -2,7 +2,7 @@
 
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Collection } from './CollectionSection';
 
 interface CollectionDetailPopupProps {
@@ -27,10 +27,6 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
   const releaseDate = collection.releaseDate?.trim() || '';
   const showReleaseDate = releaseDate.length > 0 && releaseDate !== '-';
   const showItems = Number.isFinite(collection.items) && collection.items > 0;
-
-  useEffect(() => {
-    setCurrentImageIndex(0);
-  }, [collection.id]);
 
   const nextImage = () => {
     if (!hasImages) return;
@@ -78,74 +74,45 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
           <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)]">
             
             {/* Left: Image Viewer */}
-            <div className="lg:w-2/3 h-full relative bg-[#000] flex items-center justify-center overflow-hidden px-4 py-6">
-               <div className="relative w-full max-w-[760px] aspect-[4/5] border border-[#222] bg-black overflow-hidden group">
-                 {/* Noise Overlay */}
-                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none z-10" />
-                 
-                 {hasImages ? (
-                   <img 
-                     key={safeImageIndex}
-                     src={imageList[safeImageIndex]} 
-                     alt="컬렉션 이미지"
-                     className="w-full h-full object-contain bg-black"
-                   />
-                 ) : (
-                   <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
-                     이미지 없음
-                   </div>
-                 )}
-                 
-                 {/* Navigation Controls */}
-                 <div
-                   className={`absolute left-1/2 -translate-x-1/2 flex gap-8 z-20 ${
-                     hasImages && imageList.length > 1 ? 'bottom-24' : 'bottom-8'
-                   }`}
-                 >
-                   <button
-                     onClick={prevImage}
-                     disabled={!hasImages}
-                     className="hover:text-[#00ffd1] transition-colors disabled:opacity-30 disabled:hover:text-inherit"
-                   >
-                     <ChevronLeft size={40} />
-                   </button>
-                   <span className="font-mono text-xl self-center">
-                     {hasImages ? safeImageIndex + 1 : 0} / {imageList.length}
-                   </span>
-                   <button
-                     onClick={nextImage}
-                     disabled={!hasImages}
-                     className="hover:text-[#00ffd1] transition-colors disabled:opacity-30 disabled:hover:text-inherit"
-                   >
-                     <ChevronRight size={40} />
-                   </button>
-                 </div>
+            <div className="lg:w-2/3 h-full relative bg-[#000] flex flex-col overflow-hidden px-4 py-4">
+              <div className="relative flex-1 min-h-0 border border-[#222] bg-black overflow-hidden">
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none z-10" />
 
-                 {hasImages && imageList.length > 1 && (
-                   <div className="absolute bottom-0 left-0 right-0 z-20 p-3 bg-gradient-to-t from-black/95 to-transparent">
-                     <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
-                       {imageList.map((image, index) => (
-                         <button
-                           key={`${image}-${index}`}
-                           type="button"
-                           onClick={() => setCurrentImageIndex(index)}
-                           className={`h-20 w-16 shrink-0 border transition-colors ${
-                             index === safeImageIndex
-                               ? 'border-[#00ffd1]'
-                               : 'border-[#444] hover:border-[#00ffd1]/70'
-                           }`}
-                         >
-                           <img
-                             src={image}
-                             alt={`컬렉션 썸네일 ${index + 1}`}
-                             className="w-full h-full object-contain bg-black"
-                           />
-                         </button>
-                       ))}
-                     </div>
-                   </div>
-                 )}
-               </div>
+                {hasImages ? (
+                  <img
+                    key={safeImageIndex}
+                    src={imageList[safeImageIndex]}
+                    alt="컬렉션 이미지"
+                    className="w-full h-full object-contain bg-black"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
+                    이미지 없음
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 border border-[#222] bg-[#0a0a0a] px-4 py-3">
+                <div className="flex items-center justify-center gap-8">
+                  <button
+                    onClick={prevImage}
+                    disabled={!hasImages || imageList.length <= 1}
+                    className="hover:text-[#00ffd1] transition-colors disabled:opacity-30 disabled:hover:text-inherit"
+                  >
+                    <ChevronLeft size={32} />
+                  </button>
+                  <span className="font-mono text-lg">
+                    {hasImages ? safeImageIndex + 1 : 0} / {imageList.length}
+                  </span>
+                  <button
+                    onClick={nextImage}
+                    disabled={!hasImages || imageList.length <= 1}
+                    className="hover:text-[#00ffd1] transition-colors disabled:opacity-30 disabled:hover:text-inherit"
+                  >
+                    <ChevronRight size={32} />
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Right: Info Panel */}
@@ -171,7 +138,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                            key={`${image}-detail-${index}`}
                            type="button"
                            onClick={() => setCurrentImageIndex(index)}
-                           className={`aspect-[4/5] border overflow-hidden ${
+                           className={`aspect-[1080/1350] border overflow-hidden ${
                              index === safeImageIndex
                                ? 'border-[#00ffd1]'
                                : 'border-[#333] hover:border-[#00ffd1]/70'
