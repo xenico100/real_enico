@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
@@ -6,11 +6,12 @@ const ORDER_SELECT =
   'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, paypal_order_id, paypal_capture_id, paypal_currency, paypal_value, items, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at';
 
 type ShippingStatus = 'preparing' | 'shipping' | 'delivered';
+type PaymentStatus = 'pending_transfer' | 'transfer_confirmed' | 'captured' | 'completed';
 
 type AdminAuthResult =
   | {
       ok: true;
-      serviceClient: any;
+      serviceClient: SupabaseClient;
     }
   | {
       ok: false;
@@ -99,6 +100,19 @@ function normalizeItems(value: unknown) {
 function normalizeShippingStatus(value: unknown): ShippingStatus | null {
   const normalized = normalizeText(value).toLowerCase();
   if (normalized === 'preparing' || normalized === 'shipping' || normalized === 'delivered') {
+    return normalized;
+  }
+  return null;
+}
+
+function normalizePaymentStatus(value: unknown): PaymentStatus | null {
+  const normalized = normalizeText(value).toLowerCase();
+  if (
+    normalized === 'pending_transfer' ||
+    normalized === 'transfer_confirmed' ||
+    normalized === 'captured' ||
+    normalized === 'completed'
+  ) {
     return normalized;
   }
   return null;
@@ -239,6 +253,7 @@ export async function PATCH(request: Request) {
 
   let payload: {
     id?: string;
+    paymentStatus?: string;
     shippingStatus?: string;
     shippingCompany?: string;
     trackingNumber?: string;
@@ -254,6 +269,21 @@ export async function PATCH(request: Request) {
   const id = normalizeText(payload.id);
   if (!id) {
     return NextResponse.json({ message: '수정 대상 id가 필요합니다.' }, { status: 400 });
+  }
+
+  const requestedPaymentStatus =
+    typeof payload.paymentStatus === 'string'
+      ? normalizePaymentStatus(payload.paymentStatus)
+      : null;
+
+  if (typeof payload.paymentStatus === 'string' && !requestedPaymentStatus) {
+    return NextResponse.json(
+      {
+        message:
+          'paymentStatus는 pending_transfer/transfer_confirmed/captured/completed 중 하나여야 합니다.',
+      },
+      { status: 400 },
+    );
   }
 
   const requestedShippingStatus =
@@ -294,6 +324,10 @@ export async function PATCH(request: Request) {
     tracking_number: normalizeNullableText(payload.trackingNumber),
     shipping_note: normalizeNullableText(payload.shippingNote),
   };
+
+  if (requestedPaymentStatus) {
+    updatePayload.payment_status = requestedPaymentStatus;
+  }
 
   if (nextStatus) {
     updatePayload.shipping_status = nextStatus;
@@ -341,7 +375,7 @@ export async function PATCH(request: Request) {
   }
 
   return NextResponse.json({
-    message: '배송 정보가 저장되었습니다.',
+    message: '주문 상태/배송 정보가 저장되었습니다.',
     order: mapOrderRow(data as OrderRow),
   });
 }

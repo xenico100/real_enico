@@ -248,7 +248,7 @@ async function sendOrderEmail(payload: BankTransferOrderPayload, guestOrderNumbe
     throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
   }
 
-  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
+  const to = DEFAULT_ORDER_RECEIVER_EMAIL;
   const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
   const subject = `[주문접수] ${payload.channel === 'member' ? '회원' : '비회원'} ${payload.transactionId}`;
 

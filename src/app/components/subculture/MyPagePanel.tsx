@@ -87,6 +87,7 @@ type AdminOrderRecord = OrderRecord;
 type MemberOrderRecord = OrderRecord;
 
 type AdminOrderDraft = {
+  paymentStatus: string;
   shippingStatus: ShippingStatus;
   shippingCompany: string;
   trackingNumber: string;
@@ -123,6 +124,22 @@ function getShippingStatusLabel(status: ShippingStatus) {
   return '배송준비중';
 }
 
+function getPaymentStatusLabel(paymentMethod: string, status: string) {
+  const normalizedMethod = (paymentMethod || '').toLowerCase();
+  const normalizedStatus = (status || '').toLowerCase();
+
+  if (normalizedMethod === 'bank_transfer') {
+    if (normalizedStatus === 'transfer_confirmed') return '이체확인';
+    if (normalizedStatus === 'pending_transfer') return '이체확인중';
+  }
+
+  if (normalizedMethod === 'paypal') {
+    if (normalizedStatus === 'captured' || normalizedStatus === 'completed') return '결제완료';
+  }
+
+  return status || '-';
+}
+
 function createMemberDraft(member: MemberRecord): MemberDraft {
   return {
     email: member.email || '',
@@ -135,6 +152,7 @@ function createMemberDraft(member: MemberRecord): MemberDraft {
 
 function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
   return {
+    paymentStatus: order.paymentStatus || 'pending_transfer',
     shippingStatus: order.shippingStatus || 'preparing',
     shippingCompany: order.shippingCompany || '',
     trackingNumber: order.trackingNumber || '',
@@ -406,6 +424,23 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
         };
       }
 
+      if (field === 'paymentStatus') {
+        const normalized =
+          value === 'pending_transfer' ||
+          value === 'transfer_confirmed' ||
+          value === 'captured' ||
+          value === 'completed'
+            ? value
+            : current.paymentStatus;
+        return {
+          ...prev,
+          [orderId]: {
+            ...current,
+            paymentStatus: normalized,
+          },
+        };
+      }
+
       return {
         ...prev,
         [orderId]: {
@@ -431,6 +466,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
         },
         body: JSON.stringify({
           id: orderId,
+          paymentStatus: draft.paymentStatus,
           shippingStatus: draft.shippingStatus,
           shippingCompany: draft.shippingCompany,
           trackingNumber: draft.trackingNumber,
@@ -456,7 +492,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
         }));
       }
 
-      setAdminOrderMessage(payload.message || '배송 정보가 저장되었습니다.');
+      setAdminOrderMessage(payload.message || '주문 상태/배송 정보가 저장되었습니다.');
     } catch (error) {
       setAdminOrderError(error instanceof Error ? error.message : '배송 정보 저장 실패');
     }
@@ -653,7 +689,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                       {order.paymentMethod || '-'}
                     </span>
                     <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
-                      {order.paymentStatus || '-'}
+                      {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
                     </span>
                   </div>
                 </div>
@@ -867,7 +903,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                           {order.paymentMethod || '-'}
                         </span>
                         <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
-                          {order.paymentStatus || '-'}
+                          {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
                         </span>
                         <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
                           {order.channel || '-'}
@@ -905,6 +941,18 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                     <div className="border border-[#333] bg-black p-3 space-y-2">
                       <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">배송정보 입력</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        <select
+                          value={adminOrderDrafts[order.id]?.paymentStatus || 'pending_transfer'}
+                          onChange={(event) =>
+                            updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
+                          }
+                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                        >
+                          <option value="pending_transfer">이체확인중</option>
+                          <option value="transfer_confirmed">이체확인</option>
+                          <option value="captured">결제완료(captured)</option>
+                          <option value="completed">결제완료(completed)</option>
+                        </select>
                         <select
                           value={adminOrderDrafts[order.id]?.shippingStatus || 'preparing'}
                           onChange={(event) =>
@@ -1153,10 +1201,10 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   };
 
   return (
-    <div className="font-mono">
-      <div className="rounded-[28px] border border-white/10 bg-[#0d0d0d] p-3 md:p-4">
-        <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-4 md:gap-5">
-          <aside className="rounded-2xl border border-white/10 bg-[#121212] p-3 md:p-4 space-y-3">
+    <div className="font-mono h-full min-h-0">
+      <div className="rounded-[28px] border border-white/10 bg-[#0d0d0d] p-3 md:p-4 h-full min-h-0">
+        <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-4 md:gap-5 h-full min-h-0">
+          <aside className="rounded-2xl border border-white/10 bg-[#121212] p-3 md:p-4 space-y-3 md:max-h-[calc(82vh-56px)] overflow-y-auto overscroll-contain">
             <button
               type="button"
               onClick={() => {
@@ -1247,7 +1295,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             )}
           </aside>
 
-          <section className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6">
+          <section className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6 min-h-0 flex flex-col">
             <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#171717] px-3 py-2.5">
               <p className="text-xs text-[#a8a8a8]">
                 현재 탭: <span className="text-[#f5f5f5]">{tabs.find((tab) => tab.id === activeTab)?.label || '계정'}</span>
@@ -1261,35 +1309,37 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 {isBusy ? '처리중...' : '로그아웃'}
               </button>
             </div>
-            {isPrimaryAdmin && (
-              <div className="mb-5 rounded-2xl border border-[#00ffd1]/50 bg-[#061612] p-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">
-                    관리자 게시물 수정
-                  </p>
-                  <p className="text-[11px] text-[#8fd4c6]">
-                    버튼 누르면 바로 게시물 수정 화면이 열립니다.
-                  </p>
+            <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
+              {isPrimaryAdmin && (
+                <div className="mb-5 rounded-2xl border border-[#00ffd1]/50 bg-[#061612] p-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">
+                      관리자 게시물 수정
+                    </p>
+                    <p className="text-[11px] text-[#8fd4c6]">
+                      버튼 누르면 바로 게시물 수정 화면이 열립니다.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAdminComposer('products')}
+                      className="w-full rounded-xl border border-[#7bb8ff] bg-[#7bb8ff] px-4 py-3 text-sm font-semibold text-black hover:bg-[#9fcbff] transition-colors"
+                    >
+                      의류 게시물 수정 열기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminComposer('collections')}
+                      className="w-full rounded-xl border border-[#00ffd1] bg-[#00ffd1] px-4 py-3 text-sm font-semibold text-black hover:bg-[#63ffe1] transition-colors"
+                    >
+                      컬렉션 게시물 수정 열기
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setAdminComposer('products')}
-                    className="w-full rounded-xl border border-[#7bb8ff] bg-[#7bb8ff] px-4 py-3 text-sm font-semibold text-black hover:bg-[#9fcbff] transition-colors"
-                  >
-                    의류 게시물 수정 열기
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdminComposer('collections')}
-                    className="w-full rounded-xl border border-[#00ffd1] bg-[#00ffd1] px-4 py-3 text-sm font-semibold text-black hover:bg-[#63ffe1] transition-colors"
-                  >
-                    컬렉션 게시물 수정 열기
-                  </button>
-                </div>
-              </div>
-            )}
-            {tabContent[activeTab]}
+              )}
+              {tabContent[activeTab]}
+            </div>
           </section>
         </div>
       </div>

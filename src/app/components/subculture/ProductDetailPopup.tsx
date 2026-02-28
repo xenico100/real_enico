@@ -11,12 +11,32 @@ interface ProductDetailPopupProps {
   onClose: () => void;
 }
 
+function NaverIcon() {
+  return (
+    <span className="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-[#03c75a] text-[11px] font-black text-white">
+      N
+    </span>
+  );
+}
+
+function getDefaultActiveImageIndex(product: Product) {
+  const candidates = Array.isArray(product.images)
+    ? product.images.filter(
+        (item): item is string => typeof item === 'string' && item.trim().length > 0,
+      )
+    : [];
+  return candidates.length > 1 ? 1 : 0;
+}
+
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
   const { cart, addToCart } = useFashionCart();
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [activeImageIndex, setActiveImageIndex] = useState(() =>
+    getDefaultActiveImageIndex(product),
+  );
   const touchStartX = useRef<number | null>(null);
   const isInCart = cart.some((item) => item.id === product.id);
   const isSoldOut = Boolean(product.isSoldOut);
+  const smartstoreUrl = typeof product.smartstoreUrl === 'string' ? product.smartstoreUrl : '';
 
   const productImages = useMemo(() => {
     const normalized = Array.isArray(product.images)
@@ -79,6 +99,11 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     onClose();
   };
 
+  const handleSmartstorePurchase = () => {
+    if (!smartstoreUrl) return;
+    window.open(smartstoreUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const specs = (product.apparelSpecs || '')
     .split(/\r?\n|,/)
     .map((line) => line.trim())
@@ -112,7 +137,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           {/* Left: Images (Shopping Gallery) */}
           <div className="w-full md:w-1/2 min-h-0 relative bg-black border-b md:border-b-0 md:border-r border-[#333]">
             <div
-              className="relative w-full h-[42vh] min-h-[260px] max-h-[56vh] md:h-auto md:min-h-0 md:max-h-none md:aspect-[4/5] group"
+              className="relative w-full h-[56vh] min-h-[320px] max-h-[68vh] md:h-auto md:min-h-0 md:max-h-none md:aspect-[4/5] group"
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
@@ -306,31 +331,52 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                  </span>
               </div>
 
-              <button
-                onClick={handleAddToCart}
-                disabled={isSoldOut}
-                className={`w-full py-4 px-6 font-mono font-bold text-sm uppercase tracking-widest border transition-all duration-300 relative overflow-hidden group ${
-                  isSoldOut
-                    ? 'bg-[#1f0e0e] text-[#ffabab] border-[#6d2d2d] cursor-not-allowed'
-                    : isInCart
-                    ? 'bg-[#0e1f1c] text-[#8fd6c8] border-[#2d6d62]'
-                    : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
-                }`}
-              >
-                 {!isInCart && !isSoldOut ? (
-                   <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                 ) : null}
-                 <span className="relative z-10 flex justify-between items-center w-full">
-                    <span>
-                      {isSoldOut
-                        ? '품절'
-                        : isInCart
-                          ? '장바구니 담김 (재고 1개)'
-                          : '장바구니 담기'}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleSmartstorePurchase}
+                  disabled={!smartstoreUrl}
+                  className={`w-full py-3 px-4 font-mono font-bold text-xs uppercase tracking-widest border transition-colors ${
+                    smartstoreUrl
+                      ? 'border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a] hover:text-black'
+                      : 'border-[#2b4b36] text-[#4c7f5f] cursor-not-allowed'
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2">
+                      <NaverIcon />
+                      네이버 구매
                     </span>
-                    <span>{isSoldOut ? 'X' : isInCart ? '✓' : '→'}</span>
-                 </span>
-              </button>
+                    <span>↗</span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={handleAddToCart}
+                  disabled={isSoldOut}
+                  className={`w-full py-4 px-6 font-mono font-bold text-sm uppercase tracking-widest border transition-all duration-300 relative overflow-hidden group ${
+                    isSoldOut
+                      ? 'bg-[#1f0e0e] text-[#ffabab] border-[#6d2d2d] cursor-not-allowed'
+                      : isInCart
+                      ? 'bg-[#0e1f1c] text-[#8fd6c8] border-[#2d6d62]'
+                      : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
+                  }`}
+                >
+                   {!isInCart && !isSoldOut ? (
+                     <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                   ) : null}
+                   <span className="relative z-10 flex justify-between items-center w-full">
+                      <span>
+                        {isSoldOut
+                          ? '품절'
+                          : isInCart
+                            ? '장바구니 담김 (재고 1개)'
+                            : '장바구니 담기'}
+                      </span>
+                      <span>{isSoldOut ? 'X' : isInCart ? '✓' : '→'}</span>
+                   </span>
+                </button>
+              </div>
               
             </div>
 
