@@ -97,7 +97,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
             <div className="lg:w-[62%] h-full relative bg-[#000] flex flex-col overflow-hidden px-4 py-4">
               <div className="flex-1 min-h-0 flex items-center justify-center">
                 <div
-                  className="relative w-full max-w-[700px] aspect-[1080/1350] border border-[#222] bg-black overflow-hidden"
+                  className="relative w-full h-full border border-[#222] bg-black overflow-hidden flex items-center justify-center"
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEnd}
                 >
@@ -108,7 +108,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                       key={safeImageIndex}
                       src={imageList[safeImageIndex]}
                       alt="컬렉션 이미지"
-                      className="w-full h-full object-contain bg-black"
+                      className="max-w-full max-h-full w-auto h-auto object-contain bg-black"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">

@@ -74,7 +74,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-center justify-center p-0 md:p-8"
+        className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-center justify-center p-0 md:p-8 overflow-hidden"
         data-lenis-prevent
         onClick={onClose}
       >
@@ -237,7 +237,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       구조 상세설명
                     </h3>
                   </div>
-                  <div className="p-4 max-h-52 overflow-y-auto overscroll-contain font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed whitespace-pre-wrap">
+                  <div className="p-4 font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed whitespace-pre-wrap">
                     {product.description || '상세 설명이 없습니다.'}
                   </div>
                 </section>
@@ -248,7 +248,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       상세보기 사진
                     </h3>
                   </div>
-                  <div className="p-3 max-h-[26rem] overflow-y-auto overscroll-contain space-y-3">
+                  <div className="p-3 space-y-3">
                     {detailImages.length > 0 ? (
                       detailImages.map(({ image, index }) => (
                         <button
