@@ -302,11 +302,11 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                               : 'border-[#333] bg-[#101010] hover:border-[#00ffd1]/70'
                           }`}
                         >
-                          <div className="max-h-[52vh] md:max-h-none md:aspect-[4/5] overflow-hidden border border-[#222] bg-black">
+                          <div className="border border-[#222] bg-black">
                             <img
                               src={image}
                               alt={`${product.name} 상세보기 ${index + 1}`}
-                              className="w-full h-auto md:h-full object-contain bg-black"
+                              className="block w-full h-auto object-contain bg-black"
                             />
                           </div>
                           <p className="mt-2 font-mono text-[10px] text-[#7e7e7e]">

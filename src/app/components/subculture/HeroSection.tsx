@@ -108,7 +108,7 @@ export function HeroSection() {
             경고: 고자극 콘텐츠
           </div>
           <p className="font-mono text-xs md:text-sm max-w-md text-[#888] leading-relaxed">
-            반지하 원룸에서 옷만드는 미친놈 옷 보기
+            반지하 원룸에서 옷만드는 괴짜 옷 보기
           </p>
         </div>
 
