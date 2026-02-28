@@ -2,7 +2,7 @@
 
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Collection } from './CollectionSection';
 
 interface CollectionDetailPopupProps {
@@ -20,6 +20,17 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
         : [];
   const hasImages = imageList.length > 0;
   const safeImageIndex = hasImages ? currentImageIndex % imageList.length : 0;
+  const season = collection.season?.trim() || '';
+  const showSeason = season.length > 0 && season !== '-';
+  const fullDescription = collection.fullDescription?.trim() || '';
+  const showDescription = fullDescription.length > 0 && fullDescription !== '상세 설명 없음';
+  const releaseDate = collection.releaseDate?.trim() || '';
+  const showReleaseDate = releaseDate.length > 0 && releaseDate !== '-';
+  const showItems = Number.isFinite(collection.items) && collection.items > 0;
+
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [collection.id]);
 
   const nextImage = () => {
     if (!hasImages) return;
@@ -60,8 +71,8 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
 
           {/* Film Strip Header */}
           <div className="h-20 border-b border-[#333] flex items-center px-8 bg-[#0a0a0a]">
-            <span className="font-mono text-xs text-[#00ffd1] animate-pulse mr-4">● 기록</span>
-            <span className="font-mono text-xs text-[#666]">파일: {collection.id} /// {collection.season}</span>
+            <span className="font-mono text-xs text-[#00ffd1] animate-pulse mr-4">● 컬렉션</span>
+            {showSeason && <span className="font-mono text-xs text-[#666]">{season}</span>}
           </div>
 
           <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)]">
@@ -76,7 +87,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                    key={safeImageIndex}
                    src={imageList[safeImageIndex]} 
                    alt="컬렉션 이미지"
-                   className="w-full h-full object-contain grayscale contrast-125"
+                   className="w-full h-full object-contain"
                  />
                ) : (
                  <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
@@ -104,6 +115,31 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                    <ChevronRight size={40} />
                  </button>
                </div>
+
+               {hasImages && imageList.length > 1 && (
+                 <div className="absolute bottom-0 left-0 right-0 z-20 p-3 bg-gradient-to-t from-black/95 to-transparent">
+                   <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
+                     {imageList.map((image, index) => (
+                       <button
+                         key={`${image}-${index}`}
+                         type="button"
+                         onClick={() => setCurrentImageIndex(index)}
+                         className={`h-16 w-14 shrink-0 border transition-colors ${
+                           index === safeImageIndex
+                             ? 'border-[#00ffd1]'
+                             : 'border-[#444] hover:border-[#00ffd1]/70'
+                         }`}
+                       >
+                         <img
+                           src={image}
+                           alt={`컬렉션 썸네일 ${index + 1}`}
+                           className="w-full h-full object-cover"
+                         />
+                       </button>
+                     ))}
+                   </div>
+                 </div>
+               )}
             </div>
 
             {/* Right: Info Panel */}
@@ -112,36 +148,59 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                  <h2 className="text-6xl font-heading font-black uppercase text-[#e5e5e5] leading-[0.85] mb-6 tracking-tighter">
                    {collection.title}
                  </h2>
-                 <p className="font-mono text-sm text-[#888] leading-relaxed border-l-2 border-[#00ffd1] pl-4">
-                   {collection.fullDescription}
-                 </p>
+                 {showDescription && (
+                   <p className="font-mono text-sm text-[#888] leading-relaxed border-l-2 border-[#00ffd1] pl-4">
+                     {fullDescription}
+                   </p>
+                 )}
+
+                 {hasImages && (
+                   <div className="mt-6 border border-[#333] bg-[#111] p-3">
+                     <p className="font-mono text-[10px] uppercase tracking-widest text-[#00ffd1] mb-3">
+                       상세 이미지 {imageList.length}장
+                     </p>
+                     <div className="grid grid-cols-3 gap-2">
+                       {imageList.map((image, index) => (
+                         <button
+                           key={`${image}-detail-${index}`}
+                           type="button"
+                           onClick={() => setCurrentImageIndex(index)}
+                           className={`aspect-square border overflow-hidden ${
+                             index === safeImageIndex
+                               ? 'border-[#00ffd1]'
+                               : 'border-[#333] hover:border-[#00ffd1]/70'
+                           }`}
+                         >
+                           <img
+                             src={image}
+                             alt={`상세 이미지 ${index + 1}`}
+                             className="w-full h-full object-cover"
+                           />
+                         </button>
+                       ))}
+                     </div>
+                   </div>
+                 )}
                </div>
 
-               <div className="space-y-8 font-mono text-xs">
-                 <div className="grid grid-cols-2 gap-4 border-t border-[#333] pt-4">
-                   <div className="text-[#666]">총 항목수</div>
-                   <div className="text-[#e5e5e5]">{collection.items}개</div>
-                   
-                   <div className="text-[#666]">출시일</div>
-                   <div className="text-[#e5e5e5]">{collection.releaseDate}</div>
-                   
-                   <div className="text-[#666]">상태</div>
-                   <div className="text-[#00ffd1]">유출됨</div>
+               {(showItems || showReleaseDate) && (
+                 <div className="space-y-8 font-mono text-xs">
+                   <div className="grid grid-cols-2 gap-4 border-t border-[#333] pt-4">
+                     {showItems && (
+                       <>
+                         <div className="text-[#666]">총 항목수</div>
+                         <div className="text-[#e5e5e5]">{collection.items}개</div>
+                       </>
+                     )}
+                     {showReleaseDate && (
+                       <>
+                         <div className="text-[#666]">출시일</div>
+                         <div className="text-[#e5e5e5]">{releaseDate}</div>
+                       </>
+                     )}
+                   </div>
                  </div>
-
-                 <div className="bg-[#111] p-4 border border-[#333]">
-                   <p className="text-[#666] mb-2 uppercase">지시문:</p>
-                   <ul className="list-disc list-inside space-y-2 text-[#aaa]">
-                     <li>정상성 패턴을 교란할 것</li>
-                     <li>시각적 무질서를 유도할 것</li>
-                     <li>현실의 짜임 자체를 의심할 것</li>
-                   </ul>
-                 </div>
-
-                 <button className="w-full py-4 bg-[#00ffd1] text-black font-bold uppercase tracking-widest hover:bg-white transition-colors">
-                   전체 아카이브 열기
-                 </button>
-               </div>
+               )}
             </div>
           </div>
 

@@ -641,14 +641,13 @@ function AdminCollectionsConsoleInner() {
 
                   <div>
                     <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
-                      Release Date Text
+                      Release Date
                     </label>
                     <input
-                      type="text"
+                      type="date"
                       value={form.releaseDate}
                       onChange={(e) => setForm((prev) => ({ ...prev, releaseDate: e.target.value }))}
                       className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
-                      placeholder="예: 2027.03.20"
                     />
                   </div>
 

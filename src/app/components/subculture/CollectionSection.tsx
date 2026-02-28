@@ -116,13 +116,13 @@ function mapCollectionRow(row: CollectionRow): Collection {
   return {
     id: row.id,
     title: row.title?.trim() || '제목 없음',
-    season: row.season?.trim() || '-',
-    description: row.description?.trim() || '설명 없음',
+    season: row.season?.trim() || '',
+    description: row.description?.trim() || '',
     image: images[0] || '',
     images,
     items: Number.isFinite(numericItems) ? numericItems : 0,
-    releaseDate: row.release_date?.trim() || '-',
-    fullDescription: row.full_description?.trim() || row.description?.trim() || '상세 설명 없음',
+    releaseDate: row.release_date?.trim() || '',
+    fullDescription: row.full_description?.trim() || row.description?.trim() || '',
   };
 }
 
@@ -147,18 +147,27 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
       setCollectionLoadError(null);
 
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('collections')
-          .select(
-            'id, title, season, description, full_description, release_date, items, image, images, is_published, created_at, updated_at',
-          )
+          .select('*')
           .eq('is_published', true)
           .order('created_at', { ascending: false });
+
+        if (error?.message?.toLowerCase().includes('is_published')) {
+          const fallback = await supabase
+            .from('collections')
+            .select('*')
+            .order('created_at', { ascending: false });
+          data = fallback.data;
+          error = fallback.error;
+        }
 
         if (error) throw error;
         if (!active) return;
 
-        const mapped = ((data ?? []) as CollectionRow[]).map(mapCollectionRow);
+        const mapped = ((data ?? []) as Array<Record<string, unknown>>)
+          .map((row) => row as CollectionRow)
+          .map(mapCollectionRow);
         setCollections(mapped);
       } catch (error) {
         if (!active) return;
@@ -254,17 +263,21 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
 
                 {/* Text Area */}
                 <div className="space-y-2">
-                  <div className="border-b border-black pb-2">
-                    <span className="font-mono text-xs text-gray-500">{collection.season}</span>
-                  </div>
+                  {collection.season.trim().length > 0 && (
+                    <div className="border-b border-black pb-2">
+                      <span className="font-mono text-xs text-gray-500">{collection.season}</span>
+                    </div>
+                  )}
                   
                   <h3 className="text-3xl font-heading uppercase leading-none break-words group-hover:text-[#00ffd1] transition-colors">
                     {collection.title}
                   </h3>
                   
-                  <p className="font-mono text-xs leading-relaxed text-gray-600 line-clamp-3">
-                    {collection.description}
-                  </p>
+                  {collection.description.trim().length > 0 && (
+                    <p className="font-mono text-xs leading-relaxed text-gray-600 line-clamp-3">
+                      {collection.description}
+                    </p>
+                  )}
 
                   <div className="pt-4 flex justify-end">
                     <span className="text-xs font-bold font-mono underline decoration-2 decoration-[#00ffd1] group-hover:bg-[#00ffd1] group-hover:text-black group-hover:no-underline px-1 transition-all">

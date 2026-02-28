@@ -19,6 +19,7 @@ export interface Product {
   image: string;
   images: string[];
   description: string;
+  apparelSpecs?: string;
 }
 
 type ProductSeed = Omit<Product, 'images'>;
@@ -117,6 +118,7 @@ type ProductDbRow = {
   title?: string | null;
   category?: string | null;
   description?: string | null;
+  specs?: string | null;
   price?: number | string | null;
   thumbnail_url?: string | null;
   images?: unknown;
@@ -337,6 +339,13 @@ function mapDbRowToProduct(row: ProductDbRow): Product | null {
     'detail',
     'detailSummary',
   ]);
+  const rawSpecs = extractRawText(row.raw, [
+    'specs',
+    'spec',
+    'apparelSpecs',
+    'materialInfo',
+    'sizeSpec',
+  ]);
 
   const title =
     row.title?.trim() ||
@@ -345,6 +354,9 @@ function mapDbRowToProduct(row: ProductDbRow): Product | null {
   const price = Number.isFinite(numericPrice) ? numericPrice : 0;
   const description =
     explicitDescription || plainDetail || rawDescription || `${title} 상세 페이지`;
+  const apparelSpecs =
+    (typeof row.specs === 'string' ? row.specs.trim() : '') ||
+    rawSpecs;
 
   return {
     id: row.id,
@@ -354,6 +366,7 @@ function mapDbRowToProduct(row: ProductDbRow): Product | null {
     image: images[0] || FALLBACK_IMAGE_URL,
     images: images.length > 0 ? images : [FALLBACK_IMAGE_URL],
     description,
+    apparelSpecs: apparelSpecs || undefined,
   };
 }
 

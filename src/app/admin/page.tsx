@@ -18,6 +18,7 @@ type ProductRow = {
   title: string | null;
   category: string | null;
   description: string | null;
+  specs: string | null;
   price: number | string | null;
   currency: string | null;
   images: unknown;
@@ -30,6 +31,7 @@ type ProductFormState = {
   title: string;
   category: ProductCategory;
   description: string;
+  specs: string;
   price: string;
   currency: string;
   isPublished: boolean;
@@ -47,6 +49,7 @@ const emptyForm: ProductFormState = {
   title: '',
   category: DEFAULT_PRODUCT_CATEGORY,
   description: '',
+  specs: '',
   price: '',
   currency: 'KRW',
   isPublished: true,
@@ -72,13 +75,20 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function isMissingProductsColumn(error: unknown, column: string) {
-  const message = getErrorMessage(error, '').toLowerCase();
-  return (
-    message.includes(`'${column}' column`) ||
-    message.includes(`products.${column}`) ||
-    message.includes(`column ${column}`)
-  );
+function extractMissingProductsColumn(error: unknown) {
+  const message = getErrorMessage(error, '');
+  if (!message) return null;
+
+  const schemaCacheMatch = message.match(/'([^']+)' column/i);
+  if (schemaCacheMatch?.[1]) return schemaCacheMatch[1];
+
+  const productsColumnMatch = message.match(/products\.([a-zA-Z0-9_]+)/i);
+  if (productsColumnMatch?.[1]) return productsColumnMatch[1];
+
+  const genericColumnMatch = message.match(/column\s+\"?([a-zA-Z0-9_]+)\"?\s+does not exist/i);
+  if (genericColumnMatch?.[1]) return genericColumnMatch[1];
+
+  return null;
 }
 
 function normalizeImages(value: unknown): string[] {
@@ -214,6 +224,7 @@ function AdminConsoleInner() {
           title: typeof row.title === 'string' ? row.title : null,
           category: resolvedCategory,
           description: typeof row.description === 'string' ? row.description : null,
+          specs: typeof row.specs === 'string' ? row.specs : null,
           price: parsedPrice,
           currency: typeof row.currency === 'string' ? row.currency : 'KRW',
           images: row.images,
@@ -319,6 +330,7 @@ function AdminConsoleInner() {
       title: product.title ?? '',
       category: isProductCategory(categoryValue) ? categoryValue : DEFAULT_PRODUCT_CATEGORY,
       description: product.description ?? '',
+      specs: product.specs ?? '',
       price: product.price === null || product.price === undefined ? '' : String(product.price),
       currency: product.currency ?? 'KRW',
       isPublished: Boolean(product.is_published),
@@ -424,6 +436,7 @@ function AdminConsoleInner() {
         title: form.title.trim(),
         category: form.category,
         description: form.description.trim() || null,
+        specs: form.specs.trim() || null,
         price: parsedPrice,
         currency: form.currency.trim().toUpperCase() || 'KRW',
         images: form.images,
@@ -431,55 +444,50 @@ function AdminConsoleInner() {
         updated_at: now,
       };
 
-      let saveError: unknown = null;
-      let usedCategoryFallback = false;
+      const workingPayload: Record<string, unknown> = editingProductId
+        ? { ...payload }
+        : { ...payload, created_at: now };
+      const strippedColumns: string[] = [];
 
-      if (editingProductId) {
-        const { error } = await supabase
-          .from('products')
-          .update(payload)
-          .eq('id', editingProductId);
-        saveError = error;
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        let saveError: unknown = null;
 
-        if (saveError && isMissingProductsColumn(saveError, 'category')) {
-          const compatPayload: Record<string, unknown> = { ...payload };
-          delete compatPayload.category;
-          const retry = await supabase
+        if (editingProductId) {
+          const result = await supabase
             .from('products')
-            .update(compatPayload)
+            .update(workingPayload)
             .eq('id', editingProductId);
-          saveError = retry.error;
-          usedCategoryFallback = !retry.error;
+          saveError = result.error;
+        } else {
+          const result = await supabase.from('products').insert(workingPayload);
+          saveError = result.error;
         }
-      } else {
-        const insertPayload: Record<string, unknown> = {
-          ...payload,
-          created_at: now,
-        };
-        const { error } = await supabase.from('products').insert(insertPayload);
-        saveError = error;
 
-        if (saveError && isMissingProductsColumn(saveError, 'category')) {
-          const compatPayload: Record<string, unknown> = { ...insertPayload };
-          delete compatPayload.category;
-          const retry = await supabase.from('products').insert(compatPayload);
-          saveError = retry.error;
-          usedCategoryFallback = !retry.error;
+        if (!saveError) {
+          break;
+        }
+
+        const missingColumn = extractMissingProductsColumn(saveError);
+        if (!missingColumn || !(missingColumn in workingPayload)) {
+          throw saveError;
+        }
+
+        delete workingPayload[missingColumn];
+        if (!strippedColumns.includes(missingColumn)) {
+          strippedColumns.push(missingColumn);
         }
       }
 
-      if (saveError) throw saveError;
-
       if (editingProductId) {
         setPageMessage(
-          usedCategoryFallback
-            ? '상품 수정 완료 (DB에 category 컬럼이 없어 카테고리는 별도 저장되지 않았습니다)'
+          strippedColumns.length > 0
+            ? `상품 수정 완료 (누락 컬럼 제외: ${strippedColumns.join(', ')})`
             : '상품 수정 완료',
         );
       } else {
         setPageMessage(
-          usedCategoryFallback
-            ? '상품 등록 완료 (DB에 category 컬럼이 없어 카테고리는 별도 저장되지 않았습니다)'
+          strippedColumns.length > 0
+            ? `상품 등록 완료 (누락 컬럼 제외: ${strippedColumns.join(', ')})`
             : '상품 등록 완료',
         );
       }
@@ -670,7 +678,7 @@ function AdminConsoleInner() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
-                        Price (bigint)
+                        가격
                       </label>
                       <input
                         type="number"
@@ -684,7 +692,7 @@ function AdminConsoleInner() {
                     </div>
                     <div>
                       <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
-                        Currency
+                        통화
                       </label>
                       <input
                         type="text"
@@ -701,7 +709,7 @@ function AdminConsoleInner() {
 
                   <div>
                     <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
-                      Description
+                      상세 설명
                     </label>
                     <textarea
                       value={form.description}
@@ -710,7 +718,22 @@ function AdminConsoleInner() {
                       }
                       rows={5}
                       className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1] resize-y"
-                      placeholder="상품 설명"
+                      placeholder="게시물 상세 설명"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                      의류 사양
+                    </label>
+                    <textarea
+                      value={form.specs}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, specs: e.target.value }))
+                      }
+                      rows={5}
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1] resize-y"
+                      placeholder={'소재: 코튼 100%\n핏: 오버핏\n세탁: 찬물 단독세탁'}
                     />
                   </div>
 
@@ -724,14 +747,14 @@ function AdminConsoleInner() {
                       className="accent-[#00ffd1]"
                     />
                     <span className="font-mono text-xs uppercase tracking-widest">
-                      Published (일반 유저에게 노출)
+                      공개 여부
                     </span>
                   </label>
 
                   <div className="space-y-3 border border-[#333] bg-[#090909] p-4">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-mono text-[10px] uppercase tracking-widest text-[#666]">
-                        Product Images (jsonb array)
+                        이미지
                       </p>
                       <span className="font-mono text-[10px] text-[#00ffd1]">
                         {form.images.length} items
@@ -755,9 +778,6 @@ function AdminConsoleInner() {
                       >
                         hidden
                       </button>
-                      <p className="text-[10px] text-[#666] font-mono">
-                        bucket: `product-images` (public)
-                      </p>
                     </div>
 
                     <div className="flex gap-2">
@@ -765,7 +785,7 @@ function AdminConsoleInner() {
                         type="url"
                         value={manualImageUrl}
                         onChange={(e) => setManualImageUrl(e.target.value)}
-                        placeholder="https://... (manual URL)"
+                        placeholder="이미지 URL 직접 입력"
                         className="flex-1 bg-black border border-[#333] px-3 py-2 text-xs focus:outline-none focus:border-[#00ffd1]"
                       />
                       <button
@@ -773,7 +793,7 @@ function AdminConsoleInner() {
                         onClick={handleAddManualImage}
                         className="px-3 py-2 border border-[#333] bg-[#111] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
                       >
-                        <Plus size={14} />
+                        추가
                       </button>
                     </div>
 
@@ -809,10 +829,10 @@ function AdminConsoleInner() {
                     className="w-full py-3 bg-[#e5e5e5] text-black font-bold uppercase tracking-widest hover:bg-[#00ffd1] transition-colors disabled:opacity-50"
                   >
                     {isSaving
-                      ? 'Saving...'
+                      ? '저장 중...'
                       : editingProductId
-                        ? 'Update Product'
-                        : 'Create Product'}
+                        ? '게시물 수정'
+                        : '게시물 등록'}
                   </button>
                 </form>
               ) : (
@@ -952,6 +972,9 @@ function AdminConsoleInner() {
 
                           <p className="font-mono text-xs text-[#9a9a9a] leading-relaxed line-clamp-4 min-h-16">
                             {product.description || '설명이 없습니다.'}
+                          </p>
+                          <p className="font-mono text-xs text-[#7fded0] leading-relaxed line-clamp-2">
+                            {product.specs || '의류 사양 없음'}
                           </p>
 
                           <div className="border-t border-[#222] pt-3 grid grid-cols-2 gap-2 text-[10px] font-mono text-[#666]">

@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+export const runtime = 'nodejs';
+
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 type AdminAuthResult =
@@ -14,8 +16,9 @@ type AdminAuthResult =
     };
 
 function getServerConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !anonKey || !serviceRoleKey) {
@@ -28,6 +31,23 @@ function getServerConfig() {
 function normalizeText(value: unknown) {
   if (typeof value !== 'string') return '';
   return value.trim();
+}
+
+function normalizeDateInput(value: unknown) {
+  const raw = normalizeText(value);
+  if (!raw) return null;
+
+  const normalized = raw.replace(/[./]/g, '-');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return null;
+  }
+
+  const date = new Date(`${normalized}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -45,6 +65,36 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function isCollectionsTableMissing(error: unknown) {
+  const message = getErrorMessage(error, '').toLowerCase();
+  return (
+    message.includes('relation') &&
+    message.includes('collections') &&
+    message.includes('does not exist')
+  );
+}
+
+function missingCollectionsTableMessage() {
+  return [
+    'collections 테이블이 없어 저장에 실패했습니다.',
+    'Supabase SQL Editor에서 아래 SQL을 먼저 실행하세요:',
+    "create table if not exists public.collections (",
+    "  id uuid primary key default gen_random_uuid(),",
+    "  title text,",
+    "  season text,",
+    "  description text,",
+    "  full_description text,",
+    "  release_date date,",
+    "  items integer default 0,",
+    "  image text,",
+    "  images jsonb default '[]'::jsonb,",
+    "  is_published boolean default true,",
+    "  created_at timestamptz default now(),",
+    "  updated_at timestamptz default now()",
+    ");",
+  ].join('\n');
 }
 
 function extractMissingCollectionColumn(error: unknown) {
@@ -69,7 +119,10 @@ async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
     return {
       ok: false,
       response: NextResponse.json(
-        { message: 'Supabase server config is missing.' },
+        {
+          message:
+            'Supabase server config is missing. NEXT_PUBLIC_SUPABASE_URL(or SUPABASE_URL), NEXT_PUBLIC_SUPABASE_ANON_KEY(or SUPABASE_ANON_KEY), SUPABASE_SERVICE_ROLE_KEY를 확인하세요.',
+        },
         { status: 500 },
       ),
     };
@@ -136,7 +189,7 @@ function sanitizeCollectionPayload(input: Record<string, unknown>, includeCreate
     season: normalizeText(input.season) || null,
     description: normalizeText(input.description) || null,
     full_description: normalizeText(input.full_description) || null,
-    release_date: normalizeText(input.release_date) || null,
+    release_date: normalizeDateInput(input.release_date),
     items: Number.isFinite(parsedItems) ? parsedItems : 0,
     image: images[0] || normalizeText(input.image) || null,
     images,
@@ -236,6 +289,9 @@ export async function GET(request: Request) {
     .limit(limit);
 
   if (error) {
+    if (isCollectionsTableMissing(error)) {
+      return NextResponse.json({ message: missingCollectionsTableMessage() }, { status: 500 });
+    }
     return NextResponse.json(
       { message: `컬렉션 목록 조회 실패: ${error.message}` },
       { status: 500 },
@@ -275,6 +331,9 @@ export async function POST(request: Request) {
       strippedColumns: result.strippedColumns,
     });
   } catch (error) {
+    if (isCollectionsTableMissing(error)) {
+      return NextResponse.json({ message: missingCollectionsTableMessage() }, { status: 500 });
+    }
     return NextResponse.json(
       { message: getErrorMessage(error, '컬렉션 저장 실패') },
       { status: 500 },
@@ -318,6 +377,9 @@ export async function PATCH(request: Request) {
       strippedColumns: result.strippedColumns,
     });
   } catch (error) {
+    if (isCollectionsTableMissing(error)) {
+      return NextResponse.json({ message: missingCollectionsTableMessage() }, { status: 500 });
+    }
     return NextResponse.json(
       { message: getErrorMessage(error, '컬렉션 저장 실패') },
       { status: 500 },
@@ -343,6 +405,9 @@ export async function DELETE(request: Request) {
 
   const { error } = await auth.serviceClient.from('collections').delete().eq('id', id);
   if (error) {
+    if (isCollectionsTableMissing(error)) {
+      return NextResponse.json({ message: missingCollectionsTableMessage() }, { status: 500 });
+    }
     return NextResponse.json(
       { message: `컬렉션 삭제 실패: ${error.message}` },
       { status: 500 },

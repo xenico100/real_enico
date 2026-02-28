@@ -49,20 +49,10 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     onClose();
   };
 
-  const detailSections = [
-    {
-      title: '상세 설명',
-      body: `${product.description} 이 영역은 스크롤 가능한 상세 뷰 구조로 잡아둔 상태라서, 나중에 긴 상품 게시글/에디토리얼/릴리즈 노트/캠페인 카피를 붙여도 모달 레이아웃을 다시 갈아엎지 않아도 됩니다.`,
-    },
-    {
-      title: '구성 메모',
-      body: '패널 분할 실루엣, 과장된 비율감, 인더스트리얼 트림, 아카이브 기반 표면 처리 디테일이 들어갑니다. 실제 생산 메모, 원단 구성, 세탁 안내, 핏 코멘트로 이 블록을 교체하면 됩니다.',
-    },
-    {
-      title: '게시글 본문 영역 (향후 콘텐츠 시스템)',
-      body: '스토리텔링, 스타일링 가이드, 발매 맥락, 관리 팁, 재고 업데이트, 이미지 캡션 같은 긴 게시글형 콘텐츠를 이 영역에 넣으면 됩니다. 우측 패널 스크롤이 켜져 있어서 길어져도 안전하게 내려갑니다.',
-    },
-  ];
+  const specs = (product.apparelSpecs || '')
+    .split(/\r?\n|,/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   return (
     <AnimatePresence>
@@ -184,14 +174,8 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 {product.name}
               </h2>
 
-              <div className="font-mono text-xs md:text-sm text-[#888] space-y-4 mb-8 leading-relaxed">
-                <p>{product.description}</p>
-                <p>
-                  사양: <br/>
-                  - 소재: 100% 미확인 섬유<br/>
-                  - 원산지: [비공개]<br/>
-                  - 내구도: 실전 대응
-                </p>
+              <div className="font-mono text-xs md:text-sm text-[#888] mb-8 leading-relaxed">
+                <p>{product.description || '상세 설명이 없습니다.'}</p>
               </div>
 
               {/* Extended Detail Sections (scrollable) */}
@@ -207,22 +191,26 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                   </div>
                 </div>
 
-                {detailSections.map((section) => (
-                  <section key={section.title} className="border border-[#333] bg-[#0f0f0f]">
-                    <div className="px-4 py-2 border-b border-[#333] bg-[#111] flex items-center justify-between">
-                      <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#00ffd1]">
-                        {section.title}
-                      </h3>
-                      <span className="font-mono text-[10px] text-[#555]">스크롤 가능</span>
-                    </div>
-                    <div className="p-4 font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed space-y-3">
-                      <p>{section.body}</p>
-                      <p>
-                        향후 상품 게시글용 자리표시 문단입니다. 여기에 긴 마크다운/CMS 본문을 붙이고 아래로 섹션을 계속 추가해도 모달 레이아웃이 깨지지 않게 잡아둔 구조입니다.
-                      </p>
-                    </div>
-                  </section>
-                ))}
+                <section className="border border-[#333] bg-[#0f0f0f]">
+                  <div className="px-4 py-2 border-b border-[#333] bg-[#111]">
+                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#00ffd1]">
+                      의류 사양
+                    </h3>
+                  </div>
+                  <div className="p-4 font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed">
+                    {specs.length > 0 ? (
+                      <ul className="space-y-2">
+                        {specs.map((line, index) => (
+                          <li key={`${line}-${index}`} className="border border-[#222] bg-[#111] px-3 py-2">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>등록된 의류 사양이 없습니다.</p>
+                    )}
+                  </div>
+                </section>
               </div>
             </div>
 
@@ -246,9 +234,6 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                  </span>
               </button>
               
-              <p className="mt-4 font-mono text-[10px] text-[#444] text-center">
-                경고: 이 항목은 사회적 소음을 유발할 수 있습니다.
-              </p>
             </div>
 
           </div>
