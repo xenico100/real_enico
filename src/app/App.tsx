@@ -11,19 +11,25 @@ import { InfoPopup } from '@/app/components/subculture/InfoPopup';
 import { ProductDetailPopup } from '@/app/components/subculture/ProductDetailPopup';
 import { CollectionDetailPopup } from '@/app/components/subculture/CollectionDetailPopup';
 import { FashionCartProvider } from '@/app/context/FashionCartContext';
+import { RandomChatModal } from '@/features/randomChat/RandomChatModal';
 import type { Collection } from '@/app/components/subculture/CollectionSection';
 import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'mypage' | null>(null);
+  const [isRandomChatOpen, setIsRandomChatOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [isGlitching, setIsGlitching] = useState(false);
   const [isBootFxActive, setIsBootFxActive] = useState(true);
   const lenisRef = useRef<LenisRef | null>(null);
   const isOverlayOpen =
-    isCartOpen || Boolean(activePopup) || Boolean(selectedProduct) || Boolean(selectedCollection);
+    isCartOpen ||
+    isRandomChatOpen ||
+    Boolean(activePopup) ||
+    Boolean(selectedProduct) ||
+    Boolean(selectedCollection);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -103,6 +109,7 @@ export default function App() {
         <SubcultureHeader 
           onCartClick={() => setIsCartOpen(true)}
           onInfoClick={(type) => setActivePopup(type)}
+          onRandomChatClick={() => setIsRandomChatOpen(true)}
         />
         
         <main className="relative z-10">
@@ -136,6 +143,11 @@ export default function App() {
             onClose={() => setSelectedCollection(null)} 
           />
         )}
+
+        <RandomChatModal
+          open={isRandomChatOpen}
+          onClose={() => setIsRandomChatOpen(false)}
+        />
       </div>
       </ReactLenis>
     </FashionCartProvider>

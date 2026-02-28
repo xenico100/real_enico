@@ -10,9 +10,16 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 interface SubcultureHeaderProps {
   onCartClick: () => void;
   onInfoClick: (type: 'about' | 'contact' | 'mypage') => void;
+  onRandomChatClick: () => void;
 }
 
-export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderProps) {
+type InfoNavKey = 'about' | 'contact' | 'mypage';
+
+type NavItem =
+  | { key: InfoNavKey; label: string; action: 'info' }
+  | { key: 'randomChat'; label: string; action: 'randomChat' };
+
+export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }: SubcultureHeaderProps) {
   const { cart } = useFashionCart();
   const { isAuthenticated, isAuthReady, user, session } = useAuth();
   const cartCount = cart.length;
@@ -51,10 +58,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
     : isAuthReady
       ? '로그인 / 회원가입'
       : '마이페이지';
-  const navItems = [
-    { key: 'about' as const, label: '소개' },
-    { key: 'contact' as const, label: '연락' },
-    { key: 'mypage' as const, label: myPageLabel },
+  const navItems: NavItem[] = [
+    { key: 'about', label: '소개', action: 'info' },
+    { key: 'contact', label: '연락', action: 'info' },
+    { key: 'randomChat', label: '4인 랜덤채팅', action: 'randomChat' },
+    { key: 'mypage', label: myPageLabel, action: 'info' },
   ];
 
   const glitchText = (text: string) => (
@@ -87,11 +95,17 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
           <nav className="hidden md:flex flex-col items-end gap-2 font-mono text-sm mr-4 lg:mr-8">
             {navItems.map((item, i) => (
               (() => {
-                const isFunctional = item.key === 'mypage';
+                const isFunctional = item.key === 'mypage' || item.key === 'randomChat';
                 return (
               <button 
                 key={item.key}
-                onClick={() => onInfoClick(item.key)}
+                onClick={() => {
+                  if (item.action === 'randomChat') {
+                    onRandomChatClick();
+                    return;
+                  }
+                  onInfoClick(item.key);
+                }}
                 className={`w-full text-right px-2 py-1.5 transition-colors duration-0 uppercase tracking-widest border ${
                   isFunctional
                     ? 'border-[#00ffd1]/40 bg-[#00ffd1]/5 hover:bg-[#00ffd1] hover:text-black'
@@ -152,7 +166,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick }: SubcultureHeaderP
                 <button 
                   key={item.key}
                   onClick={() => {
-                    onInfoClick(item.key);
+                    if (item.action === 'randomChat') {
+                      onRandomChatClick();
+                    } else {
+                      onInfoClick(item.key);
+                    }
                     setMenuOpen(false);
                   }}
                   className="hover:line-through decoration-4 decoration-white"

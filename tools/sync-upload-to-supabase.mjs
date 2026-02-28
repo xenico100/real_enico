@@ -7,6 +7,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUCKET = 'product-images';
 const ROOT_DIR = path.resolve(process.cwd(), 'upload');
 const DRY_RUN = process.argv.includes('--dry-run');
+const PRODUCTS_ONLY = process.argv.includes('--products-only');
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error('SUPABASE_URL(or NEXT_PUBLIC_SUPABASE_URL) + SUPABASE_SERVICE_ROLE_KEY env가 필요합니다.');
@@ -222,14 +223,25 @@ async function collectProductFolders(skippedHeic) {
         continue;
       }
 
-      let thumbnail = pickThumbnail(uniquePaths([...thumbFiles, ...directFiles, ...detailFiles])) || allFiles[0] || null;
+      const hasThumbFolder = thumbFiles.length > 0;
+      let thumbnail = hasThumbFolder
+        ? pickThumbnail(thumbFiles)
+        : pickThumbnail(uniquePaths([...directFiles, ...detailFiles, ...allFiles])) || allFiles[0] || null;
       if (!thumbnail) continue;
 
-      const detailList = uniquePaths([
-        ...detailFiles,
-        ...directFiles.filter((item) => item !== thumbnail),
-        ...allFiles.filter((item) => item !== thumbnail),
-      ]);
+      const detailList = hasThumbFolder
+        ? (detailFiles.length > 0
+          ? uniquePaths(detailFiles)
+          : uniquePaths(
+              [...directFiles, ...allFiles].filter(
+                (item) => item !== thumbnail && !thumbFiles.includes(item),
+              ),
+            ))
+        : uniquePaths([
+            ...detailFiles,
+            ...directFiles.filter((item) => item !== thumbnail),
+            ...allFiles.filter((item) => item !== thumbnail),
+          ]);
 
       rows.push({
         folderName: dirName,
@@ -314,16 +326,33 @@ async function uploadOne(localFilePath, storagePath) {
   }
 
   const body = await fs.readFile(localFilePath);
-  const { error } = await supabase.storage.from(BUCKET).upload(storagePath, body, {
-    upsert: true,
-    contentType: mimeTypeFromExt(localFilePath),
-    cacheControl: '3600',
-  });
-  if (error) {
-    throw new Error(`upload 실패: ${storagePath} (${error.message})`);
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    const { error } = await supabase.storage.from(BUCKET).upload(storagePath, body, {
+      upsert: true,
+      contentType: mimeTypeFromExt(localFilePath),
+      cacheControl: '3600',
+    });
+
+    if (!error) {
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
+      return data.publicUrl;
+    }
+
+    lastError = error;
+    const retryable =
+      typeof error.message === 'string' &&
+      (/bad gateway/i.test(error.message) || /gateway/i.test(error.message) || /5\d\d/.test(error.message));
+
+    if (!retryable || attempt === 4) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
   }
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
-  return data.publicUrl;
+
+  throw new Error(`upload 실패: ${storagePath} (${lastError?.message || 'unknown error'})`);
 }
 
 async function updateProducts(productFolders) {
@@ -449,19 +478,23 @@ async function updateCollections(collectionFolders) {
 async function main() {
   const skippedHeic = [];
   const productFolders = await collectProductFolders(skippedHeic);
-  const collectionFolders = await collectCollectionFolders(skippedHeic);
-
   const productResult = await updateProducts(productFolders);
-  const collectionResult = await updateCollections(collectionFolders);
+  const collectionFolders = PRODUCTS_ONLY ? [] : await collectCollectionFolders(skippedHeic);
+  const collectionResult = PRODUCTS_ONLY
+    ? { updated: [], unmatchedFolders: [], totalDbRows: 0 }
+    : await updateCollections(collectionFolders);
 
   console.log(`mode=${DRY_RUN ? 'dry-run' : 'apply'}`);
+  console.log(`products_only=${PRODUCTS_ONLY}`);
   console.log(`products folders: ${productFolders.length}, updated: ${productResult.updated.length}, db rows: ${productResult.totalDbRows}`);
-  console.log(`collections folders: ${collectionFolders.length}, updated: ${collectionResult.updated.length}, db rows: ${collectionResult.totalDbRows}`);
+  if (!PRODUCTS_ONLY) {
+    console.log(`collections folders: ${collectionFolders.length}, updated: ${collectionResult.updated.length}, db rows: ${collectionResult.totalDbRows}`);
+  }
 
   if (productResult.unmatchedFolders.length) {
     console.log('unmatched product folders:', productResult.unmatchedFolders.join(', '));
   }
-  if (collectionResult.unmatchedFolders.length) {
+  if (!PRODUCTS_ONLY && collectionResult.unmatchedFolders.length) {
     console.log('unmatched collection folders:', collectionResult.unmatchedFolders.join(', '));
   }
 
@@ -474,9 +507,11 @@ async function main() {
     console.log(`- ${item.title} <= ${item.folder} (${item.imageCount} images)`);
   }
 
-  console.log('\nupdated collections');
-  for (const item of collectionResult.updated) {
-    console.log(`- ${item.title} <= ${item.folder} (${item.imageCount} images)`);
+  if (!PRODUCTS_ONLY) {
+    console.log('\nupdated collections');
+    for (const item of collectionResult.updated) {
+      console.log(`- ${item.title} <= ${item.folder} (${item.imageCount} images)`);
+    }
   }
 }
 
