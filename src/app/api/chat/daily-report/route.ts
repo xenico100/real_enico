@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 const DEFAULT_REPORT_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const APP_FLAG_KEY = 'chat_daily_report';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 type ChatMessageRow = {
   id: number;
@@ -17,7 +18,7 @@ type ChatMessageRow = {
 
 type AppFlagRow = {
   value: {
-    last_sent_kst_date?: string;
+    last_report_kst_date?: string;
   } | null;
 };
 
@@ -63,6 +64,23 @@ function shortUserId(userId: string) {
   return userId.replace(/-/g, '').slice(0, 8);
 }
 
+function getPreviousKstDayWindow(now: Date) {
+  const kstNow = new Date(now.getTime() + KST_OFFSET_MS);
+  const year = kstNow.getUTCFullYear();
+  const month = kstNow.getUTCMonth();
+  const day = kstNow.getUTCDate();
+
+  const startUtc = new Date(Date.UTC(year, month, day - 1, 0, 0, 0) - KST_OFFSET_MS);
+  const endUtc = new Date(Date.UTC(year, month, day, 0, 0, 0) - KST_OFFSET_MS);
+  const reportDateKst = toSeoulDateKey(startUtc);
+
+  return {
+    reportDateKst,
+    windowStart: startUtc,
+    windowEnd: endUtc,
+  };
+}
+
 function buildReport(messages: ChatMessageRow[], windowStart: Date, windowEnd: Date) {
   const groupedByRoom = new Map<string, ChatMessageRow[]>();
 
@@ -83,10 +101,10 @@ function buildReport(messages: ChatMessageRow[], windowStart: Date, windowEnd: D
     roomSummaries,
     textHeader: [
       '[ENICO VECK 단체랜덤채팅 일일 리포트]',
-      `생성 시각(KST): ${formatSeoulDateTime(windowEnd)}`,
+      `생성 시각(KST): ${formatSeoulDateTime(new Date())}`,
+      `리포트 날짜(KST): ${toSeoulDateKey(windowStart)}`,
       `집계 구간(KST): ${formatSeoulDateTime(windowStart)} ~ ${formatSeoulDateTime(windowEnd)}`,
       `총 메시지: ${messages.length}개`,
-      `활성 방 수: ${groupedByRoom.size}개`,
       '',
     ],
   };
@@ -179,9 +197,7 @@ async function handleReport(request: Request) {
   try {
     const supabase = getSupabaseAdminClient();
     const now = new Date();
-    const windowEnd = now;
-    const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const nowKstDate = toSeoulDateKey(now);
+    const { reportDateKst, windowStart, windowEnd } = getPreviousKstDayWindow(now);
 
     const { searchParams } = new URL(request.url);
     const force = searchParams.get('force') === '1';
@@ -197,13 +213,13 @@ async function handleReport(request: Request) {
         throw new Error(`app_flags 조회 실패: ${existingFlagError.message}`);
       }
 
-      const alreadySentDate = existingFlag?.value?.last_sent_kst_date || '';
-      if (alreadySentDate === nowKstDate) {
+      const alreadySentDate = existingFlag?.value?.last_report_kst_date || '';
+      if (alreadySentDate === reportDateKst) {
         return NextResponse.json({
           ok: true,
           skipped: true,
-          reason: 'already_sent_today',
-          kstDate: nowKstDate,
+          reason: 'already_sent_for_report_date',
+          reportDateKst,
         });
       }
     }
@@ -227,6 +243,50 @@ async function handleReport(request: Request) {
 
     const { groupedByRoom, roomSummaries, textHeader } = buildReport(messages, windowStart, windowEnd);
 
+    const { count: createdRoomCount, error: roomCountError } = await supabase
+      .from('chat_rooms')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', windowStart.toISOString())
+      .lt('created_at', windowEnd.toISOString());
+
+    if (roomCountError) {
+      throw new Error(`채팅방 수 조회 실패: ${roomCountError.message}`);
+    }
+
+    let visitorCount = 0;
+    let visitorHitCount = 0;
+    let visitorNote: string | null = null;
+
+    const { count: visitorCountValue, error: visitorCountError } = await supabase
+      .from('site_daily_visitors')
+      .select('*', { count: 'exact', head: true })
+      .eq('visit_date', reportDateKst);
+
+    if (visitorCountError) {
+      if (visitorCountError.code === '42P01') {
+        visitorNote = 'site_daily_visitors 테이블이 없어 방문자 수를 집계하지 못했습니다.';
+      } else {
+        throw new Error(`방문자 수 조회 실패: ${visitorCountError.message}`);
+      }
+    } else {
+      visitorCount = visitorCountValue || 0;
+
+      const { data: visitorRows, error: visitorRowsError } = await supabase
+        .from('site_daily_visitors')
+        .select('hit_count')
+        .eq('visit_date', reportDateKst)
+        .limit(20_000);
+
+      if (visitorRowsError) {
+        throw new Error(`방문 hit 수 조회 실패: ${visitorRowsError.message}`);
+      }
+
+      visitorHitCount = (visitorRows || []).reduce((sum, row) => {
+        const next = Number((row as { hit_count?: number }).hit_count || 0);
+        return sum + (Number.isFinite(next) ? next : 0);
+      }, 0);
+    }
+
     const roomIds = Array.from(groupedByRoom.keys());
     const memberCountByRoom = new Map<string, number>();
 
@@ -249,8 +309,17 @@ async function handleReport(request: Request) {
 
     const lines: string[] = [...textHeader];
 
+    lines.push(`해당일 생성 채팅방: ${createdRoomCount || 0}개`);
+    lines.push(`메시지 발생 채팅방: ${groupedByRoom.size}개`);
+    lines.push(`해당일 사이트 방문자(중복 제거): ${visitorCount}명`);
+    lines.push(`해당일 페이지 방문 hit 수: ${visitorHitCount}회`);
+    if (visitorNote) {
+      lines.push(`방문자 집계 참고: ${visitorNote}`);
+    }
+    lines.push('');
+
     if (messages.length === 0) {
-      lines.push('지난 24시간 동안 채팅 메시지가 없습니다.');
+      lines.push('해당일 채팅 메시지가 없습니다.');
     } else {
       roomSummaries.forEach(([roomId, roomMessages], index) => {
         lines.push(
@@ -267,17 +336,20 @@ async function handleReport(request: Request) {
       });
     }
 
-    const subject = `[단체랜덤채팅] 일일 리포트 (${nowKstDate})`;
+    const subject = `[단체랜덤채팅] ${reportDateKst} 리포트`;
     const text = lines.join('\n');
 
     await sendDigestEmail({ subject, text });
 
     const flagValue = {
       imported: true,
-      last_sent_kst_date: nowKstDate,
+      last_report_kst_date: reportDateKst,
       last_sent_at: now.toISOString(),
       message_count: messages.length,
-      room_count: groupedByRoom.size,
+      room_count_with_messages: groupedByRoom.size,
+      room_count_created: createdRoomCount || 0,
+      visitor_count: visitorCount,
+      visitor_hit_count: visitorHitCount,
       window_start: windowStart.toISOString(),
       window_end: windowEnd.toISOString(),
     };
@@ -299,9 +371,12 @@ async function handleReport(request: Request) {
       ok: true,
       sent: true,
       to: (process.env.CHAT_DAILY_REPORT_TO || DEFAULT_REPORT_RECEIVER_EMAIL).trim(),
-      kstDate: nowKstDate,
+      reportDateKst,
       messages: messages.length,
-      rooms: groupedByRoom.size,
+      roomsWithMessages: groupedByRoom.size,
+      roomsCreated: createdRoomCount || 0,
+      visitorCount,
+      visitorHitCount,
       windowStart: windowStart.toISOString(),
       windowEnd: windowEnd.toISOString(),
     });

@@ -8,3 +8,4 @@
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 5. In Supabase Auth > Providers, enable **Anonymous** sign-ins.
 6. If realtime events are delayed or missing, re-run the SQL so `chat_rooms`, `chat_room_members`, `chat_room_messages` are added to `supabase_realtime` publication.
+7. For daily mail report visitor count, run `/supabase/site_daily_visitors_setup.sql`.

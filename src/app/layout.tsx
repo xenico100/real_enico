@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "../styles/index.css";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { VisitTracker } from "@/app/components/system/VisitTracker";
 
 export const metadata: Metadata = {
   title: "ENICO VECK",
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <AuthProvider>
+          <VisitTracker />
           {children}
           <SpeedInsights />
         </AuthProvider>
