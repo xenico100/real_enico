@@ -12,9 +12,11 @@ interface ProductDetailPopupProps {
 }
 
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
-  const { addToCart } = useFashionCart();
+  const { cart, addToCart } = useFashionCart();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
+  const isInCart = cart.some((item) => item.id === product.id);
+  const isSoldOut = Boolean(product.isSoldOut);
 
   const productImages = useMemo(() => {
     const normalized = Array.isArray(product.images)
@@ -59,7 +61,21 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   };
 
   const handleAddToCart = () => {
-    addToCart({ ...product, quantity: 1 });
+    if (isSoldOut) {
+      return;
+    }
+    if (isInCart) {
+      onClose();
+      return;
+    }
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+      image: product.image,
+      category: product.category,
+    });
     onClose();
   };
 
@@ -292,12 +308,27 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
 
               <button
                 onClick={handleAddToCart}
-                className="w-full py-4 px-6 font-mono font-bold text-sm uppercase tracking-widest border transition-all duration-300 relative overflow-hidden group bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black"
+                disabled={isSoldOut}
+                className={`w-full py-4 px-6 font-mono font-bold text-sm uppercase tracking-widest border transition-all duration-300 relative overflow-hidden group ${
+                  isSoldOut
+                    ? 'bg-[#1f0e0e] text-[#ffabab] border-[#6d2d2d] cursor-not-allowed'
+                    : isInCart
+                    ? 'bg-[#0e1f1c] text-[#8fd6c8] border-[#2d6d62]'
+                    : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
+                }`}
               >
-                 <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                 {!isInCart && !isSoldOut ? (
+                   <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                 ) : null}
                  <span className="relative z-10 flex justify-between items-center w-full">
-                    <span>장바구니 담기</span>
-                    <span>→</span>
+                    <span>
+                      {isSoldOut
+                        ? '품절'
+                        : isInCart
+                          ? '장바구니 담김 (재고 1개)'
+                          : '장바구니 담기'}
+                    </span>
+                    <span>{isSoldOut ? 'X' : isInCart ? '✓' : '→'}</span>
                  </span>
               </button>
               

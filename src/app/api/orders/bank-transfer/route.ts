@@ -34,6 +34,7 @@ type BankTransferOrderPayload = {
   bankAccount: {
     bankName: string;
     accountNumber: string;
+    accountHolder?: string | null;
   };
   pricing: {
     subtotal: number;
@@ -151,7 +152,8 @@ function validatePayload(body: unknown): BankTransferOrderPayload | null {
       Number.isNaN(quantity) ||
       Number.isNaN(unitPrice) ||
       Number.isNaN(lineTotal) ||
-      quantity <= 0
+      quantity <= 0 ||
+      quantity > 1
     ) {
       return null;
     }
@@ -181,6 +183,10 @@ function validatePayload(body: unknown): BankTransferOrderPayload | null {
     bankAccount: {
       bankName: bankAccount.bankName.trim(),
       accountNumber: bankAccount.accountNumber.trim(),
+      accountHolder:
+        typeof bankAccount.accountHolder === 'string' && bankAccount.accountHolder.trim()
+          ? bankAccount.accountHolder.trim()
+          : null,
     },
     pricing: {
       subtotal,
@@ -221,6 +227,9 @@ function buildEmailText(payload: BankTransferOrderPayload, guestOrderNumber: str
     '',
     '[계좌 정보]',
     `${payload.bankAccount.bankName} ${payload.bankAccount.accountNumber}`,
+    ...(payload.bankAccount.accountHolder
+      ? [`예금주: ${payload.bankAccount.accountHolder}`]
+      : []),
     '',
     '[결제 금액]',
     `상품합계: ${formatKrw(payload.pricing.subtotal)}`,

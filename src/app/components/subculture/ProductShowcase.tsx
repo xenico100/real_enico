@@ -10,6 +10,7 @@ import {
   type ProductCategory,
 } from '@/app/constants/productCategories';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { useFashionCart } from '@/app/context/FashionCartContext';
 
 export interface Product {
   id: string;
@@ -21,6 +22,7 @@ export interface Product {
   description: string;
   apparelSpecs?: string;
   updatedAt?: string | null;
+  isSoldOut?: boolean;
 }
 
 type ProductSeed = Omit<Product, 'images'>;
@@ -231,6 +233,25 @@ const CSV_LATEST_TITLE_ORDER = [
 
 const CSV_LATEST_ORDER_INDEX = new Map(
   CSV_LATEST_TITLE_ORDER.map((title, index) => [normalizeCategoryHintKey(title), index] as const),
+);
+
+const SOLD_OUT_PRODUCT_TITLES = [
+  'EVA-JACEKT',
+  'Akira Jacket',
+  'Flannel double-label shirt',
+  'enico MIX pants',
+  'BERSERK Pants',
+  'Night Face',
+  'Check Shark',
+  'Desert Bat',
+  'Desert Dee',
+  'Desert Angry Shark',
+  '2Face Shark',
+  'Enico Veck 1st Linen Jacket',
+] as const;
+
+const SOLD_OUT_PRODUCT_KEY_SET = new Set(
+  SOLD_OUT_PRODUCT_TITLES.map((title) => normalizeCategoryHintKey(title)),
 );
 
 function normalizeStringArray(value: unknown): string[] {
@@ -525,6 +546,7 @@ function mapDbRowToProduct(row: ProductDbRow): Product | null {
     description,
     apparelSpecs: apparelSpecs || undefined,
     updatedAt: row.updated_at ?? row.created_at ?? null,
+    isSoldOut: SOLD_OUT_PRODUCT_KEY_SET.has(normalizeCategoryHintKey(title)),
   };
 }
 
@@ -554,6 +576,7 @@ interface ProductShowcaseProps {
 }
 
 export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
+  const { cart, addToCart } = useFashionCart();
   const [activeCategory, setActiveCategory] = useState('전체');
   const [isHydrated, setIsHydrated] = useState(false);
   const [dbProducts, setDbProducts] = useState<Product[] | null>(null);
@@ -663,16 +686,22 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
     return accumulator;
   }, {});
 
-  const productCards = filteredProducts.map((product) => (
-    <motion.div
-      key={product.id}
-      initial={{ opacity: 0, y: 50 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5 }}
-      onClick={() => onProductClick(product)}
-      className="group cursor-pointer relative bg-[#111] border border-[#333] hover:border-[#00ffd1] transition-colors duration-300"
-    >
+  const cartProductIds = new Set(cart.map((item) => item.id));
+
+  const productCards = filteredProducts.map((product) => {
+    const isInCart = cartProductIds.has(product.id);
+    const isSoldOut = Boolean(product.isSoldOut);
+
+    return (
+      <motion.div
+        key={product.id}
+        initial={{ opacity: 0, y: 50 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        onClick={() => onProductClick(product)}
+        className="group cursor-pointer relative bg-[#111] border border-[#333] hover:border-[#00ffd1] transition-colors duration-300"
+      >
       {/* Image Container */}
       <div className="relative overflow-hidden bg-black md:aspect-[1080/1350]">
         <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 group-hover:opacity-20 z-10 transition-opacity duration-300" />
@@ -702,15 +731,49 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
            
            <div className="flex justify-between items-center mt-1 md:mt-2">
              <span className="font-mono text-[9px] md:text-xs text-[#888] truncate">{product.category}</span>
-             <span className="font-mono text-[10px] md:text-sm font-bold text-[#e5e5e5] whitespace-nowrap">
-               {product.price.toLocaleString('ko-KR')}원
-             </span>
+             <div className="flex items-center gap-2">
+               {isSoldOut ? (
+                 <span className="font-mono text-[9px] md:text-[10px] font-bold text-[#ff8888] uppercase tracking-widest">
+                   품절
+                 </span>
+               ) : null}
+               <span className="font-mono text-[10px] md:text-sm font-bold text-[#e5e5e5] whitespace-nowrap">
+                 {product.price.toLocaleString('ko-KR')}원
+               </span>
+             </div>
            </div>
+
+           <button
+             type="button"
+             onClick={(event) => {
+               event.stopPropagation();
+               if (isInCart || isSoldOut) return;
+               addToCart({
+                 id: product.id,
+                 name: product.name,
+                 price: product.price,
+                 quantity: 1,
+                 image: product.image,
+                 category: product.category,
+               });
+             }}
+             disabled={isInCart || isSoldOut}
+             className={`mt-2 md:mt-3 w-full border px-2 py-2 text-[10px] md:text-xs font-mono uppercase tracking-widest transition-colors ${
+               isSoldOut
+                 ? 'border-[#6d2d2d] bg-[#1f0e0e] text-[#ffabab] cursor-not-allowed'
+                 : isInCart
+                 ? 'border-[#2d6d62] bg-[#0e1f1c] text-[#8fd6c8] cursor-default'
+                 : 'border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black'
+             }`}
+           >
+             {isSoldOut ? '품절' : isInCart ? '장바구니 담김 (재고 1개)' : '장바구니 담기'}
+           </button>
          </div>
       </div>
 
-    </motion.div>
-  ));
+      </motion.div>
+    );
+  });
 
   return (
     <section id="clothes-section" className="py-20 bg-[#050505] min-h-screen border-t border-[#333] scroll-mt-24">

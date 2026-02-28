@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Trash2, CreditCard, Minus, Plus, ShieldCheck, Truck } from 'lucide-react';
+import { X, Trash2, CreditCard, ShieldCheck, Truck } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,7 +15,8 @@ type CheckoutMode = 'cart' | 'checkout';
 type OrderChannel = 'member' | 'guest';
 
 const BANK_NAME = '카카오뱅크';
-const BANK_ACCOUNT_NUMBER = '3333-09-2834967';
+const BANK_ACCOUNT_NUMBER = '3333-09-2834969';
+const BANK_ACCOUNT_HOLDER = '백형석';
 const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpperCase();
@@ -118,8 +119,8 @@ function formatKrw(value: number) {
 }
 
 export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
-  const { cart, removeFromCart, updateQuantity, clearCart } = useFashionCart();
-  const { isAuthenticated, user } = useAuth();
+  const { cart, removeFromCart, clearCart } = useFashionCart();
+  const { isAuthenticated, user, profile } = useAuth();
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
   const [mode, setMode] = useState<CheckoutMode>('cart');
@@ -150,6 +151,42 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     if (!isAuthenticated || !user?.email) return;
     setCheckoutEmail((previous) => previous || user.email || '');
   }, [isAuthenticated, user?.email]);
+
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) return;
+
+    const metadata =
+      user && user.user_metadata && typeof user.user_metadata === 'object'
+        ? (user.user_metadata as Record<string, unknown>)
+        : null;
+
+    const profileName = profile?.full_name?.trim() || '';
+    const metadataName =
+      (typeof metadata?.full_name === 'string' && metadata.full_name.trim()) ||
+      (typeof metadata?.name === 'string' && metadata.name.trim()) ||
+      '';
+    const metadataPhone =
+      (typeof metadata?.phone === 'string' && metadata.phone.trim()) ||
+      (typeof metadata?.phone_number === 'string' && metadata.phone_number.trim()) ||
+      '';
+    const metadataAddress =
+      (typeof metadata?.address === 'string' && metadata.address.trim()) ||
+      (typeof metadata?.shipping_address === 'string' && metadata.shipping_address.trim()) ||
+      '';
+
+    const nextName = profileName || metadataName;
+    if (nextName) {
+      setCheckoutName((previous) => (previous.trim() ? previous : nextName));
+    }
+
+    if (metadataPhone) {
+      setCheckoutPhone((previous) => (previous.trim() ? previous : metadataPhone));
+    }
+
+    if (metadataAddress) {
+      setCheckoutAddress((previous) => (previous.trim() ? previous : metadataAddress));
+    }
+  }, [isOpen, isAuthenticated, user, profile?.full_name]);
 
   useEffect(() => {
     if (!isOpen || mode !== 'checkout') return;
@@ -268,6 +305,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           bankAccount: {
             bankName: BANK_NAME,
             accountNumber: BANK_ACCOUNT_NUMBER,
+            accountHolder: BANK_ACCOUNT_HOLDER,
           },
           pricing: {
             subtotal,
@@ -528,7 +566,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
                   <p className="text-[10px] text-[#666] uppercase tracking-widest mt-2">
-                    /// 거래번호: {transactionId || '생성중'}
+                    거래번호: {transactionId || '생성중'}
                   </p>
                 </div>
                 <button
@@ -634,8 +672,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                                 <div className="min-w-0">
                                   <h3 className="font-bold text-sm uppercase truncate text-white">{item.name}</h3>
                                   <p className="text-[10px] text-[#888] mt-2 uppercase">
-                                    {item.category || '항목'} // {item.id}
-                                    {item.selectedSize ? ` // 사이즈 ${item.selectedSize}` : ''}
+                                    {[item.category || '항목', item.id, item.selectedSize ? `사이즈 ${item.selectedSize}` : null]
+                                      .filter(Boolean)
+                                      .join(' | ')}
                                   </p>
                                 </div>
                                 <button
@@ -648,22 +687,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                               </div>
 
                               <div className="mt-4 flex items-center justify-between gap-3">
-                                <div className="flex items-center bg-[#111] border border-[#333]">
-                                  <button
-                                    onClick={() =>
-                                      updateQuantity(item.id, Math.max(1, (item.quantity || 1) - 1))
-                                    }
-                                    className="w-9 h-9 flex items-center justify-center hover:bg-[#00ffd1] hover:text-black transition-colors"
-                                  >
-                                    <Minus size={14} />
-                                  </button>
-                                  <span className="w-10 text-center text-xs">{item.quantity || 1}</span>
-                                  <button
-                                    onClick={() => updateQuantity(item.id, (item.quantity || 1) + 1)}
-                                    className="w-9 h-9 flex items-center justify-center hover:bg-[#00ffd1] hover:text-black transition-colors"
-                                  >
-                                    <Plus size={14} />
-                                  </button>
+                                <div className="flex items-center bg-[#111] border border-[#333] px-3 py-2">
+                                  <span className="text-[10px] uppercase tracking-widest text-[#8fd6c8]">
+                                    수량 1 (재고 1개)
+                                  </span>
                                 </div>
                                 <div className="text-right">
                                   <p className="text-[10px] text-[#666] uppercase">단가</p>
@@ -775,6 +802,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <p className="text-lg font-bold text-[#e5e5e5] mt-2">
                         {BANK_NAME} {BANK_ACCOUNT_NUMBER}
                       </p>
+                      <p className="text-xs text-[#9adfd1] mt-1">예금주: {BANK_ACCOUNT_HOLDER}</p>
                       <p className="text-xs text-[#9adfd1] mt-3 leading-relaxed">
                         주문 접수 후 위 계좌로 입금해 주세요. 입금자명은 수령인 이름과 동일하게 입력해 주세요.
                       </p>

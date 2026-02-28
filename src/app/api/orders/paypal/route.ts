@@ -155,7 +155,8 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
       Number.isNaN(quantity) ||
       Number.isNaN(unitPrice) ||
       Number.isNaN(lineTotal) ||
-      quantity <= 0
+      quantity <= 0 ||
+      quantity > 1
     ) {
       return null;
     }

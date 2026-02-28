@@ -21,6 +21,7 @@ interface FashionCartContextType {
 }
 
 const FashionCartContext = createContext<FashionCartContextType | undefined>(undefined);
+const MAX_CART_ITEM_QUANTITY = 1;
 
 export function FashionCartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<FashionCartItem[]>([]);
@@ -28,13 +29,22 @@ export function FashionCartProvider({ children }: { children: ReactNode }) {
   const addToCart = (item: FashionCartItem) => {
     setCart((prevCart) => {
       const existingItem = prevCart.find((i) => i.id === item.id);
-      
+      const normalizedQuantity = Math.min(
+        MAX_CART_ITEM_QUANTITY,
+        Math.max(1, item.quantity || 1),
+      );
+
       if (existingItem) {
         return prevCart.map((i) =>
-          i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
+          i.id === item.id
+            ? {
+                ...i,
+                quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, i.quantity || 1)),
+              }
+            : i,
         );
       } else {
-        return [...prevCart, item];
+        return [...prevCart, { ...item, quantity: normalizedQuantity }];
       }
     });
   };
@@ -49,7 +59,12 @@ export function FashionCartProvider({ children }: { children: ReactNode }) {
     } else {
       setCart((prevCart) =>
         prevCart.map((item) =>
-          item.id === id ? { ...item, quantity } : item
+          item.id === id
+            ? {
+                ...item,
+                quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, quantity)),
+              }
+            : item,
         )
       );
     }
