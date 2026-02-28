@@ -75,6 +75,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-center justify-center p-0 md:p-8"
+        data-lenis-prevent
         onClick={onClose}
       >
         <motion.div
@@ -178,7 +179,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           </div>
 
           {/* Right: Info (Terminal) */}
-          <div className="w-full md:w-1/2 min-h-0 p-8 md:p-12 flex flex-col bg-[#0a0a0a] text-[#e5e5e5] relative overflow-y-auto">
+          <div className="w-full md:w-1/2 min-h-0 p-8 md:p-12 flex flex-col bg-[#0a0a0a] text-[#e5e5e5] relative overflow-y-auto overscroll-contain">
             {/* Background Grid */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#333_1px,transparent_1px),linear-gradient(to_bottom,#333_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.05] pointer-events-none" />
 
@@ -236,7 +237,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       구조 상세설명
                     </h3>
                   </div>
-                  <div className="p-4 max-h-52 overflow-y-auto font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed whitespace-pre-wrap">
+                  <div className="p-4 max-h-52 overflow-y-auto overscroll-contain font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed whitespace-pre-wrap">
                     {product.description || '상세 설명이 없습니다.'}
                   </div>
                 </section>
@@ -247,7 +248,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       상세보기 사진
                     </h3>
                   </div>
-                  <div className="p-3 max-h-[26rem] overflow-y-auto space-y-3">
+                  <div className="p-3 max-h-[26rem] overflow-y-auto overscroll-contain space-y-3">
                     {detailImages.length > 0 ? (
                       detailImages.map(({ image, index }) => (
                         <button

@@ -21,6 +21,8 @@ export default function App() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [isGlitching, setIsGlitching] = useState(false);
   const [isBootFxActive, setIsBootFxActive] = useState(true);
+  const isOverlayOpen =
+    isCartOpen || Boolean(activePopup) || Boolean(selectedProduct) || Boolean(selectedCollection);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -43,6 +45,26 @@ export default function App() {
     }, 2000);
     return () => clearInterval(interval);
   }, [isBootFxActive]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const html = document.documentElement;
+    const body = document.body;
+    const previousBodyOverflow = body.style.overflow;
+
+    if (isOverlayOpen) {
+      html.classList.add('lenis-stopped');
+      body.style.overflow = 'hidden';
+    } else {
+      html.classList.remove('lenis-stopped');
+      body.style.overflow = '';
+    }
+
+    return () => {
+      html.classList.remove('lenis-stopped');
+      body.style.overflow = previousBodyOverflow;
+    };
+  }, [isOverlayOpen]);
 
   return (
     <FashionCartProvider>

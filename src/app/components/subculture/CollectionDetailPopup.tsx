@@ -63,7 +63,8 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-[#000000] z-[70] overflow-y-auto"
+        className="fixed inset-0 bg-[#000000]/95 z-[70] p-3 md:p-6 flex items-center justify-center"
+        data-lenis-prevent
         onClick={onClose}
       >
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#00ffd1] to-transparent z-50" />
@@ -73,30 +74,30 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
           animate={{ y: 0 }}
           exit={{ y: 100 }}
           transition={{ duration: 0.5 }}
-          className="min-h-screen bg-[#050505] text-[#e5e5e5] relative"
+          className="relative w-[min(1320px,96vw)] h-[min(860px,92vh)] bg-[#050505] text-[#e5e5e5] border border-[#333] rounded-2xl overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.75)]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="fixed top-8 right-8 z-50 text-white bg-black border border-[#333] hover:border-[#00ffd1] hover:text-[#00ffd1] p-2 transition-all"
+            className="absolute top-4 right-4 z-50 text-white bg-black border border-[#333] hover:border-[#00ffd1] hover:text-[#00ffd1] p-2 transition-all"
           >
             <X size={32} />
           </button>
 
           {/* Film Strip Header */}
-          <div className="h-20 border-b border-[#333] flex items-center px-8 bg-[#0a0a0a]">
+          <div className="h-14 border-b border-[#333] flex items-center px-5 bg-[#0a0a0a]">
             <span className="font-mono text-xs text-[#00ffd1] animate-pulse mr-4">● 컬렉션</span>
             {showSeason && <span className="font-mono text-xs text-[#666]">{season}</span>}
           </div>
 
-          <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)]">
+          <div className="flex flex-col lg:flex-row h-[calc(100%-56px)]">
             
             {/* Left: Image Viewer */}
-            <div className="lg:w-2/3 h-full relative bg-[#000] flex flex-col overflow-hidden px-4 py-4">
+            <div className="lg:w-[62%] h-full relative bg-[#000] flex flex-col overflow-hidden px-4 py-4">
               <div className="flex-1 min-h-0 flex items-center justify-center">
                 <div
-                  className="relative w-full max-w-[760px] aspect-[4/5] border border-[#222] bg-black overflow-hidden"
+                  className="relative w-full max-w-[700px] aspect-[1080/1350] border border-[#222] bg-black overflow-hidden"
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEnd}
                 >
@@ -141,9 +142,9 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
             </div>
 
             {/* Right: Info Panel */}
-            <div className="lg:w-1/3 h-full border-l border-[#333] bg-[#0a0a0a] overflow-y-auto p-12">
+            <div className="lg:w-[38%] h-full border-l border-[#333] bg-[#0a0a0a] overflow-y-auto overscroll-contain p-5 md:p-6">
                <div className="mb-12">
-                 <h2 className="text-6xl font-heading font-black uppercase text-[#e5e5e5] leading-[0.85] mb-6 tracking-tighter">
+                 <h2 className="text-4xl md:text-5xl font-heading font-black uppercase text-[#e5e5e5] leading-[0.9] mb-5 tracking-tighter">
                    {collection.title}
                  </h2>
                  {showDescription && (
@@ -157,7 +158,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                      <p className="font-mono text-[10px] uppercase tracking-widest text-[#00ffd1] mb-3">
                        상세 이미지 {imageList.length}장
                      </p>
-                     <div className="grid grid-cols-3 gap-2">
+                     <div className="grid grid-cols-3 gap-2 max-h-[44vh] overflow-y-auto overscroll-contain pr-1">
                        {imageList.map((image, index) => (
                          <button
                            key={`${image}-detail-${index}`}
