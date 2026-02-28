@@ -114,7 +114,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-center justify-center p-0 md:p-8 overflow-hidden"
+        className="fixed inset-0 bg-black/95 backdrop-blur-md z-[60] flex items-start md:items-center justify-center p-0 md:p-8 overflow-y-auto md:overflow-hidden"
         data-lenis-prevent
         onClick={onClose}
       >
@@ -122,7 +122,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-6xl h-full md:h-[90vh] bg-[#0a0a0a] border border-[#333] overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#00ffd1]/10"
+          className="relative w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] bg-[#0a0a0a] border border-[#333] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#00ffd1]/10"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Close Button */}
@@ -134,9 +134,9 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           </button>
 
           {/* Left: Images (Shopping Gallery) */}
-          <div className="w-full md:w-1/2 min-h-0 relative bg-black border-b md:border-b-0 md:border-r border-[#333]">
+          <div className="w-full md:w-1/2 shrink-0 md:min-h-0 relative bg-black border-b md:border-b-0 md:border-r border-[#333]">
             <div
-              className="relative w-full h-[56vh] min-h-[320px] max-h-[68vh] md:h-auto md:min-h-0 md:max-h-none md:aspect-[4/5] group"
+              className="relative w-full aspect-[1080/1350] md:aspect-[4/5] group"
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
@@ -219,7 +219,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           </div>
 
           {/* Right: Info (Terminal) */}
-          <div className="w-full md:w-1/2 min-h-0 p-8 md:p-12 flex flex-col bg-[#0a0a0a] text-[#e5e5e5] relative overflow-y-auto overscroll-contain">
+          <div className="w-full md:w-1/2 min-h-0 p-8 md:p-12 flex flex-col bg-[#0a0a0a] text-[#e5e5e5] relative overflow-visible md:overflow-y-auto md:overscroll-contain">
             {/* Background Grid */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#333_1px,transparent_1px),linear-gradient(to_bottom,#333_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.05] pointer-events-none" />
 
