@@ -2,7 +2,7 @@
 
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
+import { useRef, useState, type TouchEventHandler } from 'react';
 import type { Collection } from './CollectionSection';
 
 interface CollectionDetailPopupProps {
@@ -12,6 +12,7 @@ interface CollectionDetailPopupProps {
 
 export function CollectionDetailPopup({ collection, onClose }: CollectionDetailPopupProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
   const imageList =
     Array.isArray(collection.images) && collection.images.length > 0
       ? collection.images
@@ -36,6 +37,24 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
   const prevImage = () => {
     if (!hasImages) return;
     setCurrentImageIndex((prev) => (prev - 1 + imageList.length) % imageList.length);
+  };
+
+  const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
+    touchStartX.current = event.changedTouches[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
+    if (!hasImages || imageList.length <= 1 || touchStartX.current === null) return;
+    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
+    const deltaX = endX - touchStartX.current;
+    const threshold = 40;
+    if (Math.abs(deltaX) < threshold) return;
+    if (deltaX < 0) {
+      nextImage();
+    } else {
+      prevImage();
+    }
+    touchStartX.current = null;
   };
 
   return (
@@ -75,21 +94,27 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
             
             {/* Left: Image Viewer */}
             <div className="lg:w-2/3 h-full relative bg-[#000] flex flex-col overflow-hidden px-4 py-4">
-              <div className="relative flex-1 min-h-0 border border-[#222] bg-black overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none z-10" />
+              <div className="flex-1 min-h-0 flex items-center justify-center">
+                <div
+                  className="relative w-full max-w-[760px] aspect-[4/5] border border-[#222] bg-black overflow-hidden"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none z-10" />
 
-                {hasImages ? (
-                  <img
-                    key={safeImageIndex}
-                    src={imageList[safeImageIndex]}
-                    alt="컬렉션 이미지"
-                    className="w-full h-full object-contain bg-black"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
-                    이미지 없음
-                  </div>
-                )}
+                  {hasImages ? (
+                    <img
+                      key={safeImageIndex}
+                      src={imageList[safeImageIndex]}
+                      alt="컬렉션 이미지"
+                      className="w-full h-full object-contain bg-black"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
+                      이미지 없음
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="mt-3 border border-[#222] bg-[#0a0a0a] px-4 py-3">

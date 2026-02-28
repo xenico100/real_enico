@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type TouchEventHandler } from 'react';
 import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 interface ProductDetailPopupProps {
@@ -14,6 +14,7 @@ interface ProductDetailPopupProps {
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
   const { addToCart } = useFashionCart();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
 
   const productImages = useMemo(() => {
     const normalized = Array.isArray(product.images)
@@ -41,6 +42,20 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     if (!canSlide) return;
     const delta = direction === 'next' ? 1 : -1;
     setActiveImageIndex((prev) => (prev + delta + productImages.length) % productImages.length);
+  };
+
+  const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
+    touchStartX.current = event.changedTouches[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
+    if (!canSlide || touchStartX.current === null) return;
+    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
+    const deltaX = endX - touchStartX.current;
+    const threshold = 40;
+    if (Math.abs(deltaX) < threshold) return;
+    moveImage(deltaX < 0 ? 'next' : 'prev');
+    touchStartX.current = null;
   };
 
   const handleAddToCart = () => {
@@ -79,7 +94,11 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
 
           {/* Left: Images (Shopping Gallery) */}
           <div className="w-full md:w-1/2 min-h-0 relative bg-black border-b md:border-b-0 md:border-r border-[#333]">
-            <div className="relative w-full aspect-[4/5] group">
+            <div
+              className="relative w-full aspect-[4/5] group"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay z-10" />
               {activeImage ? (
                 <img

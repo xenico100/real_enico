@@ -579,18 +579,18 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
       </div>
 
       {/* Content */}
-      <div className="p-4 relative overflow-hidden">
+      <div className="p-2 md:p-4 relative overflow-hidden">
          {/* Background noise/scanlines */}
          <div className="absolute inset-0 bg-[#0a0a0a] z-0" />
          
-         <div className="relative z-10 flex flex-col gap-2">
-           <h3 className="font-heading text-xl uppercase leading-none text-[#e5e5e5] group-hover:text-[#00ffd1] transition-colors">
+         <div className="relative z-10 flex flex-col gap-1.5 md:gap-2">
+           <h3 className="font-heading text-[11px] md:text-xl uppercase leading-tight md:leading-none text-[#e5e5e5] group-hover:text-[#00ffd1] transition-colors line-clamp-2">
              {product.name}
            </h3>
            
-           <div className="flex justify-between items-center mt-2">
-             <span className="font-mono text-xs text-[#888]">{product.category}</span>
-             <span className="font-mono text-sm font-bold text-[#e5e5e5]">
+           <div className="flex justify-between items-center mt-1 md:mt-2">
+             <span className="font-mono text-[9px] md:text-xs text-[#888] truncate">{product.category}</span>
+             <span className="font-mono text-[10px] md:text-sm font-bold text-[#e5e5e5] whitespace-nowrap">
                {product.price.toLocaleString('ko-KR')}원
              </span>
            </div>
@@ -716,11 +716,11 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
 
         {/* Grid */}
         {isHydrated ? (
-          <ResponsiveMasonry columnsCountBreakPoints={{350: 1, 750: 2, 900: 3, 1200: 4}}>
-            <Masonry gutter="1.5rem">{productCards}</Masonry>
+          <ResponsiveMasonry columnsCountBreakPoints={{ 0: 3, 900: 4 }}>
+            <Masonry gutter="0.65rem">{productCards}</Masonry>
           </ResponsiveMasonry>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
             {productCards}
           </div>
         )}
