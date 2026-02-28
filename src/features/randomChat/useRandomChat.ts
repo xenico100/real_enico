@@ -153,6 +153,16 @@ export function useRandomChat(enabled: boolean) {
     await clientRef.current.removeChannel(channel);
   }, []);
 
+  const updateMemberCountFromPresence = useCallback((channel: RealtimeChannel) => {
+    const presenceState = channel.presenceState() as Record<string, unknown[]>;
+    const keys = Object.keys(presenceState);
+    if (keys.length > 0) {
+      setMemberCount(keys.length);
+      return true;
+    }
+    return false;
+  }, []);
+
   const appendMessages = useCallback((rows: MessageRow[]) => {
     if (rows.length === 0) return;
 
@@ -398,6 +408,7 @@ export function useRandomChat(enabled: boolean) {
           .channel(`random-chat:${nextRoomId}`, {
             config: {
               broadcast: { self: false },
+              presence: { key: nextUserId },
             },
           })
           .on(
@@ -427,6 +438,12 @@ export function useRandomChat(enabled: boolean) {
               void fetchMemberCount(nextRoomId).catch(() => undefined);
             },
           )
+          .on('presence', { event: 'sync' }, () => {
+            const applied = updateMemberCountFromPresence(channel);
+            if (!applied) {
+              void fetchMemberCount(nextRoomId).catch(() => undefined);
+            }
+          })
           .on(
             'postgres_changes',
             {
@@ -486,6 +503,14 @@ export function useRandomChat(enabled: boolean) {
           if (cancelled) return;
           if (status === 'SUBSCRIBED') {
             setRealtimeConnected(true);
+            void channel.track({
+              user_id: nextUserId,
+              display_name: myDisplayNameRef.current || `${DISPLAY_NAME_PREFIX}0000`,
+              online_at: new Date().toISOString(),
+            });
+            window.setTimeout(() => {
+              updateMemberCountFromPresence(channel);
+            }, 120);
             return;
           }
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -536,6 +561,7 @@ export function useRandomChat(enabled: boolean) {
     fetchMemberCount,
     fetchRoomStatus,
     getClient,
+    updateMemberCountFromPresence,
   ]);
 
   useEffect(() => {
