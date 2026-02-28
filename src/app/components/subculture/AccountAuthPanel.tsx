@@ -115,6 +115,7 @@ export function AccountAuthPanel() {
   const [isFindingId, setIsFindingId] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [guestOrderNumber, setGuestOrderNumber] = useState('');
+  const [guestLookupPhone, setGuestLookupPhone] = useState('');
   const [guestOrderPassword, setGuestOrderPassword] = useState('');
   const [isLookupLoading, setIsLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -254,9 +255,10 @@ export function AccountAuthPanel() {
     setLookupOrder(null);
 
     const normalizedOrderNumber = guestOrderNumber.trim().toUpperCase();
+    const normalizedPhone = guestLookupPhone.trim();
     const normalizedPassword = guestOrderPassword.trim();
-    if (!normalizedOrderNumber || !normalizedPassword) {
-      setLookupError('비회원 주문번호와 비밀번호를 모두 입력해 주세요.');
+    if ((!normalizedOrderNumber && !normalizedPhone) || !normalizedPassword) {
+      setLookupError('비회원 주문번호 또는 핸드폰 번호와 비밀번호를 입력해 주세요.');
       return;
     }
 
@@ -266,7 +268,8 @@ export function AccountAuthPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          guestOrderNumber: normalizedOrderNumber,
+          guestOrderNumber: normalizedOrderNumber || undefined,
+          phone: normalizedPhone || undefined,
           password: normalizedPassword,
         }),
       });
@@ -614,8 +617,14 @@ export function AccountAuthPanel() {
               value={guestOrderNumber}
               onChange={(event) => setGuestOrderNumber(event.target.value)}
               className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-              placeholder="비회원 주문번호 (예: GUEST-20260228-AB12CD34)"
-              required
+              placeholder="비회원 주문번호 (선택)"
+            />
+            <input
+              type="tel"
+              value={guestLookupPhone}
+              onChange={(event) => setGuestLookupPhone(event.target.value)}
+              className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+              placeholder="주문한 핸드폰 번호 (선택)"
             />
             <input
               type="password"
@@ -625,6 +634,9 @@ export function AccountAuthPanel() {
               placeholder="주문 시 설정한 비밀번호"
               required
             />
+            <p className="text-[11px] text-[#888]">
+              주문번호 또는 핸드폰 번호 중 하나를 입력해 조회할 수 있습니다.
+            </p>
             <button
               type="submit"
               disabled={isLookupLoading}

@@ -43,6 +43,11 @@ function normalizeText(value: unknown) {
   return value.trim();
 }
 
+function normalizePhone(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[^\d]/g, '');
+}
+
 function normalizeNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
@@ -68,7 +73,7 @@ function normalizeItems(value: unknown) {
 }
 
 export async function POST(request: Request) {
-  let payload: { guestOrderNumber?: string; password?: string } = {};
+  let payload: { guestOrderNumber?: string; phone?: string; password?: string } = {};
   try {
     payload = (await request.json()) as typeof payload;
   } catch {
@@ -76,11 +81,12 @@ export async function POST(request: Request) {
   }
 
   const guestOrderNumber = normalizeText(payload.guestOrderNumber).toUpperCase();
+  const phone = normalizePhone(payload.phone);
   const password = normalizeText(payload.password);
 
-  if (!guestOrderNumber || !password) {
+  if ((!guestOrderNumber && !phone) || !password) {
     return NextResponse.json(
-      { message: '비회원 주문번호와 비밀번호를 모두 입력해 주세요.' },
+      { message: '비회원 주문번호 또는 핸드폰 번호와 비밀번호를 입력해 주세요.' },
       { status: 400 },
     );
   }
@@ -97,16 +103,10 @@ export async function POST(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await serviceClient
-    .from('orders')
-    .select(
-      'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, items, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at, guest_password_hash',
-    )
-    .eq('guest_order_number', guestOrderNumber)
-    .eq('channel', 'guest')
-    .maybeSingle<GuestLookupRow>();
+  const selectColumns =
+    'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, items, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at, guest_password_hash';
 
-  if (error) {
+  const mapLookupError = (error: { code?: string; message: string }) => {
     if (error.code === '42P01') {
       return NextResponse.json(
         { message: 'orders 테이블이 없습니다. sql/orders_setup.sql을 실행하세요.' },
@@ -123,49 +123,92 @@ export async function POST(request: Request) {
       { message: `비회원 주문 조회 실패: ${error.message}` },
       { status: 500 },
     );
+  };
+
+  let matchedOrder: GuestLookupRow | null = null;
+
+  if (guestOrderNumber) {
+    const { data, error } = await serviceClient
+      .from('orders')
+      .select(selectColumns)
+      .eq('guest_order_number', guestOrderNumber)
+      .eq('channel', 'guest')
+      .maybeSingle<GuestLookupRow>();
+
+    if (error) {
+      return mapLookupError(error);
+    }
+
+    if (data?.guest_password_hash && verifyGuestLookupPassword(password, data.guest_password_hash)) {
+      matchedOrder = data;
+    }
   }
 
-  if (!data || !data.guest_password_hash) {
-    return NextResponse.json(
-      { message: '주문번호 또는 비밀번호가 올바르지 않습니다.' },
-      { status: 401 },
+  if (!matchedOrder && phone) {
+    const last4Digits = phone.slice(-4);
+    let phoneQuery = serviceClient
+      .from('orders')
+      .select(selectColumns)
+      .eq('channel', 'guest')
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (last4Digits.length === 4) {
+      phoneQuery = phoneQuery.ilike('customer_phone', `%${last4Digits}%`);
+    }
+
+    const { data: rows, error } = await phoneQuery.returns<GuestLookupRow[]>();
+
+    if (error) {
+      return mapLookupError(error);
+    }
+
+    const phoneMatchedRows = (rows || []).filter(
+      (row) => normalizePhone(row.customer_phone) === phone,
     );
+
+    matchedOrder =
+      phoneMatchedRows.find(
+        (row) =>
+          Boolean(row.guest_password_hash) &&
+          verifyGuestLookupPassword(password, row.guest_password_hash || ''),
+      ) || null;
   }
 
-  const isPasswordValid = verifyGuestLookupPassword(password, data.guest_password_hash);
-  if (!isPasswordValid) {
+  if (!matchedOrder) {
     return NextResponse.json(
-      { message: '주문번호 또는 비밀번호가 올바르지 않습니다.' },
+      { message: '주문번호/핸드폰번호 또는 비밀번호가 올바르지 않습니다.' },
       { status: 401 },
     );
   }
 
   const order = {
-    id: data.id,
-    orderCode: normalizeText(data.order_code),
-    guestOrderNumber: normalizeText(data.guest_order_number),
-    channel: normalizeText(data.channel),
-    paymentMethod: normalizeText(data.payment_method),
-    paymentStatus: normalizeText(data.payment_status),
-    currency: normalizeText(data.currency || 'KRW'),
-    amountSubtotal: normalizeNumber(data.amount_subtotal),
-    amountShipping: normalizeNumber(data.amount_shipping),
-    amountTax: normalizeNumber(data.amount_tax),
-    amountTotal: normalizeNumber(data.amount_total),
-    customerName: normalizeText(data.customer_name),
-    customerEmail: normalizeText(data.customer_email),
-    customerPhone: normalizeText(data.customer_phone),
-    customerCountry: normalizeText(data.customer_country),
-    customerAddress: normalizeText(data.customer_address),
-    items: normalizeItems(data.items),
-    shippingStatus: normalizeText(data.shipping_status || 'preparing'),
-    shippingCompany: normalizeText(data.shipping_company),
-    trackingNumber: normalizeText(data.tracking_number),
-    shippingNote: normalizeText(data.shipping_note),
-    shippedAt: data.shipped_at,
-    deliveredAt: data.delivered_at,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
+    id: matchedOrder.id,
+    orderCode: normalizeText(matchedOrder.order_code),
+    guestOrderNumber: normalizeText(matchedOrder.guest_order_number),
+    channel: normalizeText(matchedOrder.channel),
+    paymentMethod: normalizeText(matchedOrder.payment_method),
+    paymentStatus: normalizeText(matchedOrder.payment_status),
+    currency: normalizeText(matchedOrder.currency || 'KRW'),
+    amountSubtotal: normalizeNumber(matchedOrder.amount_subtotal),
+    amountShipping: normalizeNumber(matchedOrder.amount_shipping),
+    amountTax: normalizeNumber(matchedOrder.amount_tax),
+    amountTotal: normalizeNumber(matchedOrder.amount_total),
+    customerName: normalizeText(matchedOrder.customer_name),
+    customerEmail: normalizeText(matchedOrder.customer_email),
+    customerPhone: normalizeText(matchedOrder.customer_phone),
+    customerCountry: normalizeText(matchedOrder.customer_country),
+    customerAddress: normalizeText(matchedOrder.customer_address),
+    items: normalizeItems(matchedOrder.items),
+    shippingStatus: normalizeText(matchedOrder.shipping_status || 'preparing'),
+    shippingCompany: normalizeText(matchedOrder.shipping_company),
+    trackingNumber: normalizeText(matchedOrder.tracking_number),
+    shippingNote: normalizeText(matchedOrder.shipping_note),
+    shippedAt: matchedOrder.shipped_at,
+    deliveredAt: matchedOrder.delivered_at,
+    createdAt: matchedOrder.created_at,
+    updatedAt: matchedOrder.updated_at,
+    matchedBy: guestOrderNumber ? 'guestOrderNumber' : 'phone',
   };
 
   return NextResponse.json({ order });
