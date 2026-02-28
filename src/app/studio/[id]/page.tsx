@@ -151,13 +151,13 @@ export default async function StudioDetailPage({ params }: PageProps) {
           </div>
 
           <div className="p-6 space-y-6">
-            <div className="aspect-[4/3] bg-black border border-[#222]">
+            <div className="aspect-[4/5] bg-black border border-[#222]">
               {thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={thumbnailUrl}
                   alt={title || 'thumbnail'}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain bg-black"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
@@ -171,13 +171,13 @@ export default async function StudioDetailPage({ params }: PageProps) {
                 {allImages.map((image, index) => (
                   <div
                     key={`${image}-${index}`}
-                    className="aspect-square border border-[#222] bg-black overflow-hidden"
+                    className="aspect-[4/5] border border-[#222] bg-black overflow-hidden"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={image}
                       alt={`${title || 'product'} image ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain bg-black"
                     />
                   </div>
                 ))}

@@ -162,13 +162,13 @@ export default async function StudioPage() {
                       href={`/studio/${product.id}`}
                       className="border border-[#333] bg-[#0a0a0a] hover:border-[#00ffd1] transition-colors overflow-hidden"
                     >
-                      <div className="aspect-[4/3] bg-black border-b border-[#222]">
+                      <div className="aspect-[4/5] bg-black border-b border-[#222]">
                         {product.thumbnail_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={product.thumbnail_url}
                             alt={product.title || 'product'}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain bg-black"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">

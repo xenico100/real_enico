@@ -124,7 +124,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                          key={`${image}-${index}`}
                          type="button"
                          onClick={() => setCurrentImageIndex(index)}
-                         className={`h-16 w-14 shrink-0 border transition-colors ${
+                         className={`h-20 w-16 shrink-0 border transition-colors ${
                            index === safeImageIndex
                              ? 'border-[#00ffd1]'
                              : 'border-[#444] hover:border-[#00ffd1]/70'
@@ -165,7 +165,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                            key={`${image}-detail-${index}`}
                            type="button"
                            onClick={() => setCurrentImageIndex(index)}
-                           className={`aspect-square border overflow-hidden ${
+                           className={`aspect-[4/5] border overflow-hidden ${
                              index === safeImageIndex
                                ? 'border-[#00ffd1]'
                                : 'border-[#333] hover:border-[#00ffd1]/70'

@@ -80,7 +80,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
 
           {/* Left: Images (Shopping Gallery) */}
           <div className="w-full md:w-1/2 min-h-0 relative bg-black border-b md:border-b-0 md:border-r border-[#333]">
-            <div className="relative w-full aspect-[3/4] group">
+            <div className="relative w-full aspect-[4/5] group">
               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay z-10" />
               {activeImage ? (
                 <img
@@ -128,7 +128,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       key={`${product.id}-thumb-${index}`}
                       type="button"
                       onClick={() => setActiveImageIndex(index)}
-                      className={`relative aspect-square overflow-hidden border ${
+                      className={`relative aspect-[4/5] overflow-hidden border ${
                         active ? 'border-[#00ffd1]' : 'border-[#333] hover:border-[#00ffd1]/70'
                       } transition-colors`}
                     >

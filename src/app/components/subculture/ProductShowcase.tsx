@@ -489,7 +489,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
       className="group cursor-pointer relative bg-[#111] border border-[#333] hover:border-[#00ffd1] transition-colors duration-300"
     >
       {/* Image Container */}
-      <div className="relative aspect-[3/4] overflow-hidden">
+      <div className="relative aspect-[4/5] overflow-hidden">
         <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 group-hover:opacity-20 z-10 transition-opacity duration-300" />
         
         {/* Image */}
