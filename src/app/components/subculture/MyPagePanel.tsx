@@ -143,7 +143,7 @@ function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
 export function MyPagePanel() {
   const { session, isAuthenticated, isAuthReady, user, profile } = useAuth();
   const { cart } = useFashionCart();
-  const [activeTab, setActiveTab] = useState<MyPageTab>('overview');
+  const [activeTab, setActiveTab] = useState<MyPageTab>('profile');
   const [members, setMembers] = useState<MemberRecord[]>([]);
   const [memberDrafts, setMemberDrafts] = useState<Record<string, MemberDraft>>({});
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
@@ -175,23 +175,16 @@ export function MyPagePanel() {
     );
   }, [profile?.full_name, user]);
 
-  const cartSubtotal = cart.reduce(
-    (sum, item) => sum + item.price * (item.quantity || 1),
-    0,
-  );
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
 
-  const tabs: { id: MyPageTab; label: string; hint: string; count?: number }[] = [
-    { id: 'overview', label: '개요', hint: '요약' },
-    { id: 'orders', label: '주문', hint: '이력', count: memberOrders.length },
-    { id: 'saved', label: '저장됨', hint: '게시물', count: 0 },
-    { id: 'cart', label: '장바구니', hint: '결제', count: cart.length },
-    { id: 'profile', label: '프로필', hint: '신원', count: undefined },
+  const tabs: { id: MyPageTab; label: string; count?: number }[] = [
+    { id: 'profile', label: '계정' },
+    { id: 'orders', label: '주문', count: memberOrders.length },
   ];
   if (isPrimaryAdmin) {
-    tabs.push({ id: 'members', label: '회원관리', hint: '관리', count: members.length });
-    tabs.push({ id: 'adminOrders', label: '주문관리', hint: '거래', count: adminOrders.length });
+    tabs.push({ id: 'members', label: '회원관리', count: members.length });
+    tabs.push({ id: 'adminOrders', label: '배송관리', count: adminOrders.length });
   }
-  const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
   const resetMemberMessages = () => {
     setMemberMessage(null);
@@ -505,7 +498,7 @@ export function MyPagePanel() {
 
   useEffect(() => {
     if (!isPrimaryAdmin && (activeTab === 'members' || activeTab === 'adminOrders')) {
-      setActiveTab('overview');
+      setActiveTab('profile');
     }
   }, [activeTab, isPrimaryAdmin]);
 
@@ -769,29 +762,28 @@ export function MyPagePanel() {
     ),
     profile: (
       <div className="space-y-4">
-        <div className="border border-[#333] bg-[#111] p-4">
-          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-3">신원 프로필</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">이름</p>
-              <p className="text-[#e5e5e5]">{userDisplayName}</p>
-            </div>
-            <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">이메일</p>
-              <p className="text-[#e5e5e5] break-all">{user.email}</p>
-            </div>
-            <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">로그인 수단</p>
-              <p className="text-[#e5e5e5] uppercase">{profile?.provider === 'google' ? '구글' : '이메일'}</p>
-            </div>
-            <div className="border border-[#333] bg-black p-3">
-              <p className="text-[#666] mb-1">아바타 주소</p>
-              <p className="text-[#999] break-all">{profile?.avatar_url || '-'}</p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div className="rounded-2xl border border-white/15 bg-[#121212] p-4">
+            <p className="text-[#8a8a8a] mb-1">이름</p>
+            <p className="text-[#f5f5f5] text-sm">{userDisplayName}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-[#121212] p-4">
+            <p className="text-[#8a8a8a] mb-1">이메일</p>
+            <p className="text-[#f5f5f5] text-sm break-all">{user.email}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-[#121212] p-4">
+            <p className="text-[#8a8a8a] mb-1">로그인 수단</p>
+            <p className="text-[#f5f5f5] text-sm">{profile?.provider === 'google' ? 'Google' : 'Email'}</p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-[#121212] p-4">
+            <p className="text-[#8a8a8a] mb-1">가입일</p>
+            <p className="text-[#f5f5f5] text-sm">{formatDate(profile?.created_at || user.created_at)}</p>
           </div>
         </div>
-        <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4">
-          <p className="text-xs text-[#666]">향후 프로필 수정 폼(닉네임, 아바타 업로드) 연결 예정</p>
+        <div className="rounded-2xl border border-white/10 bg-[#101010] p-4">
+          <p className="text-[11px] tracking-wide text-[#9a9a9a]">
+            장바구니 {cart.length}개 / 합계 {cartSubtotal.toLocaleString('ko-KR')}원
+          </p>
         </div>
       </div>
     ),
@@ -1150,130 +1142,73 @@ export function MyPagePanel() {
   };
 
   return (
-    <div className="space-y-6 font-mono">
-      <div className="border border-[#333] bg-[#0a0a0a] p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#333] pb-4 mb-4">
+    <div className="font-mono">
+      <div className="rounded-3xl border border-white/10 bg-[#0d0d0d] p-5 md:p-6 space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <p className="text-[10px] tracking-[0.18em] uppercase text-[#666]">마이페이지 대시보드</p>
-            
-            <h3 className="text-2xl md:text-3xl font-bold uppercase text-[#e5e5e5] mt-2">
+            <p className="text-[11px] text-[#8e8e8e] tracking-wide">마이페이지</p>
+            <h3 className="text-2xl md:text-3xl font-semibold text-[#f5f5f5] mt-1">
               {userDisplayName}
             </h3>
-            <p className="text-xs text-[#00ffd1] mt-1 break-all">{user.email}</p>
+            <p className="text-xs text-[#a5a5a5] mt-1 break-all">{user.email}</p>
           </div>
-          <div className="w-16 h-16 rounded-full bg-[#111] border border-[#333] flex items-center justify-center text-2xl text-[#00ffd1]">
+          <div className="h-12 w-12 rounded-full border border-white/15 bg-[#161616] flex items-center justify-center text-[#f0f0f0] text-lg">
             {(userDisplayName || '?').slice(0, 1).toUpperCase()}
           </div>
         </div>
 
         {isPrimaryAdmin && (
-          <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4 mb-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">관리자 작성 도구</p>
-                <p className="text-xs text-[#9a9a9a] mt-2">
-                  의류(clothes)와 컬렉션(collection) 게시물 작성/수정은 관리자 계정에서만 가능합니다.
-                </p>
-              </div>
-              <span className="border border-[#00ffd1]/40 bg-black px-2 py-1 text-[10px] uppercase tracking-widest text-[#00ffd1]">
-                {PRIMARY_ADMIN_EMAIL}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+          <div className="rounded-2xl border border-white/10 bg-[#121212] p-3 md:p-4">
+            <div className="flex flex-wrap gap-2">
               <Link
                 href="/admin"
-                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
               >
-                clothes 게시물 관리
+                의류 게시물 관리
               </Link>
               <Link
                 href="/admin/collections"
-                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
               >
-                collection 게시물 관리
+                컬렉션 관리
               </Link>
               <button
                 type="button"
                 onClick={() => setActiveTab('adminOrders')}
-                className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
+                className="inline-flex items-center justify-center rounded-xl border border-[#7bb8ff]/50 bg-[#7bb8ff]/10 px-3 py-2 text-xs text-[#dcecff] hover:bg-[#7bb8ff]/20 transition-colors"
               >
-                주문 목록 보기
+                배송관리 열기
               </button>
             </div>
           </div>
         )}
 
-        <div className="border border-[#222] bg-black/40 p-2.5">
-          <div className="flex items-center justify-between gap-3 mb-2 px-1">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">마이페이지 탭</p>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
-              현재: {activeTabMeta.label}
-            </p>
-          </div>
-
-          <div className="flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
-            {tabs.map((tab, index) => {
-              const active = activeTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`relative min-w-[156px] md:min-w-[172px] flex-1 text-left border p-4 md:p-5 transition-colors ${
-                    active
-                      ? 'border-[#00ffd1] bg-[linear-gradient(180deg,rgba(0,255,209,0.12),rgba(0,0,0,0.5))]'
-                      : 'border-[#333] bg-[#111] hover:border-[#00ffd1]/70'
-                  }`}
-                >
-                  <span
-                    className={`absolute inset-y-0 left-0 w-[2px] ${
-                      active ? 'bg-[#00ffd1]' : 'bg-transparent'
-                    }`}
-                  />
-
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className={`text-[10px] tracking-[0.18em] uppercase ${active ? 'text-[#00ffd1]' : 'text-[#666]'}`}>
-                        0{index + 1} / {tab.hint}
-                      </p>
-                      <p className={`mt-2 text-[15px] md:text-base uppercase tracking-[0.14em] font-bold ${active ? 'text-[#ecfffb]' : 'text-[#d4d4d4]'}`}>
-                        {tab.label}
-                      </p>
-                    </div>
-
-                    {typeof tab.count === 'number' && (
-                      <span
-                        className={`px-2.5 py-1.5 text-[10px] border uppercase tracking-widest ${
-                          active
-                            ? 'border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]'
-                            : 'border-[#333] bg-black text-[#777]'
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className={`mt-4 text-[10px] uppercase tracking-widest ${active ? 'text-[#9cf7e8]' : 'text-[#555]'}`}>
-                    {active ? '선택됨' : '눌러서 열기'}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
+          {tabs.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm whitespace-nowrap transition-colors ${
+                  active
+                    ? 'border-[#7bb8ff]/60 bg-[#7bb8ff]/15 text-[#e8f3ff]'
+                    : 'border-white/15 bg-[#141414] text-[#c8c8c8] hover:bg-[#1c1c1c]'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {typeof tab.count === 'number' && (
+                  <span className="text-[11px] text-[#9fb8d1]">{tab.count}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      </div>
 
-      <div className="border border-[#333] bg-[#0a0a0a] p-5">
-        <div className="flex items-center justify-between gap-3 border-b border-[#222] pb-3 mb-4">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
-            {activeTabMeta.label} 탭
-          </p>
-          <p className="text-[10px] text-[#666] uppercase">기능형 화면 / 보이는 조작부</p>
+        <div className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-5">
+          {tabContent[activeTab]}
         </div>
-        {tabContent[activeTab]}
       </div>
     </div>
   );

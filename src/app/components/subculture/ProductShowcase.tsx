@@ -114,15 +114,15 @@ const fallbackProducts: Product[] = productsSeed.map((product, index) => {
 
 type ProductDbRow = {
   id: string;
-  title: string | null;
-  category: string | null;
-  description: string | null;
-  price: number | string | null;
-  thumbnail_url: string | null;
-  images: unknown;
-  detail_html: string | null;
-  raw: unknown;
-  is_published: boolean | null;
+  title?: string | null;
+  category?: string | null;
+  description?: string | null;
+  price?: number | string | null;
+  thumbnail_url?: string | null;
+  images?: unknown;
+  detail_html?: string | null;
+  raw?: unknown;
+  is_published?: boolean | null;
 };
 
 const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
@@ -323,8 +323,12 @@ function resolveCategory(row: ProductDbRow) {
 }
 
 function mapDbRowToProduct(row: ProductDbRow): Product | null {
-  const images = normalizeImagesForProduct(row.images, row.thumbnail_url, row.raw);
-  const plainDetail = htmlToPlainText(row.detail_html);
+  const images = normalizeImagesForProduct(
+    row.images,
+    row.thumbnail_url ?? null,
+    row.raw,
+  );
+  const plainDetail = htmlToPlainText(row.detail_html ?? null);
   const explicitDescription = (row.description || '').trim();
   const rawDescription = extractRawText(row.raw, [
     'description',
@@ -385,17 +389,26 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
           );
         }
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('products')
-          .select(
-            'id, title, category, description, price, thumbnail_url, images, detail_html, raw, is_published',
-          )
+          .select('*')
           .eq('is_published', true)
           .order('created_at', { ascending: false });
+
+        if (error?.message?.toLowerCase().includes('is_published')) {
+          const fallbackQuery = await supabase
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false });
+          data = fallbackQuery.data;
+          error = fallbackQuery.error;
+        }
+
         if (error) throw error;
         if (!active) return;
 
-        const normalized = ((data ?? []) as ProductDbRow[])
+        const normalized = ((data ?? []) as Array<Record<string, unknown>>)
+          .map((row) => row as ProductDbRow)
           .map(mapDbRowToProduct)
           .filter((item): item is Product => Boolean(item));
 

@@ -53,6 +53,34 @@ const emptyForm: ProductFormState = {
   images: [],
 };
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object') {
+    const payload = error as Record<string, unknown>;
+    const message =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.msg === 'string' && payload.msg) ||
+      (typeof payload.error_description === 'string' && payload.error_description) ||
+      '';
+
+    if (message) return message;
+  }
+
+  return fallback;
+}
+
+function isMissingProductsColumn(error: unknown, column: string) {
+  const message = getErrorMessage(error, '').toLowerCase();
+  return (
+    message.includes(`'${column}' column`) ||
+    message.includes(`products.${column}`) ||
+    message.includes(`column ${column}`)
+  );
+}
+
 function normalizeImages(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === 'string');
@@ -154,9 +182,7 @@ function AdminConsoleInner() {
     setIsLoadingProducts(true);
     try {
       const supabase = getSupabaseOrThrow();
-      let query = supabase
-        .from('products')
-        .select('id, title, category, description, price, currency, images, is_published, created_at, updated_at');
+      let query = supabase.from('products').select('*');
 
       const publishedOnly = opts?.forcePublishedOnly ?? !canManageProducts;
       if (publishedOnly) {
@@ -166,9 +192,40 @@ function AdminConsoleInner() {
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
-      setProducts((data ?? []) as ProductRow[]);
+      const mapped = ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+        const categoryValue = typeof row.category === 'string' ? row.category : null;
+        const categoryNameRaw =
+          typeof row.category_name_raw === 'string' ? row.category_name_raw : null;
+        const resolvedCategory =
+          (categoryValue && isProductCategory(categoryValue) && categoryValue) ||
+          (categoryNameRaw && isProductCategory(categoryNameRaw) && categoryNameRaw) ||
+          DEFAULT_PRODUCT_CATEGORY;
+        const rawPrice = row.price;
+        const parsedPrice =
+          typeof rawPrice === 'number'
+            ? rawPrice
+            : typeof rawPrice === 'string'
+              ? rawPrice
+              : null;
+
+        return {
+          id: String(row.id ?? ''),
+          title: typeof row.title === 'string' ? row.title : null,
+          category: resolvedCategory,
+          description: typeof row.description === 'string' ? row.description : null,
+          price: parsedPrice,
+          currency: typeof row.currency === 'string' ? row.currency : 'KRW',
+          images: row.images,
+          is_published:
+            typeof row.is_published === 'boolean' ? row.is_published : true,
+          created_at: typeof row.created_at === 'string' ? row.created_at : null,
+          updated_at: typeof row.updated_at === 'string' ? row.updated_at : null,
+        } satisfies ProductRow;
+      });
+
+      setProducts(mapped);
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : '상품 목록을 불러오지 못했습니다.');
+      setPageError(getErrorMessage(error, '상품 목록을 불러오지 못했습니다.'));
     } finally {
       setIsLoadingProducts(false);
     }
@@ -356,7 +413,7 @@ function AdminConsoleInner() {
     try {
       const supabase = getSupabaseOrThrow();
       const now = new Date().toISOString();
-      const payload = {
+      const payload: Record<string, unknown> = {
         title: form.title.trim(),
         category: form.category,
         description: form.description.trim() || null,
@@ -367,26 +424,63 @@ function AdminConsoleInner() {
         updated_at: now,
       };
 
+      let saveError: unknown = null;
+      let usedCategoryFallback = false;
+
       if (editingProductId) {
         const { error } = await supabase
           .from('products')
           .update(payload)
           .eq('id', editingProductId);
-        if (error) throw error;
-        setPageMessage('상품 수정 완료');
+        saveError = error;
+
+        if (saveError && isMissingProductsColumn(saveError, 'category')) {
+          const compatPayload: Record<string, unknown> = { ...payload };
+          delete compatPayload.category;
+          const retry = await supabase
+            .from('products')
+            .update(compatPayload)
+            .eq('id', editingProductId);
+          saveError = retry.error;
+          usedCategoryFallback = !retry.error;
+        }
       } else {
-        const { error } = await supabase.from('products').insert({
+        const insertPayload: Record<string, unknown> = {
           ...payload,
           created_at: now,
-        });
-        if (error) throw error;
-        setPageMessage('상품 등록 완료');
+        };
+        const { error } = await supabase.from('products').insert(insertPayload);
+        saveError = error;
+
+        if (saveError && isMissingProductsColumn(saveError, 'category')) {
+          const compatPayload: Record<string, unknown> = { ...insertPayload };
+          delete compatPayload.category;
+          const retry = await supabase.from('products').insert(compatPayload);
+          saveError = retry.error;
+          usedCategoryFallback = !retry.error;
+        }
+      }
+
+      if (saveError) throw saveError;
+
+      if (editingProductId) {
+        setPageMessage(
+          usedCategoryFallback
+            ? '상품 수정 완료 (DB에 category 컬럼이 없어 카테고리는 별도 저장되지 않았습니다)'
+            : '상품 수정 완료',
+        );
+      } else {
+        setPageMessage(
+          usedCategoryFallback
+            ? '상품 등록 완료 (DB에 category 컬럼이 없어 카테고리는 별도 저장되지 않았습니다)'
+            : '상품 등록 완료',
+        );
       }
 
       resetForm();
       await loadProducts({ forcePublishedOnly: false });
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : '상품 저장 실패');
+      setPageError(getErrorMessage(error, '상품 저장 실패'));
     } finally {
       setIsSaving(false);
     }
@@ -410,7 +504,7 @@ function AdminConsoleInner() {
       }
       setPageMessage('상품 삭제 완료');
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : '상품 삭제 실패');
+      setPageError(getErrorMessage(error, '상품 삭제 실패'));
     }
   };
 
