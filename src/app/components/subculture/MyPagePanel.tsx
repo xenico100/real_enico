@@ -147,7 +147,7 @@ type MyPagePanelProps = {
 };
 
 export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
-  const { session, isAuthenticated, isAuthReady, user, profile } = useAuth();
+  const { session, isAuthenticated, isAuthReady, user, profile, signOut, isBusy } = useAuth();
   const { cart } = useFashionCart();
   const [activeTab, setActiveTab] = useState<MyPageTab>('profile');
   const [members, setMembers] = useState<MemberRecord[]>([]);
@@ -1182,6 +1182,15 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 장바구니 {cart.length}개 / {cartSubtotal.toLocaleString('ko-KR')}원
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              disabled={isBusy}
+              className="w-full inline-flex items-center justify-center rounded-xl border border-red-500/50 bg-red-500/10 px-3 py-2.5 text-xs text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+            >
+              {isBusy ? '처리중...' : '로그아웃'}
+            </button>
 
             <div className="space-y-2">
               {tabs.map((tab) => {
