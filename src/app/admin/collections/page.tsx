@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pencil, Plus, RefreshCcw, Trash2, Upload, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -51,6 +52,22 @@ const emptyForm: CollectionFormState = {
   images: [],
 };
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+
+  if (error && typeof error === 'object') {
+    const payload = error as Record<string, unknown>;
+    const message =
+      (typeof payload.message === 'string' && payload.message) ||
+      (typeof payload.msg === 'string' && payload.msg) ||
+      (typeof payload.error_description === 'string' && payload.error_description) ||
+      '';
+    if (message) return message;
+  }
+
+  return fallback;
+}
+
 function normalizeImages(value: unknown) {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
@@ -91,7 +108,9 @@ function formatItems(value: number | string | null) {
 }
 
 function AdminCollectionsConsoleInner() {
-  const { isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
+  const searchParams = useSearchParams();
+  const isEmbedded = searchParams.get('embedded') === '1';
+  const { session, isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [collections, setCollections] = useState<CollectionRow[]>([]);
@@ -147,23 +166,60 @@ function AdminCollectionsConsoleInner() {
     setIsLoadingCollections(true);
     try {
       const supabase = getSupabaseOrThrow();
-      let query = supabase
-        .from('collections')
-        .select(
-          'id, title, season, description, full_description, release_date, items, image, images, is_published, created_at, updated_at',
-        );
+      let query = supabase.from('collections').select('*');
 
       const publishedOnly = opts?.forcePublishedOnly ?? !canManageCollections;
       if (publishedOnly) {
         query = query.eq('is_published', true);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      let { data, error } = await query.order('created_at', { ascending: false });
+
+      if (
+        error &&
+        publishedOnly &&
+        getErrorMessage(error, '').toLowerCase().includes('is_published')
+      ) {
+        const retry = await supabase
+          .from('collections')
+          .select('*')
+          .order('created_at', { ascending: false });
+        data = retry.data;
+        error = retry.error;
+      }
+
       if (error) throw error;
 
-      setCollections((data ?? []) as CollectionRow[]);
+      const mapped = ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+        const rawItems = row.items;
+        const items =
+          typeof rawItems === 'number'
+            ? rawItems
+            : typeof rawItems === 'string'
+              ? rawItems
+              : null;
+
+        return {
+          id: String(row.id ?? ''),
+          title: typeof row.title === 'string' ? row.title : null,
+          season: typeof row.season === 'string' ? row.season : null,
+          description: typeof row.description === 'string' ? row.description : null,
+          full_description:
+            typeof row.full_description === 'string' ? row.full_description : null,
+          release_date: typeof row.release_date === 'string' ? row.release_date : null,
+          items,
+          image: typeof row.image === 'string' ? row.image : null,
+          images: row.images,
+          is_published:
+            typeof row.is_published === 'boolean' ? row.is_published : true,
+          created_at: typeof row.created_at === 'string' ? row.created_at : null,
+          updated_at: typeof row.updated_at === 'string' ? row.updated_at : null,
+        } satisfies CollectionRow;
+      });
+
+      setCollections(mapped);
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : '컬렉션 목록을 불러오지 못했습니다.');
+      setPageError(getErrorMessage(error, '컬렉션 목록을 불러오지 못했습니다.'));
     } finally {
       setIsLoadingCollections(false);
     }
@@ -216,7 +272,7 @@ function AdminCollectionsConsoleInner() {
         if (active) {
           setIsAdmin(false);
           setPageError(
-            error instanceof Error ? `관리자 권한 확인 실패: ${error.message}` : '관리자 권한 확인 실패',
+            `관리자 권한 확인 실패: ${getErrorMessage(error, 'unknown error')}`,
           );
         }
       } finally {
@@ -318,7 +374,7 @@ function AdminCollectionsConsoleInner() {
       setPageMessage(`${uploadedUrls.length}개 이미지 업로드 완료`);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : '이미지 업로드 실패');
+      setPageError(getErrorMessage(error, '이미지 업로드 실패'));
     } finally {
       setIsUploading(false);
     }
@@ -348,8 +404,10 @@ function AdminCollectionsConsoleInner() {
     clearMessages();
 
     try {
-      const supabase = getSupabaseOrThrow();
-      const now = new Date().toISOString();
+      if (!session?.access_token) {
+        throw new Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+      }
+
       const cleanedImages = form.images.map((item) => item.trim()).filter(Boolean);
       const parsedItems = form.items.trim() ? Number.parseInt(form.items, 10) : 0;
 
@@ -363,29 +421,30 @@ function AdminCollectionsConsoleInner() {
         image: cleanedImages[0] || null,
         images: cleanedImages,
         is_published: form.isPublished,
-        updated_at: now,
       };
 
-      if (editingCollectionId) {
-        const { error } = await supabase
-          .from('collections')
-          .update(payload)
-          .eq('id', editingCollectionId);
-        if (error) throw error;
-        setPageMessage('컬렉션 게시물 수정 완료');
-      } else {
-        const { error } = await supabase.from('collections').insert({
-          ...payload,
-          created_at: now,
-        });
-        if (error) throw error;
-        setPageMessage('컬렉션 게시물 등록 완료');
+      const response = await fetch('/api/admin/collections', {
+        method: editingCollectionId ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(
+          editingCollectionId ? { id: editingCollectionId, ...payload } : payload,
+        ),
+      });
+
+      const result = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(result.message || '컬렉션 저장 실패');
       }
+
+      setPageMessage(result.message || '컬렉션 게시물 저장 완료');
 
       resetForm();
       await loadCollections({ forcePublishedOnly: false });
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : '컬렉션 저장 실패');
+      setPageError(getErrorMessage(error, '컬렉션 저장 실패'));
     } finally {
       setIsSaving(false);
     }
@@ -399,23 +458,37 @@ function AdminCollectionsConsoleInner() {
     clearMessages();
 
     try {
-      const supabase = getSupabaseOrThrow();
-      const { error } = await supabase.from('collections').delete().eq('id', collectionId);
-      if (error) throw error;
+      if (!session?.access_token) {
+        throw new Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+      }
+
+      const response = await fetch('/api/admin/collections', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ id: collectionId }),
+      });
+
+      const result = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(result.message || '컬렉션 삭제 실패');
+      }
 
       setCollections((prev) => prev.filter((item) => item.id !== collectionId));
       if (editingCollectionId === collectionId) {
         resetForm();
       }
-      setPageMessage('컬렉션 삭제 완료');
+      setPageMessage(result.message || '컬렉션 삭제 완료');
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : '컬렉션 삭제 실패');
+      setPageError(getErrorMessage(error, '컬렉션 삭제 실패'));
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#e5e5e5]">
-      <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 md:py-12">
+    <div className={`${isEmbedded ? '' : 'min-h-screen'} bg-[#050505] text-[#e5e5e5]`}>
+      <div className={`mx-auto max-w-7xl px-4 md:px-8 ${isEmbedded ? 'py-4 md:py-6' : 'py-8 md:py-12'}`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between border-b border-[#333] pb-6 mb-8">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-[#00ffd1] uppercase">
@@ -445,12 +518,14 @@ function AdminCollectionsConsoleInner() {
             >
               Products Admin
             </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
-            >
-              Back Home
-            </Link>
+            {!isEmbedded && (
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+              >
+                Back Home
+              </Link>
+            )}
           </div>
         </div>
 

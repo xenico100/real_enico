@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pencil, Plus, RefreshCcw, Trash2, Upload, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
 import {
@@ -126,6 +127,8 @@ function formatPrice(price: number | string | null, currency: string | null) {
 }
 
 function AdminConsoleInner() {
+  const searchParams = useSearchParams();
+  const isEmbedded = searchParams.get('embedded') === '1';
   const { isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
@@ -509,8 +512,8 @@ function AdminConsoleInner() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#e5e5e5]">
-      <div className="mx-auto max-w-7xl px-4 md:px-8 py-8 md:py-12">
+    <div className={`${isEmbedded ? '' : 'min-h-screen'} bg-[#050505] text-[#e5e5e5]`}>
+      <div className={`mx-auto max-w-7xl px-4 md:px-8 ${isEmbedded ? 'py-4 md:py-6' : 'py-8 md:py-12'}`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between border-b border-[#333] pb-6 mb-8">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-[#00ffd1] uppercase">
@@ -548,12 +551,14 @@ function AdminConsoleInner() {
             >
               Collections Admin
             </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
-            >
-              Back Home
-            </Link>
+            {!isEmbedded && (
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+              >
+                Back Home
+              </Link>
+            )}
           </div>
         </div>
 

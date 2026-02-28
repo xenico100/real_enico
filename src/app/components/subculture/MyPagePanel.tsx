@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
@@ -14,6 +13,8 @@ type MyPageTab =
   | 'profile'
   | 'members'
   | 'adminOrders';
+
+type AdminComposerType = 'products' | 'collections';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 type MemberRecord = {
@@ -161,6 +162,7 @@ export function MyPagePanel() {
   const [isLoadingAdminOrders, setIsLoadingAdminOrders] = useState(false);
   const [adminOrderMessage, setAdminOrderMessage] = useState<string | null>(null);
   const [adminOrderError, setAdminOrderError] = useState<string | null>(null);
+  const [adminComposer, setAdminComposer] = useState<AdminComposerType | null>(null);
   const isPrimaryAdmin = (user?.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
 
   const userDisplayName = useMemo(() => {
@@ -1022,18 +1024,20 @@ export function MyPagePanel() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Link
-                href="/admin"
+              <button
+                type="button"
+                onClick={() => setAdminComposer('products')}
                 className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
               >
                 clothes 게시물 작성/수정
-              </Link>
-              <Link
-                href="/admin/collections"
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminComposer('collections')}
                 className="inline-flex items-center justify-center border border-[#00ffd1] bg-[#00ffd1]/15 px-3 py-2 text-xs uppercase tracking-widest text-[#eafffb] hover:bg-[#00ffd1] hover:text-black transition-colors"
               >
                 collection 게시물 작성/수정
-              </Link>
+              </button>
             </div>
 
             {isLoadingMembers && members.length === 0 ? (
@@ -1160,18 +1164,20 @@ export function MyPagePanel() {
         {isPrimaryAdmin && (
           <div className="rounded-2xl border border-white/10 bg-[#121212] p-3 md:p-4">
             <div className="flex flex-wrap gap-2">
-              <Link
-                href="/admin"
+              <button
+                type="button"
+                onClick={() => setAdminComposer('products')}
                 className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
               >
                 의류 게시물 관리
-              </Link>
-              <Link
-                href="/admin/collections"
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminComposer('collections')}
                 className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
               >
                 컬렉션 관리
-              </Link>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('adminOrders')}
@@ -1210,6 +1216,62 @@ export function MyPagePanel() {
           {tabContent[activeTab]}
         </div>
       </div>
+
+      {adminComposer && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="close admin composer"
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setAdminComposer(null)}
+          />
+
+          <div className="relative w-[min(1200px,95vw)] h-[min(860px,90vh)] rounded-3xl border border-white/15 bg-[#0d0d0d] overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.7)]">
+            <div className="h-14 border-b border-white/10 bg-[#131313] flex items-center justify-between px-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdminComposer('products')}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                    adminComposer === 'products'
+                      ? 'bg-[#7bb8ff]/20 border border-[#7bb8ff]/50 text-[#e8f3ff]'
+                      : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
+                  }`}
+                >
+                  의류 게시물
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminComposer('collections')}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                    adminComposer === 'collections'
+                      ? 'bg-[#7bb8ff]/20 border border-[#7bb8ff]/50 text-[#e8f3ff]'
+                      : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
+                  }`}
+                >
+                  컬렉션 게시물
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAdminComposer(null)}
+                className="h-8 w-8 rounded-lg border border-white/15 bg-[#1a1a1a] text-[#cfcfcf] hover:bg-[#262626]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="h-[calc(100%-56px)]">
+              <iframe
+                src={adminComposer === 'products' ? '/admin?embedded=1' : '/admin/collections?embedded=1'}
+                className="w-full h-full border-0 bg-[#050505]"
+                title={adminComposer === 'products' ? 'products-admin' : 'collections-admin'}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
