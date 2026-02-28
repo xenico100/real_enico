@@ -67,6 +67,15 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
         data-lenis-prevent
         onClick={onClose}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          className="fixed md:hidden right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[120] inline-flex items-center gap-1 rounded-full border border-[#00ffd1] bg-black/95 px-3 py-2 text-[11px] font-mono uppercase tracking-widest text-[#00ffd1] shadow-[0_0_18px_rgba(0,255,209,0.35)]"
+          aria-label="컬렉션 닫기"
+        >
+          <span>닫기</span>
+          <X size={16} />
+        </button>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#00ffd1] to-transparent z-50" />
         
         <motion.div
@@ -80,7 +89,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-50 text-white bg-black border border-[#333] hover:border-[#00ffd1] hover:text-[#00ffd1] p-2 transition-all"
+            className="hidden md:flex absolute top-4 right-4 z-50 text-white bg-black border border-[#333] hover:border-[#00ffd1] hover:text-[#00ffd1] p-2 transition-all"
           >
             <X size={32} />
           </button>

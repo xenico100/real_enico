@@ -112,7 +112,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           {/* Left: Images (Shopping Gallery) */}
           <div className="w-full md:w-1/2 min-h-0 relative bg-black border-b md:border-b-0 md:border-r border-[#333]">
             <div
-              className="relative w-full aspect-[4/5] group"
+              className="relative w-full h-[42vh] min-h-[260px] max-h-[56vh] md:h-auto md:min-h-0 md:max-h-none md:aspect-[4/5] group"
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
@@ -163,7 +163,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       key={`${product.id}-thumb-${index}`}
                       type="button"
                       onClick={() => setActiveImageIndex(index)}
-                      className={`relative aspect-[4/5] overflow-hidden border ${
+                      className={`relative h-20 md:h-auto md:aspect-[4/5] overflow-hidden border ${
                         active ? 'border-[#00ffd1]' : 'border-[#333] hover:border-[#00ffd1]/70'
                       } transition-colors`}
                     >
@@ -277,11 +277,11 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                               : 'border-[#333] bg-[#101010] hover:border-[#00ffd1]/70'
                           }`}
                         >
-                          <div className="aspect-[4/5] overflow-hidden border border-[#222] bg-black">
+                          <div className="max-h-[52vh] md:max-h-none md:aspect-[4/5] overflow-hidden border border-[#222] bg-black">
                             <img
                               src={image}
                               alt={`${product.name} 상세보기 ${index + 1}`}
-                              className="w-full h-full object-contain bg-black"
+                              className="w-full h-auto md:h-full object-contain bg-black"
                             />
                           </div>
                           <p className="mt-2 font-mono text-[10px] text-[#7e7e7e]">

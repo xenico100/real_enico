@@ -239,6 +239,7 @@ const SOLD_OUT_PRODUCT_TITLES = [
   'EVA-JACEKT',
   'Akira Jacket',
   'Flannel double-label shirt',
+  'eco bag',
   'enico MIX pants',
   'BERSERK Pants',
   'Night Face',
