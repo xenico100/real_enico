@@ -20,6 +20,7 @@ export interface Product {
   images: string[];
   description: string;
   apparelSpecs?: string;
+  updatedAt?: string | null;
 }
 
 type ProductSeed = Omit<Product, 'images'>;
@@ -125,6 +126,8 @@ type ProductDbRow = {
   detail_html?: string | null;
   raw?: unknown;
   is_published?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
@@ -195,6 +198,40 @@ const IMAGE_PATH_CATEGORY_HINTS: Array<{ markers: string[]; category: ProductCat
   { markers: ['/manual-upload/dolls/', '/manual-dolls/'], category: '인형' },
   { markers: ['/manual-upload/dresses/'], category: '드레스' },
 ];
+
+// Product_20260228_185717.csv 최신순(최종수정일 DESC) 기준
+const CSV_LATEST_TITLE_ORDER = [
+  'Re: flower of evil jacket',
+  'Re: kevin shirts',
+  "Re: kevin's pants",
+  'Roronoa Coat',
+  '가치아쿠타의 장갑',
+  'Mononoke Jacket',
+  'Mononoke Pants',
+  'Mononoke Bolero',
+  '퍼펙트 블루의 가면',
+  'enico MIX shirts',
+  'Knit Shark',
+  'enico veck 2025 denim jacket',
+  'enico veck’s denim hood jacket',
+  'enico damm denim jacket',
+  'BOMB DEVIL Dress+Choker',
+  'Ben’s Shirts',
+  'Ben’s Cago Pants',
+  'INFINITY CASTLE Shorts',
+  'INFINITY CASTLE Crop Shirts',
+  'INFINITY CASTLE Kimono',
+  'BERSERK Jacket',
+  'Night Kitty',
+  'Night Dee',
+  'Check Kitty',
+  'Enico Dee',
+  'Where GA-O-RI',
+] as const;
+
+const CSV_LATEST_ORDER_INDEX = new Map(
+  CSV_LATEST_TITLE_ORDER.map((title, index) => [normalizeCategoryHintKey(title), index] as const),
+);
 
 function normalizeStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -487,7 +524,29 @@ function mapDbRowToProduct(row: ProductDbRow): Product | null {
     images: images.length > 0 ? images : [FALLBACK_IMAGE_URL],
     description,
     apparelSpecs: apparelSpecs || undefined,
+    updatedAt: row.updated_at ?? row.created_at ?? null,
   };
+}
+
+function sortProductsByCsvLatest(products: Product[]) {
+  return [...products].sort((a, b) => {
+    const aIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(a.name));
+    const bIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(b.name));
+
+    const aHasCsv = typeof aIdx === 'number';
+    const bHasCsv = typeof bIdx === 'number';
+
+    if (aHasCsv && bHasCsv) {
+      return (aIdx as number) - (bIdx as number);
+    }
+
+    if (aHasCsv && !bHasCsv) return -1;
+    if (!aHasCsv && bHasCsv) return 1;
+
+    const aTime = new Date(a.updatedAt || 0).getTime();
+    const bTime = new Date(b.updatedAt || 0).getTime();
+    return bTime - aTime;
+  });
 }
 
 interface ProductShowcaseProps {
@@ -526,15 +585,34 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
           .from('products')
           .select('*')
           .eq('is_published', true)
-          .order('created_at', { ascending: false });
+          .order('updated_at', { ascending: false });
+
+        if (error?.message?.toLowerCase().includes('updated_at')) {
+          const createdAtFallback = await supabase
+            .from('products')
+            .select('*')
+            .eq('is_published', true)
+            .order('created_at', { ascending: false });
+          data = createdAtFallback.data;
+          error = createdAtFallback.error;
+        }
 
         if (error?.message?.toLowerCase().includes('is_published')) {
           const fallbackQuery = await supabase
             .from('products')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('updated_at', { ascending: false });
           data = fallbackQuery.data;
           error = fallbackQuery.error;
+
+          if (error?.message?.toLowerCase().includes('updated_at')) {
+            const createdAtFallback = await supabase
+              .from('products')
+              .select('*')
+              .order('created_at', { ascending: false });
+            data = createdAtFallback.data;
+            error = createdAtFallback.error;
+          }
         }
 
         if (error) throw error;
@@ -544,12 +622,13 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
           .map((row) => row as ProductDbRow)
           .map(mapDbRowToProduct)
           .filter((item): item is Product => Boolean(item));
+        const sortedByCsvLatest = sortProductsByCsvLatest(normalized);
 
-        if (normalized.length === 0) {
+        if (sortedByCsvLatest.length === 0) {
           setDbProducts(fallbackProducts);
           setIsUsingFallbackCatalog(true);
         } else {
-          setDbProducts(normalized);
+          setDbProducts(sortedByCsvLatest);
           setIsUsingFallbackCatalog(false);
         }
       } catch (error) {

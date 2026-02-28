@@ -126,6 +126,11 @@ function mapCollectionRow(row: CollectionRow): Collection {
   };
 }
 
+function isOtakuCollection(collection: Collection) {
+  const key = `${collection.title} ${collection.season}`.toLowerCase();
+  return key.includes('otaku');
+}
+
 interface CollectionSectionProps {
   onCollectionClick: (collection: Collection) => void;
 }
@@ -168,7 +173,12 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
         const mapped = ((data ?? []) as Array<Record<string, unknown>>)
           .map((row) => row as CollectionRow)
           .map(mapCollectionRow);
-        setCollections(mapped);
+        const ordered = [...mapped].sort((a, b) => {
+          const aOtaku = isOtakuCollection(a) ? 1 : 0;
+          const bOtaku = isOtakuCollection(b) ? 1 : 0;
+          return bOtaku - aOtaku;
+        });
+        setCollections(ordered);
       } catch (error) {
         if (!active) return;
         setCollectionLoadError(

@@ -1248,6 +1248,19 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           </aside>
 
           <section className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6">
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#171717] px-3 py-2.5">
+              <p className="text-xs text-[#a8a8a8]">
+                현재 탭: <span className="text-[#f5f5f5]">{tabs.find((tab) => tab.id === activeTab)?.label || '계정'}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                disabled={isBusy}
+                className="inline-flex items-center justify-center rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-1.5 text-[11px] text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              >
+                {isBusy ? '처리중...' : '로그아웃'}
+              </button>
+            </div>
             {isPrimaryAdmin && (
               <div className="mb-5 rounded-2xl border border-[#00ffd1]/50 bg-[#061612] p-4">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
