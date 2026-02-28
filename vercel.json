@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/chat/daily-report",
+      "schedule": "0 16 * * *"
+    }
+  ]
+}
