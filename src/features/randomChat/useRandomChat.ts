@@ -5,7 +5,7 @@ import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
 export type RandomChatMessage = {
-  id: number;
+  id: string;
   roomId: string;
   userId: string;
   message: string;
@@ -15,16 +15,26 @@ export type RandomChatMessage = {
 type ChatRoomStatus = 'active' | 'closed' | 'unknown';
 
 type MessageRow = {
-  id: number;
+  id: number | string;
   room_id: string;
   user_id: string;
   message: string;
   created_at: string;
 };
 
+type TypingPayload = {
+  roomId?: string;
+  userId?: string;
+  displayName?: string;
+  isTyping?: boolean;
+};
+
 const DISPLAY_NAME_STORAGE_KEY = 'random_chat_display_name';
 const DISPLAY_NAME_PREFIX = '익명_';
 const MEMBER_REFRESH_MS = 10_000;
+const MESSAGE_REFRESH_MS = 2_000;
+const TYPING_TIMEOUT_MS = 2_500;
+const TYPING_THROTTLE_MS = 600;
 
 function generateDisplayName() {
   const digits = Math.floor(1000 + Math.random() * 9000);
@@ -70,7 +80,7 @@ function normalizeRoomIdFromRpc(data: unknown): string {
 
 function toUiMessage(row: MessageRow): RandomChatMessage {
   return {
-    id: row.id,
+    id: String(row.id),
     roomId: row.room_id,
     userId: row.user_id,
     message: row.message,
@@ -78,10 +88,20 @@ function toUiMessage(row: MessageRow): RandomChatMessage {
   };
 }
 
+function fallbackDisplayNameFromUserId(userId: string) {
+  return `익명_${userId.replace(/-/g, '').slice(0, 4)}`;
+}
+
 export function useRandomChat(enabled: boolean) {
   const clientRef = useRef<SupabaseClient | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const memberIntervalRef = useRef<number | null>(null);
+  const messageIntervalRef = useRef<number | null>(null);
+  const typingTimersRef = useRef<Record<string, number>>({});
+  const typingUsersByIdRef = useRef<Record<string, string>>({});
+  const typingLastSentAtRef = useRef(0);
+  const isTypingRef = useRef(false);
+  const myDisplayNameRef = useRef('');
 
   const [roomId, setRoomId] = useState('');
   const [messages, setMessages] = useState<RandomChatMessage[]>([]);
@@ -91,6 +111,8 @@ export function useRandomChat(enabled: boolean) {
   const [myUserId, setMyUserId] = useState('');
   const [memberCount, setMemberCount] = useState(0);
   const [roomStatus, setRoomStatus] = useState<ChatRoomStatus>('unknown');
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
 
   const getClient = useCallback(() => {
     if (clientRef.current) return clientRef.current;
@@ -106,12 +128,72 @@ export function useRandomChat(enabled: boolean) {
     }
   }, []);
 
+  const clearMessageInterval = useCallback(() => {
+    if (messageIntervalRef.current !== null) {
+      window.clearInterval(messageIntervalRef.current);
+      messageIntervalRef.current = null;
+    }
+  }, []);
+
+  const clearTypingState = useCallback(() => {
+    Object.values(typingTimersRef.current).forEach((timerId) => {
+      window.clearTimeout(timerId);
+    });
+    typingTimersRef.current = {};
+    typingUsersByIdRef.current = {};
+    setTypingUsers([]);
+    isTypingRef.current = false;
+  }, []);
+
   const clearChannel = useCallback(async () => {
     if (!channelRef.current || !clientRef.current) return;
     const channel = channelRef.current;
     channelRef.current = null;
+    setRealtimeConnected(false);
     await clientRef.current.removeChannel(channel);
   }, []);
+
+  const appendMessages = useCallback((rows: MessageRow[]) => {
+    if (rows.length === 0) return;
+
+    setMessages((prev) => {
+      const map = new Map<string, RandomChatMessage>();
+      for (const item of prev) {
+        map.set(item.id, item);
+      }
+      for (const row of rows) {
+        map.set(String(row.id), toUiMessage(row));
+      }
+      return Array.from(map.values()).sort((a, b) => {
+        const aId = Number(a.id);
+        const bId = Number(b.id);
+        if (Number.isFinite(aId) && Number.isFinite(bId)) {
+          return aId - bId;
+        }
+        return a.createdAt.localeCompare(b.createdAt);
+      });
+    });
+  }, []);
+
+  const fetchLatestMessages = useCallback(
+    async (targetRoomId: string) => {
+      const client = getClient();
+      const { data, error: queryError } = await client
+        .from('chat_room_messages')
+        .select('id, room_id, user_id, message, created_at')
+        .eq('room_id', targetRoomId)
+        .order('id', { ascending: false })
+        .limit(300);
+
+      if (queryError) {
+        throw new Error(queryError.message);
+      }
+
+      const rows = ((data || []) as MessageRow[]).reverse();
+      appendMessages(rows);
+    },
+    [appendMessages, getClient],
+  );
 
   const fetchMemberCount = useCallback(
     async (targetRoomId: string) => {
@@ -153,6 +235,40 @@ export function useRandomChat(enabled: boolean) {
     [getClient],
   );
 
+  const setTyping = useCallback(
+    async (isTyping: boolean) => {
+      if (!roomId || !myUserId || roomStatus === 'closed') return;
+      const channel = channelRef.current;
+      if (!channel) return;
+
+      if (isTyping) {
+        const now = Date.now();
+        if (now - typingLastSentAtRef.current < TYPING_THROTTLE_MS) {
+          return;
+        }
+        typingLastSentAtRef.current = now;
+      }
+
+      if (isTypingRef.current === isTyping && !isTyping) {
+        return;
+      }
+
+      isTypingRef.current = isTyping;
+
+      await channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: {
+          roomId,
+          userId: myUserId,
+          displayName: myDisplayNameRef.current || myDisplayName || `${DISPLAY_NAME_PREFIX}0000`,
+          isTyping,
+        } satisfies TypingPayload,
+      });
+    },
+    [myDisplayName, myUserId, roomId, roomStatus],
+  );
+
   const sendMessage = useCallback(
     async (text: string) => {
       const client = getClient();
@@ -179,19 +295,19 @@ export function useRandomChat(enabled: boolean) {
         throw new Error(insertError.message);
       }
 
-      const next = toUiMessage(data as MessageRow);
-      setMessages((prev) => {
-        if (prev.some((item) => item.id === next.id)) return prev;
-        return [...prev, next];
-      });
+      appendMessages([data as MessageRow]);
+      void setTyping(false).catch(() => undefined);
     },
-    [getClient, myUserId, roomId, roomStatus],
+    [appendMessages, getClient, myUserId, roomId, roomStatus, setTyping],
   );
 
   useEffect(() => {
     if (!enabled) {
       setError(null);
+      setRealtimeConnected(false);
       clearMemberInterval();
+      clearMessageInterval();
+      clearTypingState();
       void clearChannel();
       return;
     }
@@ -201,7 +317,15 @@ export function useRandomChat(enabled: boolean) {
     const start = async () => {
       setLoading(true);
       setError(null);
-      setMyDisplayName(getOrCreateDisplayName());
+      setMessages([]);
+      setTypingUsers([]);
+      setRealtimeConnected(false);
+      setMemberCount(0);
+      setRoomStatus('unknown');
+
+      const displayName = getOrCreateDisplayName();
+      setMyDisplayName(displayName);
+      myDisplayNameRef.current = displayName;
 
       try {
         const client = getClient();
@@ -258,7 +382,7 @@ export function useRandomChat(enabled: boolean) {
           .from('chat_room_messages')
           .select('id, room_id, user_id, message, created_at')
           .eq('room_id', nextRoomId)
-          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
           .limit(300);
 
         if (initialMessagesError) {
@@ -266,12 +390,16 @@ export function useRandomChat(enabled: boolean) {
         }
 
         if (cancelled) return;
-        setMessages(((initialMessages || []) as MessageRow[]).map(toUiMessage));
+        appendMessages((initialMessages || []) as MessageRow[]);
 
         await Promise.all([fetchMemberCount(nextRoomId), fetchRoomStatus(nextRoomId)]);
 
         const channel = client
-          .channel(`random-chat:${nextRoomId}:${Date.now()}`)
+          .channel(`random-chat:${nextRoomId}`, {
+            config: {
+              broadcast: { self: false },
+            },
+          })
           .on(
             'postgres_changes',
             {
@@ -281,12 +409,10 @@ export function useRandomChat(enabled: boolean) {
               filter: `room_id=eq.${nextRoomId}`,
             },
             (payload) => {
-              const row = payload.new as MessageRow;
-              const next = toUiMessage(row);
-              setMessages((prev) => {
-                if (prev.some((item) => item.id === next.id)) return prev;
-                return [...prev, next];
-              });
+              if (process.env.NODE_ENV !== 'production') {
+                console.log('REALTIME INSERT', payload);
+              }
+              appendMessages([payload.new as MessageRow]);
             },
           )
           .on(
@@ -317,15 +443,68 @@ export function useRandomChat(enabled: boolean) {
                 setRoomStatus('active');
               }
             },
-          );
+          )
+          .on('broadcast', { event: 'typing' }, (payload) => {
+            const data = (payload.payload || null) as TypingPayload | null;
+            if (!data || typeof data.userId !== 'string') return;
+            if (data.userId === nextUserId) return;
+            const targetUserId = data.userId;
 
-        channel.subscribe();
+            const label =
+              typeof data.displayName === 'string' && data.displayName.trim()
+                ? data.displayName.trim()
+                : fallbackDisplayNameFromUserId(targetUserId);
+
+            if (data.isTyping) {
+              typingUsersByIdRef.current[targetUserId] = label;
+              setTypingUsers(Object.values(typingUsersByIdRef.current));
+
+              if (typingTimersRef.current[targetUserId]) {
+                window.clearTimeout(typingTimersRef.current[targetUserId]);
+              }
+
+              typingTimersRef.current[targetUserId] = window.setTimeout(() => {
+                delete typingUsersByIdRef.current[targetUserId];
+                delete typingTimersRef.current[targetUserId];
+                setTypingUsers(Object.values(typingUsersByIdRef.current));
+              }, TYPING_TIMEOUT_MS);
+            } else {
+              if (typingTimersRef.current[targetUserId]) {
+                window.clearTimeout(typingTimersRef.current[targetUserId]);
+                delete typingTimersRef.current[targetUserId];
+              }
+
+              delete typingUsersByIdRef.current[targetUserId];
+              setTypingUsers(Object.values(typingUsersByIdRef.current));
+            }
+          });
+
+        channel.subscribe((status) => {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('REALTIME STATUS:', status);
+          }
+          if (cancelled) return;
+          if (status === 'SUBSCRIBED') {
+            setRealtimeConnected(true);
+            return;
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            setRealtimeConnected(false);
+          }
+        });
+
         channelRef.current = channel;
 
         clearMemberInterval();
         memberIntervalRef.current = window.setInterval(() => {
           void fetchMemberCount(nextRoomId).catch(() => undefined);
         }, MEMBER_REFRESH_MS);
+
+        clearMessageInterval();
+        messageIntervalRef.current = window.setInterval(() => {
+          void fetchLatestMessages(nextRoomId).catch(() => undefined);
+        }, MESSAGE_REFRESH_MS);
+        void fetchLatestMessages(nextRoomId).catch(() => undefined);
       } catch (nextError) {
         if (!cancelled) {
           setError(nextError instanceof Error ? nextError.message : '랜덤채팅 연결에 실패했습니다.');
@@ -342,9 +521,44 @@ export function useRandomChat(enabled: boolean) {
     return () => {
       cancelled = true;
       clearMemberInterval();
+      clearMessageInterval();
+      clearTypingState();
       void clearChannel();
     };
-  }, [clearChannel, clearMemberInterval, enabled, fetchMemberCount, fetchRoomStatus, getClient]);
+  }, [
+    appendMessages,
+    clearChannel,
+    clearMemberInterval,
+    clearMessageInterval,
+    clearTypingState,
+    enabled,
+    fetchLatestMessages,
+    fetchMemberCount,
+    fetchRoomStatus,
+    getClient,
+  ]);
+
+  useEffect(() => {
+    if (!enabled || !roomId) return;
+
+    const syncNow = () => {
+      void fetchLatestMessages(roomId).catch(() => undefined);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncNow();
+      }
+    };
+
+    window.addEventListener('focus', syncNow);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', syncNow);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [enabled, fetchLatestMessages, roomId]);
 
   return {
     roomId,
@@ -355,6 +569,9 @@ export function useRandomChat(enabled: boolean) {
     myUserId,
     memberCount,
     roomStatus,
+    typingUsers,
+    realtimeConnected,
     sendMessage,
+    setTyping,
   };
 }

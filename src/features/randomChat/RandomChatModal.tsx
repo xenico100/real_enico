@@ -25,14 +25,27 @@ function shortenUserId(userId: string) {
 }
 
 export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
-  const { roomId, messages, loading, error, myDisplayName, myUserId, memberCount, roomStatus, sendMessage } =
-    useRandomChat(open);
+  const {
+    roomId,
+    messages,
+    loading,
+    error,
+    myDisplayName,
+    myUserId,
+    memberCount,
+    roomStatus,
+    typingUsers,
+    realtimeConnected,
+    sendMessage,
+    setTyping,
+  } = useRandomChat(open);
 
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [viewportStyle, setViewportStyle] = useState<CSSProperties | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const typingStopTimerRef = useRef<number | null>(null);
 
   const statusText = useMemo(() => {
     if (loading) return '매칭중';
@@ -50,11 +63,16 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
 
   useEffect(() => {
     if (!open) {
+      if (typingStopTimerRef.current !== null) {
+        window.clearTimeout(typingStopTimerRef.current);
+        typingStopTimerRef.current = null;
+      }
+      void setTyping(false).catch(() => undefined);
       setInput('');
       setSendError(null);
       setSending(false);
     }
-  }, [open]);
+  }, [open, setTyping]);
 
   useEffect(() => {
     if (!open || typeof window === 'undefined') {
@@ -69,9 +87,11 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
     }
 
     const updateViewport = () => {
+      const topInset = Math.max(0, vv.offsetTop);
+      const keyboardInset = Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
       setViewportStyle({
-        top: `${vv.offsetTop}px`,
-        height: `${vv.height}px`,
+        top: `${topInset}px`,
+        bottom: `${keyboardInset}px`,
       });
     };
 
@@ -91,7 +111,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
 
   return (
     <div
-      className="fixed inset-x-0 z-[200] bg-black/80 backdrop-blur-sm flex items-stretch justify-stretch p-0 md:items-center md:justify-center md:p-4"
+      className="fixed inset-x-0 z-[200] bg-black/80 backdrop-blur-sm flex items-stretch justify-stretch p-0 md:items-center md:justify-center md:p-4 overflow-hidden overscroll-none"
       style={viewportStyle || { top: 0, bottom: 0 }}
       onClick={onClose}
       role="dialog"
@@ -99,7 +119,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
       aria-label="단체랜덤채팅"
     >
       <div
-        className="w-full h-[100dvh] max-h-[100dvh] md:h-auto md:max-h-[85vh] md:max-w-2xl border border-[#333] bg-[#080808] text-[#e5e5e5] shadow-[0_0_30px_rgba(0,0,0,0.45)] flex flex-col overflow-hidden"
+        className="w-full h-full max-h-full md:h-auto md:max-h-[85vh] md:max-w-2xl border border-[#333] bg-[#080808] text-[#e5e5e5] shadow-[0_0_30px_rgba(0,0,0,0.45)] flex flex-col overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="sticky top-0 z-20 px-4 md:px-6 py-3 md:py-4 border-b border-[#333] bg-[#080808] flex items-start justify-between gap-3">
@@ -109,12 +129,21 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
               <p>
                 상태: <span className="text-[#00ffd1]">{statusText}</span>
               </p>
+              <p className="hidden md:block">
+                연결: <span className={realtimeConnected ? 'text-[#00ffd1]' : 'text-[#d7b86f]'}>{realtimeConnected ? '실시간' : '동기화 폴백'}</span>
+              </p>
               <p>
                 인원: <span className="text-[#e5e5e5]">{memberCount}</span>명 (인원 상관없이 채팅 가능)
               </p>
-              <p>
+              <p className="hidden md:block">
                 닉네임: <span className="text-[#e5e5e5]">{myDisplayName || '익명_0000'}</span>
               </p>
+              {typingUsers.length > 0 ? (
+                <p className="text-[#00ffd1]">
+                  {typingUsers.slice(0, 2).join(', ')}
+                  {typingUsers.length > 2 ? ` 외 ${typingUsers.length - 2}명` : ''} 입력 중...
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -128,7 +157,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
           </button>
         </div>
 
-        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 space-y-3 bg-[#050505]">
+        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-6 py-4 space-y-3 bg-[#050505]">
           {messages.length === 0 ? (
             <p className="font-mono text-xs text-[#777]">{loading ? '채팅방 연결 중...' : '아직 메시지가 없습니다.'}</p>
           ) : (
@@ -167,6 +196,11 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
 
               setSendError(null);
               setSending(true);
+              if (typingStopTimerRef.current !== null) {
+                window.clearTimeout(typingStopTimerRef.current);
+                typingStopTimerRef.current = null;
+              }
+              void setTyping(false).catch(() => undefined);
               try {
                 await sendMessage(text);
                 setInput('');
@@ -180,7 +214,37 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
           >
             <input
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setInput(nextValue);
+
+                const hasText = nextValue.trim().length > 0;
+                if (!hasText) {
+                  if (typingStopTimerRef.current !== null) {
+                    window.clearTimeout(typingStopTimerRef.current);
+                    typingStopTimerRef.current = null;
+                  }
+                  void setTyping(false).catch(() => undefined);
+                  return;
+                }
+
+                void setTyping(true).catch(() => undefined);
+
+                if (typingStopTimerRef.current !== null) {
+                  window.clearTimeout(typingStopTimerRef.current);
+                }
+                typingStopTimerRef.current = window.setTimeout(() => {
+                  void setTyping(false).catch(() => undefined);
+                  typingStopTimerRef.current = null;
+                }, 1200);
+              }}
+              onBlur={() => {
+                if (typingStopTimerRef.current !== null) {
+                  window.clearTimeout(typingStopTimerRef.current);
+                  typingStopTimerRef.current = null;
+                }
+                void setTyping(false).catch(() => undefined);
+              }}
               onFocus={() => {
                 window.setTimeout(() => {
                   const target = listRef.current;

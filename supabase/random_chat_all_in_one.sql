@@ -39,6 +39,43 @@ create index if not exists idx_chat_room_messages_room_time
   on public.chat_room_messages(room_id, created_at);
 
 -- =========================================
+-- REALTIME PUBLICATION
+-- =========================================
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'chat_rooms'
+  ) then
+    execute 'alter publication supabase_realtime add table public.chat_rooms';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'chat_room_members'
+  ) then
+    execute 'alter publication supabase_realtime add table public.chat_room_members';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'chat_room_messages'
+  ) then
+    execute 'alter publication supabase_realtime add table public.chat_room_messages';
+  end if;
+end
+$$;
+
+-- =========================================
 -- RLS
 -- =========================================
 alter table public.chat_rooms enable row level security;
