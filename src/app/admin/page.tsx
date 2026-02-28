@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pencil, Plus, RefreshCcw, Trash2, Upload, X } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
 import {
@@ -127,8 +126,7 @@ function formatPrice(price: number | string | null, currency: string | null) {
 }
 
 function AdminConsoleInner() {
-  const searchParams = useSearchParams();
-  const isEmbedded = searchParams.get('embedded') === '1';
+  const [isEmbedded, setIsEmbedded] = useState(false);
   const { isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
@@ -233,6 +231,12 @@ function AdminConsoleInner() {
       setIsLoadingProducts(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    setIsEmbedded(params.get('embedded') === '1');
+  }, []);
 
   useEffect(() => {
     let active = true;

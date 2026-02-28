@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pencil, Plus, RefreshCcw, Trash2, Upload, X } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -108,8 +107,7 @@ function formatItems(value: number | string | null) {
 }
 
 function AdminCollectionsConsoleInner() {
-  const searchParams = useSearchParams();
-  const isEmbedded = searchParams.get('embedded') === '1';
+  const [isEmbedded, setIsEmbedded] = useState(false);
   const { session, isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
@@ -224,6 +222,12 @@ function AdminCollectionsConsoleInner() {
       setIsLoadingCollections(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    setIsEmbedded(params.get('embedded') === '1');
+  }, []);
 
   useEffect(() => {
     let active = true;

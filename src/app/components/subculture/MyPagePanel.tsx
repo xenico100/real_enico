@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { AccountAuthPanel } from './AccountAuthPanel';
@@ -141,7 +142,11 @@ function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
   };
 }
 
-export function MyPagePanel() {
+type MyPagePanelProps = {
+  onBack?: () => void;
+};
+
+export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   const { session, isAuthenticated, isAuthReady, user, profile } = useAuth();
   const { cart } = useFashionCart();
   const [activeTab, setActiveTab] = useState<MyPageTab>('profile');
@@ -1147,73 +1152,88 @@ export function MyPagePanel() {
 
   return (
     <div className="font-mono">
-      <div className="rounded-3xl border border-white/10 bg-[#0d0d0d] p-5 md:p-6 space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <p className="text-[11px] text-[#8e8e8e] tracking-wide">마이페이지</p>
-            <h3 className="text-2xl md:text-3xl font-semibold text-[#f5f5f5] mt-1">
-              {userDisplayName}
-            </h3>
-            <p className="text-xs text-[#a5a5a5] mt-1 break-all">{user.email}</p>
-          </div>
-          <div className="h-12 w-12 rounded-full border border-white/15 bg-[#161616] flex items-center justify-center text-[#f0f0f0] text-lg">
-            {(userDisplayName || '?').slice(0, 1).toUpperCase()}
-          </div>
-        </div>
+      <div className="rounded-[28px] border border-white/10 bg-[#0d0d0d] p-3 md:p-4">
+        <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-4 md:gap-5">
+          <aside className="rounded-2xl border border-white/10 bg-[#121212] p-3 md:p-4 space-y-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (onBack) {
+                  onBack();
+                  return;
+                }
+                if (typeof window !== 'undefined' && window.history.length > 1) {
+                  window.history.back();
+                }
+              }}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2.5 text-xs text-[#e6e6e6] hover:bg-[#262626] transition-colors"
+            >
+              <ChevronLeft size={14} />
+              뒤로가기
+            </button>
 
-        {isPrimaryAdmin && (
-          <div className="rounded-2xl border border-white/10 bg-[#121212] p-3 md:p-4">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setAdminComposer('products')}
-                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
-              >
-                의류 게시물 관리
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdminComposer('collections')}
-                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
-              >
-                컬렉션 관리
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('adminOrders')}
-                className="inline-flex items-center justify-center rounded-xl border border-[#7bb8ff]/50 bg-[#7bb8ff]/10 px-3 py-2 text-xs text-[#dcecff] hover:bg-[#7bb8ff]/20 transition-colors"
-              >
-                배송관리 열기
-              </button>
+            <div className="rounded-2xl border border-white/10 bg-[#171717] p-3">
+              <p className="text-[11px] text-[#8e8e8e] tracking-wide">마이페이지</p>
+              <h3 className="text-xl font-semibold text-[#f5f5f5] mt-1">{userDisplayName}</h3>
+              <p className="text-xs text-[#a5a5a5] mt-1 break-all">{user.email}</p>
+              <p className="text-[11px] text-[#8a8a8a] mt-3">
+                장바구니 {cart.length}개 / {cartSubtotal.toLocaleString('ko-KR')}원
+              </p>
             </div>
-          </div>
-        )}
 
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
-          {tabs.map((tab) => {
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm whitespace-nowrap transition-colors ${
-                  active
-                    ? 'border-[#7bb8ff]/60 bg-[#7bb8ff]/15 text-[#e8f3ff]'
-                    : 'border-white/15 bg-[#141414] text-[#c8c8c8] hover:bg-[#1c1c1c]'
-                }`}
-              >
-                <span>{tab.label}</span>
-                {typeof tab.count === 'number' && (
-                  <span className="text-[11px] text-[#9fb8d1]">{tab.count}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+            <div className="space-y-2">
+              {tabs.map((tab) => {
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                      active
+                        ? 'border-[#7bb8ff]/60 bg-[#7bb8ff]/15 text-[#e8f3ff]'
+                        : 'border-white/15 bg-[#161616] text-[#c8c8c8] hover:bg-[#1f1f1f]'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {typeof tab.count === 'number' && (
+                      <span className="text-[11px] text-[#9fb8d1]">{tab.count}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-5">
-          {tabContent[activeTab]}
+            {isPrimaryAdmin && (
+              <div className="rounded-xl border border-white/10 bg-[#161616] p-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setAdminComposer('products')}
+                  className="w-full rounded-lg border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
+                >
+                  의류 게시물 관리
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminComposer('collections')}
+                  className="w-full rounded-lg border border-white/20 bg-[#1b1b1b] px-3 py-2 text-xs text-[#e5e5e5] hover:bg-[#262626] transition-colors"
+                >
+                  컬렉션 관리
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('adminOrders')}
+                  className="w-full rounded-lg border border-[#7bb8ff]/50 bg-[#7bb8ff]/10 px-3 py-2 text-xs text-[#dcecff] hover:bg-[#7bb8ff]/20 transition-colors"
+                >
+                  배송관리 열기
+                </button>
+              </div>
+            )}
+          </aside>
+
+          <section className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6">
+            {tabContent[activeTab]}
+          </section>
         </div>
       </div>
 

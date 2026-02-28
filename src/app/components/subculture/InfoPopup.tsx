@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MyPagePanel } from './MyPagePanel';
 import { useAuth } from '@/app/context/AuthContext';
@@ -213,7 +213,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
       </div>
     ),
     mypage: (
-      <MyPagePanel />
+      <MyPagePanel onBack={onClose} />
     )
   };
 
@@ -233,33 +233,46 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           className={`relative w-full ${
             type === 'mypage'
               ? isAuthenticated
-                ? 'max-w-4xl'
-                : 'max-w-3xl'
+                ? 'max-w-[min(1280px,96vw)]'
+                : 'max-w-[min(1120px,94vw)]'
               : 'max-w-2xl'
           } bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="h-16 border-b border-[#333] flex items-center justify-between px-6 bg-[#0a0a0a]">
-             <span className="font-heading text-2xl uppercase tracking-tighter text-[#e5e5e5]">
-               {type === 'about'
-                 ? '프로젝트_메이헴'
-                   : type === 'contact'
-                     ? '통신_링크'
-                     : myPageTitle}
-             </span>
+             <div className="flex items-center gap-3 min-w-0">
+               {type === 'mypage' && (
+                 <button
+                   onClick={onClose}
+                   className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-[#333] bg-[#111] text-[#ddd] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors rounded-lg"
+                 >
+                   <ChevronLeft size={14} />
+                   뒤로가기
+                 </button>
+               )}
+               <span className="font-heading text-2xl uppercase tracking-tighter text-[#e5e5e5] truncate">
+                 {type === 'about'
+                   ? '프로젝트_메이헴'
+                     : type === 'contact'
+                       ? '통신_링크'
+                       : myPageTitle}
+               </span>
+             </div>
              <button onClick={onClose} className="text-[#666] hover:text-[#00ffd1] transition-colors">
                <X size={24} />
              </button>
           </div>
 
           {/* Content Body */}
-          <div className="p-8 max-h-[70vh] overflow-y-auto">
+          <div className={`${type === 'mypage' ? 'p-4 md:p-5 max-h-[82vh]' : 'p-8 max-h-[70vh]'} overflow-y-auto`}>
             {content[type]}
           </div>
 
           {/* Footer Decoration */}
-          <div className="h-2 bg-[repeating-linear-gradient(45deg,#000,#000_10px,#333_10px,#333_20px)] border-t border-[#333]" />
+          {type !== 'mypage' && (
+            <div className="h-2 bg-[repeating-linear-gradient(45deg,#000,#000_10px,#333_10px,#333_20px)] border-t border-[#333]" />
+          )}
           
         </motion.div>
       </motion.div>
