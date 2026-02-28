@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Pencil, Plus, RefreshCcw, Trash2, Upload, X } from 'lucide-react';
+import { Loader2, Pencil, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
 import {
@@ -135,6 +135,13 @@ function formatPrice(price: number | string | null, currency: string | null) {
   return `${numeric.toLocaleString()} ${currency || ''}`.trim();
 }
 
+function resolveProductCategory(category: string | null): ProductCategory {
+  if (category && isProductCategory(category)) {
+    return category;
+  }
+  return DEFAULT_PRODUCT_CATEGORY;
+}
+
 function AdminConsoleInner() {
   const [isEmbedded, setIsEmbedded] = useState(false);
   const { isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
@@ -149,6 +156,8 @@ function AdminConsoleInner() {
   const [manualImageUrl, setManualImageUrl] = useState('');
   const [pageMessage, setPageMessage] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [workspaceView, setWorkspaceView] = useState<'editor' | 'list'>('editor');
+  const [listCategoryFilter, setListCategoryFilter] = useState<'전체' | ProductCategory>('전체');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canManageProducts = isAuthenticated && isAdmin;
@@ -161,6 +170,30 @@ function AdminConsoleInner() {
       }),
     [products],
   );
+  const categoryCounts = useMemo(() => {
+    const initial = PRODUCT_CATEGORIES.reduce(
+      (acc, category) => {
+        acc[category] = 0;
+        return acc;
+      },
+      {} as Record<ProductCategory, number>,
+    );
+
+    sortedProducts.forEach((product) => {
+      const category = resolveProductCategory(product.category);
+      initial[category] += 1;
+    });
+
+    return initial;
+  }, [sortedProducts]);
+  const filteredProducts = useMemo(() => {
+    if (listCategoryFilter === '전체') {
+      return sortedProducts;
+    }
+    return sortedProducts.filter(
+      (product) => resolveProductCategory(product.category) === listCategoryFilter,
+    );
+  }, [listCategoryFilter, sortedProducts]);
 
   const clearMessages = () => {
     setPageMessage(null);
@@ -324,6 +357,7 @@ function AdminConsoleInner() {
 
   const startEditProduct = (product: ProductRow) => {
     clearMessages();
+    setWorkspaceView('editor');
     setEditingProductId(product.id);
     const categoryValue = product.category ?? '';
     setForm({
@@ -584,8 +618,39 @@ function AdminConsoleInner() {
         )}
 
         {isConfigured && (
-          <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
-            <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="border border-[#333] bg-[#0a0a0a] p-3">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-2">
+                작업 화면 분리
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceView('editor')}
+                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                    workspaceView === 'editor'
+                      ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
+                      : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
+                  }`}
+                >
+                  수정/작성 페이지
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceView('list')}
+                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                    workspaceView === 'list'
+                      ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
+                      : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
+                  }`}
+                >
+                  현재 게시물 목록
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+            <div className={`space-y-6 ${workspaceView === 'list' ? 'hidden' : ''}`}>
               <div className="border border-[#333] bg-[#0a0a0a] p-5">
                 <p className="font-mono text-[10px] uppercase tracking-widest text-[#666] mb-3">
                   Access Status
@@ -624,7 +689,7 @@ function AdminConsoleInner() {
                 <form onSubmit={handleSaveProduct} className="border border-[#333] bg-[#0a0a0a] p-5 space-y-4">
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="font-heading text-3xl uppercase tracking-tight">
-                      {editingProductId ? 'Edit Product' : 'New Product'}
+                      {editingProductId ? '의류 게시물 수정' : '의류 게시물 새 작성'}
                     </h2>
                     {editingProductId && (
                       <button
@@ -823,17 +888,19 @@ function AdminConsoleInner() {
                     )}
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSaving || isUploading}
-                    className="w-full py-3 bg-[#e5e5e5] text-black font-bold uppercase tracking-widest hover:bg-[#00ffd1] transition-colors disabled:opacity-50"
-                  >
-                    {isSaving
-                      ? '저장 중...'
-                      : editingProductId
-                        ? '게시물 수정'
-                        : '게시물 등록'}
-                  </button>
+                  <div className="sticky bottom-0 -mx-5 px-5 pt-3 pb-4 bg-gradient-to-t from-[#0a0a0a] to-[#0a0a0a]/95 border-t border-[#222]">
+                    <button
+                      type="submit"
+                      disabled={isSaving || isUploading}
+                      className="w-full py-3 bg-[#00ffd1] text-black font-bold uppercase tracking-widest hover:bg-[#75ffe8] transition-colors disabled:opacity-50"
+                    >
+                      {isSaving
+                        ? '저장 중...'
+                        : editingProductId
+                          ? '수정 업로드'
+                          : '새 게시물 업로드'}
+                    </button>
+                  </div>
                 </form>
               ) : (
                 <div className="space-y-4">
@@ -851,7 +918,7 @@ function AdminConsoleInner() {
               )}
             </div>
 
-            <div className="space-y-4">
+            <div className={`space-y-4 ${workspaceView === 'editor' ? 'hidden' : ''}`}>
               {(pageMessage || pageError) && (
                 <div
                   className={`border p-4 font-mono text-xs ${
@@ -874,9 +941,34 @@ function AdminConsoleInner() {
                       ? '전체 상품 (published / draft 포함)'
                       : 'published 상품만 표시'}
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(['전체', ...PRODUCT_CATEGORIES] as Array<'전체' | ProductCategory>).map(
+                      (category) => {
+                        const isActive = listCategoryFilter === category;
+                        const count =
+                          category === '전체'
+                            ? sortedProducts.length
+                            : (categoryCounts[category] ?? 0);
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => setListCategoryFilter(category)}
+                            className={`px-2.5 py-1 text-[10px] font-mono border transition-colors ${
+                              isActive
+                                ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
+                                : 'border-[#333] bg-[#111] text-[#bbb] hover:border-[#00ffd1] hover:text-[#00ffd1]'
+                            }`}
+                          >
+                            {category} ({count})
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
                 </div>
                 <div className="font-mono text-xs text-[#00ffd1]">
-                  {isLoadingProducts ? 'Loading...' : `${sortedProducts.length} items`}
+                  {isLoadingProducts ? 'Loading...' : `${filteredProducts.length} items`}
                 </div>
               </div>
 
@@ -885,13 +977,13 @@ function AdminConsoleInner() {
                   <Loader2 size={14} className="animate-spin text-[#00ffd1]" />
                   상품 불러오는 중...
                 </div>
-              ) : sortedProducts.length === 0 ? (
+              ) : filteredProducts.length === 0 ? (
                 <div className="border border-[#333] bg-[#0a0a0a] p-8 font-mono text-xs text-[#777] text-center">
                   표시할 상품이 없습니다.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {sortedProducts.map((product) => {
+                  {filteredProducts.map((product) => {
                     const imageList = normalizeImages(product.images);
                     return (
                       <article
@@ -927,9 +1019,7 @@ function AdminConsoleInner() {
                                 {product.title || '(untitled)'}
                               </h3>
                               <p className="font-mono text-[10px] text-[#00ffd1] mt-2 uppercase tracking-widest">
-                                {isProductCategory(product.category ?? '')
-                                  ? product.category
-                                  : DEFAULT_PRODUCT_CATEGORY}
+                                {resolveProductCategory(product.category)}
                               </p>
                               <p className="font-mono text-[10px] text-[#666] mt-2 break-all">
                                 {product.id}
@@ -995,6 +1085,7 @@ function AdminConsoleInner() {
                   })}
                 </div>
               )}
+            </div>
             </div>
           </div>
         )}

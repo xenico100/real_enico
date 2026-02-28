@@ -183,6 +183,19 @@ const UPLOAD_HINT_KEYWORDS = UPLOAD_TITLE_CATEGORY_HINTS.map(({ title, category 
   category,
 })).sort((a, b) => b.key.length - a.key.length);
 
+const IMAGE_PATH_CATEGORY_HINTS: Array<{ markers: string[]; category: ProductCategory }> = [
+  { markers: ['/manual-upload/outer/', '/manual-jackets/'], category: '아우터' },
+  { markers: ['/manual-upload/shirts/'], category: '셔츠' },
+  { markers: ['/manual-upload/pants/'], category: '팬츠' },
+  { markers: ['/manual-upload/bags/'], category: '가방' },
+  {
+    markers: ['/manual-upload/accessories/', '/manual-upload/accessory/'],
+    category: '악세사리',
+  },
+  { markers: ['/manual-upload/dolls/', '/manual-dolls/'], category: '인형' },
+  { markers: ['/manual-upload/dresses/'], category: '드레스' },
+];
+
 function normalizeStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
@@ -384,6 +397,21 @@ function inferCategoryFromUploadHints(title: string | null | undefined): Product
   return null;
 }
 
+function inferCategoryFromImagePath(row: ProductDbRow): ProductCategory | null {
+  const imageCandidates = normalizeImagesForProduct(row.images, row.thumbnail_url ?? null, row.raw)
+    .map((item) => item.toLowerCase());
+
+  for (const url of imageCandidates) {
+    for (const hint of IMAGE_PATH_CATEGORY_HINTS) {
+      if (hint.markers.some((marker) => url.includes(marker))) {
+        return hint.category;
+      }
+    }
+  }
+
+  return null;
+}
+
 function resolveCategory(row: ProductDbRow) {
   if (row.category && isProductCategory(row.category)) {
     return row.category;
@@ -401,6 +429,11 @@ function resolveCategory(row: ProductDbRow) {
 
   if (isProductCategory(explicit)) {
     return explicit;
+  }
+
+  const imageHint = inferCategoryFromImagePath(row);
+  if (imageHint) {
+    return imageHint;
   }
 
   const hintedCategory = inferCategoryFromUploadHints(row.title);

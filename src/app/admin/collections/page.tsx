@@ -120,6 +120,7 @@ function AdminCollectionsConsoleInner() {
   const [manualImageUrl, setManualImageUrl] = useState('');
   const [pageMessage, setPageMessage] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [workspaceView, setWorkspaceView] = useState<'editor' | 'list'>('editor');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canManageCollections = isAuthenticated && isAdmin;
@@ -301,6 +302,7 @@ function AdminCollectionsConsoleInner() {
 
   const startEditCollection = (collection: CollectionRow) => {
     clearMessages();
+    setWorkspaceView('editor');
     setEditingCollectionId(collection.id);
     const normalizedImages = normalizeImages(collection.images);
     setForm({
@@ -543,8 +545,39 @@ function AdminCollectionsConsoleInner() {
         )}
 
         {isConfigured && (
-          <div className="grid grid-cols-1 xl:grid-cols-[460px_minmax(0,1fr)] gap-6">
-            <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="border border-[#333] bg-[#0a0a0a] p-3">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-2">
+                작업 화면 분리
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceView('editor')}
+                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                    workspaceView === 'editor'
+                      ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
+                      : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
+                  }`}
+                >
+                  수정/작성 페이지
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceView('list')}
+                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                    workspaceView === 'list'
+                      ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
+                      : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
+                  }`}
+                >
+                  현재 게시물 목록
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+            <div className={`space-y-6 ${workspaceView === 'list' ? 'hidden' : ''}`}>
               <div className="border border-[#333] bg-[#0a0a0a] p-5">
                 <p className="font-mono text-[10px] uppercase tracking-widest text-[#666] mb-3">
                   Access Status
@@ -583,7 +616,7 @@ function AdminCollectionsConsoleInner() {
                 <form onSubmit={handleSaveCollection} className="border border-[#333] bg-[#0a0a0a] p-5 space-y-4">
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="font-heading text-3xl uppercase tracking-tight">
-                      {editingCollectionId ? 'Edit Collection' : 'New Collection'}
+                      {editingCollectionId ? '컬렉션 게시물 수정' : '컬렉션 게시물 새 작성'}
                     </h2>
                     {editingCollectionId && (
                       <button
@@ -772,17 +805,19 @@ function AdminCollectionsConsoleInner() {
                     )}
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSaving || isUploading}
-                    className="w-full py-3 bg-[#e5e5e5] text-black font-bold uppercase tracking-widest hover:bg-[#00ffd1] transition-colors disabled:opacity-50"
-                  >
-                    {isSaving
-                      ? 'Saving...'
-                      : editingCollectionId
-                        ? 'Update Collection'
-                        : 'Create Collection'}
-                  </button>
+                  <div className="sticky bottom-0 -mx-5 px-5 pt-3 pb-4 bg-gradient-to-t from-[#0a0a0a] to-[#0a0a0a]/95 border-t border-[#222]">
+                    <button
+                      type="submit"
+                      disabled={isSaving || isUploading}
+                      className="w-full py-3 bg-[#00ffd1] text-black font-bold uppercase tracking-widest hover:bg-[#75ffe8] transition-colors disabled:opacity-50"
+                    >
+                      {isSaving
+                        ? '저장 중...'
+                        : editingCollectionId
+                          ? '수정 업로드'
+                          : '새 게시물 업로드'}
+                    </button>
+                  </div>
                 </form>
               ) : (
                 <div className="space-y-4">
@@ -800,7 +835,7 @@ function AdminCollectionsConsoleInner() {
               )}
             </div>
 
-            <div className="space-y-4">
+            <div className={`space-y-4 ${workspaceView === 'editor' ? 'hidden' : ''}`}>
               {(pageMessage || pageError) && (
                 <div
                   className={`border p-4 font-mono text-xs ${
@@ -947,6 +982,7 @@ function AdminCollectionsConsoleInner() {
                   })}
                 </div>
               )}
+            </div>
             </div>
           </div>
         )}
