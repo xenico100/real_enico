@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { X } from 'lucide-react';
 import { useRandomChat } from '@/features/randomChat/useRandomChat';
 
@@ -31,6 +31,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
   const [input, setInput] = useState('');
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [viewportStyle, setViewportStyle] = useState<CSSProperties | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const statusText = useMemo(() => {
@@ -55,23 +56,55 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') {
+      setViewportStyle(null);
+      return;
+    }
+
+    const vv = window.visualViewport;
+    if (!vv) {
+      setViewportStyle(null);
+      return;
+    }
+
+    const updateViewport = () => {
+      setViewportStyle({
+        top: `${vv.offsetTop}px`,
+        height: `${vv.height}px`,
+      });
+    };
+
+    updateViewport();
+    vv.addEventListener('resize', updateViewport);
+    vv.addEventListener('scroll', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+
+    return () => {
+      vv.removeEventListener('resize', updateViewport);
+      vv.removeEventListener('scroll', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-x-0 z-[200] bg-black/80 backdrop-blur-sm flex items-stretch justify-stretch p-0 md:items-center md:justify-center md:p-4"
+      style={viewportStyle || { top: 0, bottom: 0 }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="단체랜덤채팅"
     >
       <div
-        className="w-full max-w-2xl max-h-[85vh] border border-[#333] bg-[#080808] text-[#e5e5e5] shadow-[0_0_30px_rgba(0,0,0,0.45)] flex flex-col"
+        className="w-full h-[100dvh] max-h-[100dvh] md:h-auto md:max-h-[85vh] md:max-w-2xl border border-[#333] bg-[#080808] text-[#e5e5e5] shadow-[0_0_30px_rgba(0,0,0,0.45)] flex flex-col overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="px-4 md:px-6 py-4 border-b border-[#333] flex items-start justify-between gap-3">
+        <div className="sticky top-0 z-20 px-4 md:px-6 py-3 md:py-4 border-b border-[#333] bg-[#080808] flex items-start justify-between gap-3">
           <div>
-            <p className="font-heading text-2xl md:text-3xl uppercase tracking-tight">단체랜덤채팅</p>
+            <p className="font-heading text-xl md:text-3xl uppercase tracking-tight">단체랜덤채팅</p>
             <div className="mt-1 text-[11px] md:text-xs font-mono text-[#8f8f8f] space-y-0.5">
               <p>
                 상태: <span className="text-[#00ffd1]">{statusText}</span>
@@ -95,7 +128,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
           </button>
         </div>
 
-        <div ref={listRef} className="flex-1 min-h-[280px] overflow-y-auto px-4 md:px-6 py-4 space-y-3 bg-[#050505]">
+        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 space-y-3 bg-[#050505]">
           {messages.length === 0 ? (
             <p className="font-mono text-xs text-[#777]">{loading ? '채팅방 연결 중...' : '아직 메시지가 없습니다.'}</p>
           ) : (
@@ -122,7 +155,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
           )}
         </div>
 
-        <div className="border-t border-[#333] px-4 md:px-6 py-4 bg-[#090909]">
+        <div className="sticky bottom-0 z-20 border-t border-[#333] px-4 md:px-6 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] bg-[#090909]">
           {error ? <p className="mb-2 text-xs text-[#ff9b9b]">{error}</p> : null}
           {sendError ? <p className="mb-2 text-xs text-[#ff9b9b]">{sendError}</p> : null}
 
@@ -148,6 +181,13 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
+              onFocus={() => {
+                window.setTimeout(() => {
+                  const target = listRef.current;
+                  if (!target) return;
+                  target.scrollTop = target.scrollHeight;
+                }, 80);
+              }}
               placeholder={roomStatus === 'closed' ? '종료된 방입니다. 새로 열어주세요.' : '메시지를 입력하세요'}
               maxLength={500}
               disabled={loading || sending || roomStatus === 'closed'}
