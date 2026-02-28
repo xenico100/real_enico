@@ -17,6 +17,7 @@
     "lucide-react": "^0.487.0",
     "motion": "^12.23.24",
     "next": "16.1.6",
+    "playwright": "^1.58.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-responsive-masonry": "^2.7.1",
