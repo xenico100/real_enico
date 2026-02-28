@@ -133,7 +133,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                          <img
                            src={image}
                            alt={`컬렉션 썸네일 ${index + 1}`}
-                           className="w-full h-full object-cover"
+                           className="w-full h-full object-contain bg-black"
                          />
                        </button>
                      ))}
@@ -174,7 +174,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                            <img
                              src={image}
                              alt={`상세 이미지 ${index + 1}`}
-                             className="w-full h-full object-cover"
+                             className="w-full h-full object-contain bg-black"
                            />
                          </button>
                        ))}

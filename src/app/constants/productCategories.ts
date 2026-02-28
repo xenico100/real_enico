@@ -3,6 +3,7 @@ export const PRODUCT_CATEGORIES = [
   '셔츠',
   '팬츠',
   '가방',
+  '악세사리',
   '인형',
   '드레스',
 ] as const;

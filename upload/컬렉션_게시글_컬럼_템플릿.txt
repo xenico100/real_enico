@@ -1,0 +1,86 @@
+[컬렉션 게시글 입력 컬럼 템플릿]
+
+아래 항목을 채워서 관리자 컬렉션 작성 시 그대로 입력하면 됩니다.
+
+----------------------------------------
+필수 입력(작성 폼 기준)
+----------------------------------------
+1) title (text)
+- 컬렉션 제목
+- 예: RUNWAY 26FW
+
+2) images (jsonb / 이미지 배열)
+- 상세보기용 이미지 URL 전체
+- 첫 번째 이미지가 대표 이미지(image)로 사용됨
+- 예:
+  [
+    "https://.../thumbnail.jpg",
+    "https://.../detail-01.jpg",
+    "https://.../detail-02.jpg"
+  ]
+
+3) is_published (boolean)
+- 노출 여부
+- true: 공개 / false: 비공개
+
+----------------------------------------
+권장 입력
+----------------------------------------
+4) season (text)
+- 시즌/라인 정보
+- 예: 26FW, 27SS, RUNWAY
+
+5) description (text)
+- 메인 카드에 보일 짧은 설명 (1~2문장)
+
+6) full_description (text)
+- 상세 팝업 본문 설명 (2~5문장)
+
+7) release_date (date)
+- 형식: YYYY-MM-DD
+- 예: 2026-10-01
+
+8) items (integer)
+- 컬렉션 구성 수량/룩 수
+- 예: 11
+
+----------------------------------------
+DB 컬럼 전체 목록(public.collections)
+----------------------------------------
+- id (uuid, auto)
+- title (text)
+- season (text)
+- description (text)
+- full_description (text)
+- release_date (date)
+- items (integer)
+- image (text)
+- images (jsonb)
+- is_published (boolean)
+- created_at (timestamptz, auto)
+- updated_at (timestamptz, auto)
+
+----------------------------------------
+복붙용 템플릿(JSON 형태)
+----------------------------------------
+{
+  "title": "",
+  "season": "",
+  "description": "",
+  "full_description": "",
+  "release_date": "2026-01-01",
+  "items": 0,
+  "image": "",
+  "images": [
+    ""
+  ],
+  "is_published": true
+}
+
+----------------------------------------
+입력 체크리스트
+----------------------------------------
+- 썸네일로 쓸 이미지를 images 배열의 1번째에 배치
+- release_date는 반드시 YYYY-MM-DD 형식
+- items는 숫자만 입력
+- 상세 이미지 순서 확인 후 저장

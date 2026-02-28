@@ -258,6 +258,20 @@ function inferCategory(text: string): ProductCategory {
   }
 
   if (
+    normalized.includes('악세사리') ||
+    normalized.includes('액세서리') ||
+    normalized.includes('장갑') ||
+    normalized.includes('mask') ||
+    normalized.includes('glove') ||
+    normalized.includes('acc') ||
+    normalized.includes('accessory') ||
+    normalized.includes('볼레로') ||
+    normalized.includes('bolero')
+  ) {
+    return '악세사리';
+  }
+
+  if (
     normalized.includes('가방') ||
     normalized.includes('백') ||
     normalized.includes('bag') ||
@@ -482,7 +496,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
         <img
           src={product.image}
           alt={product.name}
-          className="w-full h-full object-cover contrast-125 brightness-90 group-hover:scale-105 transition-transform duration-500 ease-out"
+          className="w-full h-full object-contain bg-black"
         />
         
         {/* Glitch Overlay Elements on Hover */}

@@ -245,7 +245,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
                      <img 
                        src={collection.image} 
                        alt={collection.title}
-                       className="w-full h-full object-cover grayscale contrast-125 group-hover:scale-110 transition-transform duration-700"
+                       className="w-full h-full object-contain bg-white"
                      />
                    ) : (
                      <div className="w-full h-full bg-white flex items-center justify-center font-mono text-xs text-black/50">

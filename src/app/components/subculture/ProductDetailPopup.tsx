@@ -86,7 +86,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 <img
                   src={activeImage}
                   alt={`${product.name} 상세 이미지 ${activeImageIndex + 1}`}
-                  className="w-full h-full object-cover contrast-125 brightness-90 group-hover:scale-105 transition-transform duration-700 ease-out"
+                  className="w-full h-full object-contain bg-black"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-[#111] text-[#666] font-mono text-xs">
@@ -136,7 +136,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                         <img
                           src={image}
                           alt={`${product.name} 썸네일 ${index + 1}`}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain bg-black"
                         />
                       ) : (
                         <div className="w-full h-full bg-[#111] flex items-center justify-center text-[10px] text-[#555] font-mono">
