@@ -63,7 +63,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="4인 랜덤채팅"
+      aria-label="단체랜덤채팅"
     >
       <div
         className="w-full max-w-2xl max-h-[85vh] border border-[#333] bg-[#080808] text-[#e5e5e5] shadow-[0_0_30px_rgba(0,0,0,0.45)] flex flex-col"
@@ -71,13 +71,13 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
       >
         <div className="px-4 md:px-6 py-4 border-b border-[#333] flex items-start justify-between gap-3">
           <div>
-            <p className="font-heading text-2xl md:text-3xl uppercase tracking-tight">4인 랜덤채팅</p>
+            <p className="font-heading text-2xl md:text-3xl uppercase tracking-tight">단체랜덤채팅</p>
             <div className="mt-1 text-[11px] md:text-xs font-mono text-[#8f8f8f] space-y-0.5">
               <p>
                 상태: <span className="text-[#00ffd1]">{statusText}</span>
               </p>
               <p>
-                인원: <span className="text-[#e5e5e5]">{memberCount}</span> / 4
+                인원: <span className="text-[#e5e5e5]">{memberCount}</span>명 (인원 상관없이 채팅 가능)
               </p>
               <p>
                 닉네임: <span className="text-[#e5e5e5]">{myDisplayName || '익명_0000'}</span>

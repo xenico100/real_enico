@@ -61,7 +61,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
   const navItems: NavItem[] = [
     { key: 'about', label: '소개', action: 'info' },
     { key: 'contact', label: '연락', action: 'info' },
-    { key: 'randomChat', label: '4인 랜덤채팅', action: 'randomChat' },
+    { key: 'randomChat', label: '단체랜덤채팅', action: 'randomChat' },
     { key: 'mypage', label: myPageLabel, action: 'info' },
   ];
 

@@ -220,9 +220,14 @@ export function useRandomChat(enabled: boolean) {
         if (!nextUserId) {
           const { data: anonymousData, error: anonymousError } = await client.auth.signInAnonymously();
           if (anonymousError) {
+            const lower = anonymousError.message.toLowerCase();
+            const isAnonymousDisabled =
+              lower.includes('provider is not enabled') ||
+              lower.includes('anonymous sign-ins are disabled') ||
+              lower.includes('anonymous sign in is disabled');
             throw new Error(
-              anonymousError.message.includes('provider is not enabled')
-                ? 'Supabase에서 Anonymous 로그인 Provider를 활성화해야 합니다.'
+              isAnonymousDisabled
+                ? '익명 채팅이 비활성화되어 있습니다. Supabase Auth에서 Anonymous Sign-Ins를 켜거나, 로그인 후 이용하세요.'
                 : anonymousError.message,
             );
           }

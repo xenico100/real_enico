@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useMemo, useRef, useState, type TouchEventHandler } from 'react';
+import { useEffect, useMemo, useRef, useState, type TouchEventHandler } from 'react';
 import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 interface ProductDetailPopupProps {
@@ -19,19 +19,14 @@ function NaverIcon() {
   );
 }
 
-function getDefaultActiveImageIndex(product: Product) {
-  const candidates = Array.isArray(product.images)
-    ? product.images.filter(
-        (item): item is string => typeof item === 'string' && item.trim().length > 0,
-      )
-    : [];
-  return candidates.length > 1 ? 1 : 0;
+function getDefaultActiveImageIndex() {
+  return 0;
 }
 
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
   const { cart, addToCart } = useFashionCart();
   const [activeImageIndex, setActiveImageIndex] = useState(() =>
-    getDefaultActiveImageIndex(product),
+    getDefaultActiveImageIndex(),
   );
   const touchStartX = useRef<number | null>(null);
   const isInCart = cart.some((item) => item.id === product.id);
@@ -59,6 +54,10 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   const detailImages = productImages
     .map((image, index) => ({ image, index }))
     .filter(({ index }) => index > 0);
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [product.id]);
 
   const moveImage = (direction: 'next' | 'prev') => {
     if (!canSlide) return;
