@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export default function ResetPasswordPage() {
   const {
@@ -17,10 +18,93 @@ export default function ResetPasswordPage() {
   } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isRecoveryBootstrapping, setIsRecoveryBootstrapping] = useState(true);
+  const [recoveryBootstrapError, setRecoveryBootstrapError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     clearMessages();
   }, [clearMessages]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const bootstrapRecoverySession = async () => {
+      if (typeof window === 'undefined') {
+        if (mounted) setIsRecoveryBootstrapping(false);
+        return;
+      }
+
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        if (mounted) {
+          setRecoveryBootstrapError(
+            'Supabase 설정이 없어 복구 링크를 처리할 수 없습니다.',
+          );
+          setIsRecoveryBootstrapping(false);
+        }
+        return;
+      }
+
+      try {
+        const currentUrl = new URL(window.location.href);
+        const code = currentUrl.searchParams.get('code');
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          currentUrl.searchParams.delete('code');
+          currentUrl.searchParams.delete('type');
+          window.history.replaceState(
+            {},
+            document.title,
+            `${currentUrl.pathname}${currentUrl.search}`,
+          );
+        } else {
+          const hashParams = new URLSearchParams(
+            window.location.hash.startsWith('#')
+              ? window.location.hash.slice(1)
+              : window.location.hash,
+          );
+          const type = hashParams.get('type');
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+
+          if (type === 'recovery' && accessToken && refreshToken) {
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) throw error;
+            window.history.replaceState(
+              {},
+              document.title,
+              `${currentUrl.pathname}${currentUrl.search}`,
+            );
+          }
+        }
+      } catch (error) {
+        if (mounted) {
+          setRecoveryBootstrapError(
+            error instanceof Error
+              ? error.message
+              : '복구 링크 세션을 처리하지 못했습니다.',
+          );
+        }
+      } finally {
+        if (mounted) {
+          setIsRecoveryBootstrapping(false);
+        }
+      }
+    };
+
+    void bootstrapRecoverySession();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -50,12 +134,17 @@ export default function ResetPasswordPage() {
           복구 링크로 접속한 뒤 새 비밀번호를 입력하세요. 필요하면 아래에서 회원 탈퇴도 가능합니다.
         </p>
 
-        {!isAuthReady ? (
+        {!isAuthReady || isRecoveryBootstrapping ? (
           <div className="mt-6 border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
             인증 상태 확인 중...
           </div>
         ) : !isAuthenticated ? (
           <div className="mt-6 space-y-3">
+            {recoveryBootstrapError ? (
+              <div className="border border-red-700 bg-red-950/20 p-4 text-xs text-red-300">
+                {recoveryBootstrapError}
+              </div>
+            ) : null}
             <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#bbb]">
               세션이 없습니다. 이메일로 받은 복구 링크를 다시 열어주세요.
             </div>
