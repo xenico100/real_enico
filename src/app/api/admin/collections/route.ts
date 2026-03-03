@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -8,7 +8,7 @@ const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 type AdminAuthResult =
   | {
       ok: true;
-      serviceClient: any;
+      serviceClient: SupabaseClient;
     }
   | {
       ok: false;
@@ -205,10 +205,10 @@ function sanitizeCollectionPayload(input: Record<string, unknown>, includeCreate
 }
 
 async function insertWithMissingColumnFallback(
-  serviceClient: any,
+  serviceClient: SupabaseClient,
   payload: Record<string, unknown>,
 ) {
-  let workingPayload: Record<string, unknown> = { ...payload };
+  const workingPayload: Record<string, unknown> = { ...payload };
   const strippedColumns: string[] = [];
   let row: Record<string, unknown> | null = null;
 
@@ -238,11 +238,11 @@ async function insertWithMissingColumnFallback(
 }
 
 async function updateWithMissingColumnFallback(
-  serviceClient: any,
+  serviceClient: SupabaseClient,
   id: string,
   payload: Record<string, unknown>,
 ) {
-  let workingPayload: Record<string, unknown> = { ...payload };
+  const workingPayload: Record<string, unknown> = { ...payload };
   const strippedColumns: string[] = [];
   let row: Record<string, unknown> | null = null;
 

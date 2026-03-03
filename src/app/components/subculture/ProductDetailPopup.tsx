@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useEffect, useMemo, useRef, useState, type TouchEventHandler } from 'react';
+import { useMemo, useRef, useState, type TouchEventHandler } from 'react';
 import type { Product } from '@/app/components/subculture/ProductShowcase';
 
 interface ProductDetailPopupProps {
@@ -25,9 +25,10 @@ function getDefaultActiveImageIndex() {
 
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
   const { cart, addToCart } = useFashionCart();
-  const [activeImageIndex, setActiveImageIndex] = useState(() =>
-    getDefaultActiveImageIndex(),
-  );
+  const [imageState, setImageState] = useState(() => ({
+    productId: product.id,
+    index: getDefaultActiveImageIndex(),
+  }));
   const touchStartX = useRef<number | null>(null);
   const isInCart = cart.some((item) => item.id === product.id);
   const isSoldOut = Boolean(product.isSoldOut);
@@ -50,19 +51,23 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   }, [product.image, product.images]);
 
   const canSlide = productImages.length > 1;
+  const activeImageIndex = imageState.productId === product.id ? imageState.index : 0;
   const activeImage = productImages[activeImageIndex] || '';
   const detailImages = productImages
     .map((image, index) => ({ image, index }))
     .filter(({ index }) => index > 0);
 
-  useEffect(() => {
-    setActiveImageIndex(0);
-  }, [product.id]);
 
   const moveImage = (direction: 'next' | 'prev') => {
     if (!canSlide) return;
     const delta = direction === 'next' ? 1 : -1;
-    setActiveImageIndex((prev) => (prev + delta + productImages.length) % productImages.length);
+    setImageState((prev) => {
+      const currentIndex = prev.productId === product.id ? prev.index : 0;
+      return {
+        productId: product.id,
+        index: (currentIndex + delta + productImages.length) % productImages.length,
+      };
+    });
   };
 
   const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
@@ -186,7 +191,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                     <button
                       key={`${product.id}-thumb-${index}`}
                       type="button"
-                      onClick={() => setActiveImageIndex(index)}
+                      onClick={() => setImageState({ productId: product.id, index })}
                       className={`relative h-20 md:h-auto md:aspect-[4/5] overflow-hidden border ${
                         active ? 'border-[#00ffd1]' : 'border-[#333] hover:border-[#00ffd1]/70'
                       } transition-colors`}
@@ -351,7 +356,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                         <button
                           key={`${product.id}-detail-list-${index}`}
                           type="button"
-                          onClick={() => setActiveImageIndex(index)}
+                          onClick={() => setImageState({ productId: product.id, index })}
                           className={`w-full border p-2 text-left transition-colors ${
                             activeImageIndex === index
                               ? 'border-[#00ffd1] bg-[#001713]'

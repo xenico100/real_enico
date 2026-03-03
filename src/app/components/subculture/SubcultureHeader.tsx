@@ -65,15 +65,6 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
     { key: 'mypage', label: myPageLabel, action: 'info' },
   ];
 
-  const glitchText = (text: string) => (
-    <span className="relative inline-block group cursor-pointer overflow-hidden">
-      <span className="relative z-10 group-hover:text-[#00ffd1] transition-colors duration-0">{text}</span>
-      <span className="absolute top-0 left-0 -ml-0.5 translate-x-[100%] group-hover:translate-x-0 transition-transform duration-75 text-[#00ffd1] opacity-50 mix-blend-screen">{text}</span>
-      <span className="absolute top-0 left-0 ml-0.5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-100 text-[#00ffff] opacity-50 mix-blend-screen">{text}</span>
-      <span className="absolute inset-x-0 bottom-0 h-[2px] bg-[#00ffd1] translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300 ease-out"></span>
-    </span>
-  );
-
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-50 mix-blend-difference pointer-events-none">
