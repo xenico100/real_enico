@@ -546,15 +546,15 @@ function AdminCollectionsConsoleInner() {
 
         {isConfigured && (
           <div className="space-y-4">
-            <div className="border border-[#333] bg-[#0a0a0a] p-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-2">
+            <div className="border border-[#3a3a3a] bg-[#0a0a0a] p-3.5 rounded-xl">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#00ffd1] mb-2 font-semibold">
                 작업 화면 분리
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('editor')}
-                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                  className={`px-3 py-2.5 text-xs font-mono border rounded-lg transition-colors ${
                     workspaceView === 'editor'
                       ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
                       : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
@@ -565,7 +565,7 @@ function AdminCollectionsConsoleInner() {
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('list')}
-                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                  className={`px-3 py-2.5 text-xs font-mono border rounded-lg transition-colors ${
                     workspaceView === 'list'
                       ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
                       : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'

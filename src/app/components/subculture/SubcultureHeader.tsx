@@ -25,6 +25,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
   const [hasRuntimeSession, setHasRuntimeSession] = useState(false);
+  const [cartDelta, setCartDelta] = useState(0);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -48,6 +49,28 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const previousCount = Number(window.sessionStorage.getItem('enico_prev_cart_count') || cartCount);
+
+    if (cartCount > previousCount) {
+      const delta = cartCount - previousCount;
+      const enterTimer = window.setTimeout(() => {
+        setCartDelta(delta);
+      }, 0);
+      const timer = window.setTimeout(() => {
+        setCartDelta(0);
+      }, 1200);
+      window.sessionStorage.setItem('enico_prev_cart_count', String(cartCount));
+      return () => {
+        window.clearTimeout(enterTimer);
+        window.clearTimeout(timer);
+      };
+    }
+
+    window.sessionStorage.setItem('enico_prev_cart_count', String(cartCount));
+  }, [cartCount]);
 
   const isSignedIn =
     isAuthenticated ||
@@ -136,6 +159,20 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                   <span className="absolute -top-2 -right-2 bg-[#00ffd1] text-black text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center">
                     {cartCount}
                   </span>
+                  <AnimatePresence>
+                    {cartDelta > 0 && (
+                      <motion.span
+                        key={`desktop-cart-plus-${cartCount}`}
+                        initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                        animate={{ opacity: 1, y: -10, scale: 1 }}
+                        exit={{ opacity: 0, y: -16, scale: 0.95 }}
+                        transition={{ duration: 0.35, ease: 'easeOut' }}
+                        className="absolute -top-5 -right-5 rounded-full border border-[#00ffd1]/40 bg-black px-1.5 py-0.5 text-[10px] font-bold text-[#00ffd1]"
+                      >
+                        +{cartDelta}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </button>
@@ -183,9 +220,23 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                   onCartClick();
                   setMenuOpen(false);
                 }}
-                className="flex items-center gap-4 hover:line-through decoration-4 decoration-white"
+                className="flex items-center gap-4 hover:line-through decoration-4 decoration-white relative"
               >
                 장바구니 ({cartCount})
+                <AnimatePresence>
+                  {cartDelta > 0 && (
+                    <motion.span
+                      key={`mobile-cart-plus-${cartCount}`}
+                      initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                      animate={{ opacity: 1, y: -10, scale: 1 }}
+                      exit={{ opacity: 0, y: -16, scale: 0.95 }}
+                      transition={{ duration: 0.35, ease: 'easeOut' }}
+                      className="absolute -top-5 -right-6 rounded-full border border-black/20 bg-black px-2 py-0.5 text-sm font-black text-[#00ffd1]"
+                    >
+                      +{cartDelta}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </button>
             </nav>
           </motion.div>

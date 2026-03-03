@@ -43,6 +43,21 @@ type AdminRow = {
   created_at?: string | null;
 };
 
+type DailyStatsRow = {
+  dateKst: string;
+  visitorCount: number;
+  pageHitCount: number;
+  createdRoomCount: number;
+  messageCount: number;
+};
+
+type DailyStatsSummary = {
+  totalVisitors: number;
+  totalPageHits: number;
+  totalCreatedRooms: number;
+  totalMessages: number;
+};
+
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 const emptyForm: ProductFormState = {
@@ -144,7 +159,7 @@ function resolveProductCategory(category: string | null): ProductCategory {
 
 function AdminConsoleInner() {
   const [isEmbedded, setIsEmbedded] = useState(false);
-  const { isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
+  const { isConfigured, isAuthReady, isAuthenticated, session, user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -158,6 +173,9 @@ function AdminConsoleInner() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [workspaceView, setWorkspaceView] = useState<'editor' | 'list'>('editor');
   const [listCategoryFilter, setListCategoryFilter] = useState<'전체' | ProductCategory>('전체');
+  const [dailyStatsRows, setDailyStatsRows] = useState<DailyStatsRow[]>([]);
+  const [dailyStatsSummary, setDailyStatsSummary] = useState<DailyStatsSummary | null>(null);
+  const [isLoadingDailyStats, setIsLoadingDailyStats] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canManageProducts = isAuthenticated && isAdmin;
@@ -354,6 +372,46 @@ function AdminConsoleInner() {
     void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConfigured, isAuthReady, isCheckingAdmin, canManageProducts]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isAdmin || !session?.access_token) {
+      setDailyStatsRows([]);
+      setDailyStatsSummary(null);
+      return;
+    }
+
+    const loadDailyStats = async () => {
+      setIsLoadingDailyStats(true);
+      try {
+        const response = await fetch('/api/admin/daily-stats?days=7', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        const payload = (await response.json()) as {
+          rows?: DailyStatsRow[];
+          summary?: DailyStatsSummary;
+          message?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.message || '일일 데이터 로드 실패');
+        }
+
+        setDailyStatsRows(Array.isArray(payload.rows) ? payload.rows : []);
+        setDailyStatsSummary(payload.summary || null);
+      } catch {
+        setDailyStatsRows([]);
+        setDailyStatsSummary(null);
+      } finally {
+        setIsLoadingDailyStats(false);
+      }
+    };
+
+    void loadDailyStats();
+  }, [isAdmin, isAuthenticated, session?.access_token]);
 
   const startEditProduct = (product: ProductRow) => {
     clearMessages();
@@ -619,15 +677,52 @@ function AdminConsoleInner() {
 
         {isConfigured && (
           <div className="space-y-4">
-            <div className="border border-[#333] bg-[#0a0a0a] p-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-2">
+            {canManageProducts && (
+              <div className="border border-[#00ffd1]/35 bg-[#00ffd1]/5 p-3 md:p-4">
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">일일 데이터(최근 7일)</p>
+                    <p className="font-mono text-[11px] text-[#9ac7bc] mt-1">방문자/페이지 hit/생성 채팅방/메시지 합계</p>
+                  </div>
+                  {isLoadingDailyStats ? (
+                    <p className="font-mono text-xs text-[#8a8a8a]">집계 불러오는 중...</p>
+                  ) : dailyStatsSummary ? (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono">
+                      <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
+                        <p className="text-[#727272]">방문자</p>
+                        <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명</p>
+                      </div>
+                      <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
+                        <p className="text-[#727272]">페이지 hit</p>
+                        <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회</p>
+                      </div>
+                      <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
+                        <p className="text-[#727272]">생성 채팅방</p>
+                        <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalCreatedRooms.toLocaleString('ko-KR')}개</p>
+                      </div>
+                      <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
+                        <p className="text-[#727272]">메시지</p>
+                        <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalMessages.toLocaleString('ko-KR')}개</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="font-mono text-xs text-[#8a8a8a]">일일 데이터가 없거나 불러오기에 실패했습니다.</p>
+                  )}
+                  {!isLoadingDailyStats && dailyStatsRows[0] && (
+                    <p className="font-mono text-[11px] text-[#92b7ad]">최신일: {dailyStatsRows[0].dateKst}</p>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="border border-[#3a3a3a] bg-[#0a0a0a] p-3.5 rounded-xl">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#00ffd1] mb-2 font-semibold">
                 작업 화면 분리
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('editor')}
-                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                  className={`px-3 py-2.5 text-xs font-mono border rounded-lg transition-colors ${
                     workspaceView === 'editor'
                       ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
                       : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
@@ -638,7 +733,7 @@ function AdminConsoleInner() {
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('list')}
-                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                  className={`px-3 py-2.5 text-xs font-mono border rounded-lg transition-colors ${
                     workspaceView === 'list'
                       ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
                       : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
