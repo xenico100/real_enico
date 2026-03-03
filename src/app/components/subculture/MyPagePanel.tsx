@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
@@ -215,8 +215,23 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   const [dailyStatsMessage, setDailyStatsMessage] = useState<string | null>(null);
   const [dailyStatsError, setDailyStatsError] = useState<string | null>(null);
   const [adminComposer, setAdminComposer] = useState<AdminComposerType | null>(null);
+  const contentSectionRef = useRef<HTMLElement | null>(null);
   const isPrimaryAdmin = (user?.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
   const isDesignatedAdminUser = isDesignatedAdmin(user?.email);
+
+  const handleChangeTab = (tabId: MyPageTab) => {
+    setActiveTab(tabId);
+
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(min-width: 768px)').matches) return;
+
+    window.requestAnimationFrame(() => {
+      contentSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
 
   const userDisplayName = useMemo(() => {
     if (!user) return null;
@@ -1259,24 +1274,6 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setAdminComposer('products')}
-                className="rounded-xl border border-[#7bb8ff]/45 bg-[#7bb8ff]/12 p-3 text-left text-xs text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
-              >
-                <p className="font-semibold">의류 게시물 편집 열기</p>
-                <p className="text-[10px] mt-1 text-[#a9c7e7]">의류 게시글 작성/수정/삭제</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdminComposer('collections')}
-                className="rounded-xl border border-[#00ffd1]/45 bg-[#00ffd1]/12 p-3 text-left text-xs text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
-              >
-                <p className="font-semibold">컬렉션 게시물 편집 열기</p>
-                <p className="text-[10px] mt-1 text-[#9fe6d7]">컬렉션 게시글 작성/수정/삭제</p>
-              </button>
-            </div>
 
             {isLoadingMembers && members.length === 0 ? (
               <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
@@ -1430,7 +1427,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleChangeTab(tab.id)}
                     className={`w-full flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition-colors ${
                       active
                         ? 'border-[#7bb8ff]/60 bg-[#7bb8ff]/15 text-[#e8f3ff]'
@@ -1478,7 +1475,10 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             )}
           </aside>
 
-          <section className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6 min-h-0 flex flex-col">
+          <section
+            ref={contentSectionRef}
+            className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6 min-h-0 flex flex-col"
+          >
             <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#171717] px-3 py-2.5">
               <p className="text-xs text-[#a8a8a8]">
                 현재 탭: <span className="text-[#f5f5f5]">{tabs.find((tab) => tab.id === activeTab)?.label || '계정'}</span>
@@ -1493,34 +1493,6 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
               </button>
             </div>
             <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
-              {isPrimaryAdmin && (
-                <div className="mb-5 rounded-2xl border border-[#00ffd1]/50 bg-[#061612] p-4">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">
-                      관리자 게시물 수정
-                    </p>
-                    <p className="text-[11px] text-[#8fd4c6]">
-                      버튼 누르면 바로 게시물 수정 화면이 열립니다.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setAdminComposer('products')}
-                      className="w-full rounded-xl border border-[#7bb8ff] bg-[#7bb8ff] px-4 py-3 text-sm font-semibold text-black hover:bg-[#9fcbff] transition-colors"
-                    >
-                      의류 게시물 수정 열기
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAdminComposer('collections')}
-                      className="w-full rounded-xl border border-[#00ffd1] bg-[#00ffd1] px-4 py-3 text-sm font-semibold text-black hover:bg-[#63ffe1] transition-colors"
-                    >
-                      컬렉션 게시물 수정 열기
-                    </button>
-                  </div>
-                </div>
-              )}
               {tabContent[activeTab]}
             </div>
           </section>
@@ -1536,9 +1508,9 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             onClick={() => setAdminComposer(null)}
           />
 
-          <div className="relative w-[min(1200px,95vw)] h-[min(860px,90vh)] rounded-3xl border border-white/15 bg-[#0d0d0d] overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.7)]">
-            <div className="h-16 border-b border-white/10 bg-[#131313] flex items-center justify-between px-4">
-              <div className="flex items-center gap-2">
+          <div className="relative h-[100dvh] w-screen rounded-none border-0 bg-[#0d0d0d] overflow-hidden shadow-none md:h-[min(860px,90vh)] md:w-[min(1200px,95vw)] md:rounded-3xl md:border md:border-white/15 md:shadow-[0_40px_120px_rgba(0,0,0,0.7)]">
+            <div className="h-16 border-b border-white/10 bg-[#131313] flex items-center justify-between gap-2 px-3 md:px-4">
+              <div className="flex items-center gap-2 overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => setAdminComposer('products')}
@@ -1561,7 +1533,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 >
                   컬렉션 게시물
                 </button>
-                <p className="hidden md:block text-[11px] text-[#8a8a8a] ml-2">
+                <p className="hidden lg:block text-[11px] text-[#8a8a8a] ml-2 whitespace-nowrap">
                   현재 편집: {adminComposer === 'products' ? '의류 게시물' : '컬렉션 게시물'}
                 </p>
               </div>
