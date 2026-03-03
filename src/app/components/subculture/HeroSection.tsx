@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, useScroll, useTransform } from 'motion/react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 export function HeroSection() {
   const brandName = 'ENICO VECK';
@@ -52,9 +52,9 @@ export function HeroSection() {
       <motion.div style={{ y: y1 }} className="absolute top-1/4 left-10 z-10 hidden md:block">
         <div className="border border-[#00ffd1] p-4 bg-black/80 backdrop-blur-sm max-w-xs rotate-[-5deg]">
           <p className="font-mono text-[10px] text-[#00ffd1] uppercase leading-relaxed">
-            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            &quot;xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&quot;
           </p>
-          <div className="mt-2 text-right text-[8px] text-white">/// xxxxx_xx</div>
+          <div className="mt-2 text-right text-[8px] text-white">{'/// xxxxx_xx'}</div>
         </div>
       </motion.div>
 

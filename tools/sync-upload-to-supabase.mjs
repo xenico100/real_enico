@@ -49,17 +49,6 @@ function stripNumberPrefix(value) {
   return (value || '').replace(/^\s*\d+\s*[.)-]?\s*/, '').trim();
 }
 
-function toSlug(value) {
-  return (value || '')
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[’'`"“”]/g, '')
-    .replace(/[^a-z0-9가-힣]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/-{2,}/g, '-')
-    .slice(0, 80);
-}
-
 function toAsciiSlug(value) {
   return (value || '')
     .normalize('NFKC')

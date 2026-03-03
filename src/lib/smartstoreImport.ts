@@ -405,7 +405,7 @@ async function ensureCategory(
     throw existingBySlug.error;
   }
 
-  let payload: JsonRecord = {
+  const payload: JsonRecord = {
     name: resolution.normalizedName,
     slug: resolution.slug,
   };
@@ -449,7 +449,7 @@ async function ensureCategory(
 }
 
 async function upsertProductRow(supabase: SupabaseClient, basePayload: JsonRecord) {
-  let payload: JsonRecord = { ...basePayload };
+  const payload: JsonRecord = { ...basePayload };
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const upsert = await supabase.from('products').upsert(payload, {
@@ -475,7 +475,7 @@ async function writeImportFlag(
   failed: number,
 ) {
   const now = new Date().toISOString();
-  let payload: JsonRecord = {
+  const payload: JsonRecord = {
     key: IMPORT_FLAG_KEY,
     value: {
       imported: true,

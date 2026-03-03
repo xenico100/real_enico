@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
@@ -7,7 +7,7 @@ type AdminAuthResult =
   | {
       ok: true;
       adminId: string;
-      serviceClient: any;
+      serviceClient: SupabaseClient;
     }
   | {
       ok: false;

@@ -3,15 +3,6 @@ import { notFound } from 'next/navigation';
 import sanitizeHtml from 'sanitize-html';
 import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
-type ProductDetailRow = {
-  id: string;
-  title: string | null;
-  price: number | null;
-  thumbnail_url: string | null;
-  detail_html: string | null;
-  images: unknown;
-  synced_at: string | null;
-};
 
 function formatPrice(value: number | null) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '-';
