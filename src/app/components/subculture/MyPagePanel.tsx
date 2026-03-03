@@ -12,11 +12,28 @@ type MyPageTab =
   | 'saved'
   | 'cart'
   | 'profile'
+  | 'dailyStats'
   | 'members'
   | 'adminOrders';
 
 type AdminComposerType = 'products' | 'collections';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
+const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
+
+type DailyStatsRow = {
+  dateKst: string;
+  visitorCount: number;
+  pageHitCount: number;
+  createdRoomCount: number;
+  messageCount: number;
+};
+
+type DailyStatsSummary = {
+  totalVisitors: number;
+  totalPageHits: number;
+  totalCreatedRooms: number;
+  totalMessages: number;
+};
 
 type MemberRecord = {
   id: string;
@@ -118,6 +135,12 @@ function formatDateTime(value: string | null) {
   }).format(date);
 }
 
+function isDesignatedAdmin(email: string | null | undefined) {
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
+}
+
 function getShippingStatusLabel(status: ShippingStatus) {
   if (status === 'shipping') return '배송중';
   if (status === 'delivered') return '배송완료';
@@ -185,8 +208,15 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   const [isLoadingAdminOrders, setIsLoadingAdminOrders] = useState(false);
   const [adminOrderMessage, setAdminOrderMessage] = useState<string | null>(null);
   const [adminOrderError, setAdminOrderError] = useState<string | null>(null);
+  const [dailyStatsRows, setDailyStatsRows] = useState<DailyStatsRow[]>([]);
+  const [dailyStatsSummary, setDailyStatsSummary] = useState<DailyStatsSummary | null>(null);
+  const [dailyStatsLoaded, setDailyStatsLoaded] = useState(false);
+  const [isLoadingDailyStats, setIsLoadingDailyStats] = useState(false);
+  const [dailyStatsMessage, setDailyStatsMessage] = useState<string | null>(null);
+  const [dailyStatsError, setDailyStatsError] = useState<string | null>(null);
   const [adminComposer, setAdminComposer] = useState<AdminComposerType | null>(null);
   const isPrimaryAdmin = (user?.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
+  const isDesignatedAdminUser = isDesignatedAdmin(user?.email);
 
   const userDisplayName = useMemo(() => {
     if (!user) return null;
@@ -210,6 +240,9 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     tabs.push({ id: 'members', label: '회원관리', count: members.length });
     tabs.push({ id: 'adminOrders', label: '배송관리', count: adminOrders.length });
   }
+  if (isDesignatedAdminUser) {
+    tabs.push({ id: 'dailyStats', label: '일일데이터', count: dailyStatsRows.length });
+  }
 
   const resetMemberMessages = () => {
     setMemberMessage(null);
@@ -225,6 +258,47 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     setAdminOrderMessage(null);
     setAdminOrderError(null);
   };
+
+  const resetDailyStatsMessages = () => {
+    setDailyStatsMessage(null);
+    setDailyStatsError(null);
+  };
+
+  const loadDailyStats = useCallback(async () => {
+    if (!isDesignatedAdminUser) return;
+    if (!session?.access_token) return;
+
+    resetDailyStatsMessages();
+    setIsLoadingDailyStats(true);
+    try {
+      const response = await fetch('/api/admin/daily-stats?days=7', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const payload = (await response.json()) as {
+        rows?: DailyStatsRow[];
+        summary?: DailyStatsSummary;
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message || '일일 데이터 로드 실패');
+      }
+
+      const nextRows = Array.isArray(payload.rows) ? payload.rows : [];
+      setDailyStatsRows(nextRows);
+      setDailyStatsSummary(payload.summary || null);
+      setDailyStatsLoaded(true);
+      setDailyStatsMessage(`일일 데이터 ${nextRows.length}일 로드 완료`);
+    } catch (error) {
+      setDailyStatsError(error instanceof Error ? error.message : '일일 데이터 로드 실패');
+    } finally {
+      setIsLoadingDailyStats(false);
+    }
+  }, [isDesignatedAdminUser, session?.access_token]);
 
   const loadMembers = useCallback(async () => {
     if (!isPrimaryAdmin) return;
@@ -540,10 +614,13 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   }, [isPrimaryAdmin, session?.access_token]);
 
   useEffect(() => {
-    if (!isPrimaryAdmin && (activeTab === 'members' || activeTab === 'adminOrders')) {
+    if (
+      (!isPrimaryAdmin && (activeTab === 'members' || activeTab === 'adminOrders')) ||
+      (!isDesignatedAdminUser && activeTab === 'dailyStats')
+    ) {
       setActiveTab('profile');
     }
-  }, [activeTab, isPrimaryAdmin]);
+  }, [activeTab, isDesignatedAdminUser, isPrimaryAdmin]);
 
   useEffect(() => {
     if (!isPrimaryAdmin) return;
@@ -564,6 +641,13 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     if (adminOrdersLoaded) return;
     void loadAdminOrders();
   }, [activeTab, adminOrdersLoaded, isPrimaryAdmin, loadAdminOrders]);
+
+  useEffect(() => {
+    if (!isDesignatedAdminUser) return;
+    if (activeTab !== 'dailyStats') return;
+    if (dailyStatsLoaded) return;
+    void loadDailyStats();
+  }, [activeTab, dailyStatsLoaded, isDesignatedAdminUser, loadDailyStats]);
 
   if (!isAuthReady) {
     return (
@@ -828,6 +912,105 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             장바구니 {cart.length}개 / 합계 {cartSubtotal.toLocaleString('ko-KR')}원
           </p>
         </div>
+      </div>
+    ),
+
+    dailyStats: (
+      <div className="space-y-4">
+        {!isDesignatedAdminUser ? (
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+            관리자 계정에서만 접근 가능한 탭입니다.
+          </div>
+        ) : (
+          <>
+            <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">일일 데이터</p>
+                  <p className="text-xs text-[#9a9a9a] mt-2">
+                    최근 7일 기준 방문자/페이지 hit/생성 채팅방/메시지 집계를 확인할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadDailyStats()}
+                  disabled={isLoadingDailyStats}
+                  className="px-3 py-2 border border-[#333] bg-[#111] text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors disabled:opacity-50"
+                >
+                  {isLoadingDailyStats ? '새로고침 중...' : '데이터 새로고침'}
+                </button>
+              </div>
+            </div>
+
+            {(dailyStatsMessage || dailyStatsError) && (
+              <div
+                className={`border p-3 text-xs ${
+                  dailyStatsError
+                    ? 'border-red-700 bg-red-950/20 text-red-300'
+                    : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+                }`}
+              >
+                {dailyStatsError || dailyStatsMessage}
+              </div>
+            )}
+
+            {dailyStatsSummary && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#666]">총 방문자</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명</p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#666]">총 페이지 hit</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회</p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#666]">생성 채팅방</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalCreatedRooms.toLocaleString('ko-KR')}개</p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#666]">총 메시지</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalMessages.toLocaleString('ko-KR')}개</p>
+                </div>
+              </div>
+            )}
+
+            {isLoadingDailyStats && dailyStatsRows.length === 0 ? (
+              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+                일일 데이터를 불러오는 중입니다...
+              </div>
+            ) : dailyStatsRows.length === 0 ? (
+              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+                표시할 일일 데이터가 없습니다.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-[#333] bg-[#101010]">
+                <table className="w-full min-w-[680px] text-xs">
+                  <thead className="bg-black/60 text-[#8a8a8a]">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium">날짜(KST)</th>
+                      <th className="text-right px-3 py-2 font-medium">방문자</th>
+                      <th className="text-right px-3 py-2 font-medium">페이지 hit</th>
+                      <th className="text-right px-3 py-2 font-medium">생성 채팅방</th>
+                      <th className="text-right px-3 py-2 font-medium">메시지</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailyStatsRows.map((row) => (
+                      <tr key={row.dateKst} className="border-t border-[#252525]">
+                        <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
     ),
     adminOrders: (
