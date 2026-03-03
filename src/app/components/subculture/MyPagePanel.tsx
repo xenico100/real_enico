@@ -1463,7 +1463,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   <button
                     type="button"
                     onClick={() => openAdminComposer('products')}
-                    className="w-full rounded-lg border border-[#7bb8ff]/55 bg-[#7bb8ff]/12 px-3 py-3 text-left text-xs text-[#e6f2ff] hover:bg-[#7bb8ff]/24 transition-colors"
+
                   >
                     <p className="font-semibold">의류 게시물 수정</p>
                     <p className="text-[10px] text-[#a9c7e7] mt-1">의류 게시글 작성/수정/삭제 화면 열기</p>
@@ -1471,7 +1471,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   <button
                     type="button"
                     onClick={() => openAdminComposer('collections')}
-                    className="w-full rounded-lg border border-[#00ffd1]/55 bg-[#00ffd1]/12 px-3 py-3 text-left text-xs text-[#e9fff9] hover:bg-[#00ffd1]/24 transition-colors"
+
                   >
                     <p className="font-semibold">컬렉션 게시물 수정</p>
                     <p className="text-[10px] text-[#9fe6d7] mt-1">컬렉션 게시글 작성/수정/삭제 화면 열기</p>
@@ -1519,8 +1519,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           />
 
           <div className="relative w-[98vw] h-[94vh] md:w-[min(1200px,95vw)] md:h-[min(860px,90vh)] rounded-xl md:rounded-3xl border border-white/15 bg-[#0d0d0d] overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.7)]">
-            <div className="h-16 border-b border-white/15 bg-[#131313] flex items-center justify-between px-2 md:px-4">
-              <div className="flex items-center gap-2 border border-white/10 rounded-lg p-1 bg-[#0f0f0f]">
+
                 <button
                   type="button"
                   onClick={() => setAdminComposer('products')}
