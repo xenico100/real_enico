@@ -253,7 +253,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
                )}
                <span className="font-heading text-2xl uppercase tracking-tighter text-[#e5e5e5] truncate">
                  {type === 'about'
-                   ? '프로젝트_메이헴'
+                   ? 'ENICO VECK'
                      : type === 'contact'
                        ? '통신_링크'
                        : myPageTitle}

@@ -239,58 +239,59 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
               </h2>
 
               {/* Top Actions */}
-              <div className="relative z-10 mb-8 border border-[#333] bg-[#0d0d0d] p-4">
-                <div className="flex justify-between items-end mb-4">
-                   <span className="font-mono text-xs text-[#666]">가격</span>
-                   <span className="font-heading text-4xl text-[#e5e5e5]">
-                     {product.price.toLocaleString('ko-KR')}원
-                   </span>
+              <div className="relative z-10 mb-8 border border-[#333] bg-[#0d0d0d] p-4 md:p-5">
+                <div className="flex justify-between items-end mb-5">
+                  <span className="font-mono text-xs text-[#666] uppercase tracking-widest">가격</span>
+                  <span className="font-heading text-4xl text-[#e5e5e5]">
+                    {product.price.toLocaleString('ko-KR')}원
+                  </span>
                 </div>
 
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    disabled={isSoldOut}
+                    className={`min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-all duration-300 relative overflow-hidden group text-left ${
+                      isSoldOut
+                        ? 'bg-[#1f0e0e] text-[#ffabab] border-[#6d2d2d] cursor-not-allowed'
+                        : isInCart
+                          ? 'bg-[#0e1f1c] text-[#8fd6c8] border-[#2d6d62]'
+                          : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
+                    }`}
+                  >
+                    {!isInCart && !isSoldOut ? (
+                      <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                    ) : null}
+                    <span className="relative z-10 flex h-full items-center justify-between gap-3">
+                      <span className="leading-tight">
+                        {isSoldOut
+                          ? '품절'
+                          : isInCart
+                            ? '장바구니 담김'
+                            : '장바구니 담기'}
+                      </span>
+                      <span className="text-xl">{isSoldOut ? 'X' : isInCart ? '✓' : '+'}</span>
+                    </span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleSmartstorePurchase}
                     disabled={!smartstoreUrl}
-                    className={`w-full py-3 px-4 font-mono font-bold text-xs uppercase tracking-widest border transition-colors ${
+                    className={`min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-colors text-left ${
                       smartstoreUrl
                         ? 'border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a] hover:text-black'
                         : 'border-[#2b4b36] text-[#4c7f5f] cursor-not-allowed'
                     }`}
                   >
-                    <span className="flex items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-2">
+                    <span className="flex h-full items-center justify-between gap-3">
+                      <span className="inline-flex items-center gap-2 leading-tight">
                         <NaverIcon />
                         네이버 구매
                       </span>
-                      <span>↗</span>
+                      <span className="text-xl">↗</span>
                     </span>
-                  </button>
-
-                  <button
-                    onClick={handleAddToCart}
-                    disabled={isSoldOut}
-                    className={`w-full py-4 px-6 font-mono font-bold text-sm uppercase tracking-widest border transition-all duration-300 relative overflow-hidden group ${
-                      isSoldOut
-                        ? 'bg-[#1f0e0e] text-[#ffabab] border-[#6d2d2d] cursor-not-allowed'
-                        : isInCart
-                        ? 'bg-[#0e1f1c] text-[#8fd6c8] border-[#2d6d62]'
-                        : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
-                    }`}
-                  >
-                     {!isInCart && !isSoldOut ? (
-                       <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                     ) : null}
-                     <span className="relative z-10 flex justify-between items-center w-full">
-                        <span>
-                          {isSoldOut
-                            ? '품절'
-                            : isInCart
-                              ? '장바구니 담김 (재고 1개)'
-                              : '장바구니 담기'}
-                        </span>
-                        <span>{isSoldOut ? 'X' : isInCart ? '✓' : '→'}</span>
-                     </span>
                   </button>
                 </div>
               </div>
