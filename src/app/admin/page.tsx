@@ -456,32 +456,30 @@ function AdminConsoleInner() {
     clearMessages();
 
     try {
-      const supabase = getSupabaseOrThrow();
+      if (!session?.access_token) {
+        throw new Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+      }
+
       const uploadedUrls: string[] = [];
 
+      const formData = new FormData();
+      formData.append('folder', 'products');
       for (const file of Array.from(files)) {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const safeBase = file.name
-          .replace(/\.[^/.]+$/, '')
-          .toLowerCase()
-          .replace(/[^a-z0-9-_]+/g, '-')
-          .slice(0, 40);
-        const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}-${safeBase}.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(path, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicData } = supabase.storage.from('product-images').getPublicUrl(path);
-        if (publicData.publicUrl) {
-          uploadedUrls.push(publicData.publicUrl);
-        }
+        formData.append('files', file);
       }
+
+      const response = await fetch('/api/admin/r2-upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: formData,
+      });
+
+      const payload = (await response.json()) as { urls?: string[]; message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message || 'R2 업로드 실패');
+      }
+
+      uploadedUrls.push(...(Array.isArray(payload.urls) ? payload.urls : []));
 
       setForm((prev) => ({ ...prev, images: [...prev.images, ...uploadedUrls] }));
       setPageMessage(`${uploadedUrls.length}개 이미지 업로드 완료`);
