@@ -683,19 +683,19 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">가입일</p>
+            <p className="text-[#9b9b9b] mb-1">가입일</p>
             <p className="text-[#e5e5e5]">{formatDate(profile?.created_at || user.created_at)}</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">로그인 방식</p>
+            <p className="text-[#9b9b9b] mb-1">로그인 방식</p>
             <p className="text-[#e5e5e5] uppercase">{profile?.provider === 'google' ? '구글' : '이메일'}</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">장바구니 품목</p>
+            <p className="text-[#9b9b9b] mb-1">장바구니 품목</p>
             <p className="text-[#e5e5e5]">{cart.length}개</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">장바구니 합계</p>
+            <p className="text-[#9b9b9b] mb-1">장바구니 합계</p>
             <p className="text-[#00ffd1]">{cartSubtotal.toLocaleString('ko-KR')}원</p>
           </div>
         </div>
@@ -756,11 +756,11 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
         )}
 
         {isLoadingMemberOrders && memberOrders.length === 0 ? (
-          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
             주문 목록을 불러오는 중입니다...
           </div>
         ) : memberOrders.length === 0 ? (
-          <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+          <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
             주문 내역이 없습니다.
           </div>
         ) : (
@@ -772,7 +772,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                     <p className="text-xs text-[#e5e5e5] break-all">
                       주문번호: {order.orderCode || order.guestOrderNumber || order.id}
                     </p>
-                    <p className="text-[10px] text-[#666] mt-1">
+                    <p className="text-[10px] text-[#9b9b9b] mt-1">
                       생성일: {formatDate(order.createdAt || undefined)}
                     </p>
                   </div>
@@ -780,10 +780,10 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                     <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
                       {getShippingStatusLabel(order.shippingStatus)}
                     </span>
-                    <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                    <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
                       {order.paymentMethod || '-'}
                     </span>
-                    <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                    <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
                       {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
                     </span>
                   </div>
@@ -791,31 +791,31 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                   <div className="border border-[#333] bg-black p-3">
-                    <p className="text-[#666] mb-1">주문 금액</p>
+                    <p className="text-[#9b9b9b] mb-1">주문 금액</p>
                     <p className="text-[#00ffd1] font-bold">
                       {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
                     </p>
-                    <p className="text-[#888] mt-1">항목 {order.items.length}개</p>
+                    <p className="text-[#c6c6c6] mt-1">항목 {order.items.length}개</p>
                   </div>
                   <div className="border border-[#333] bg-black p-3">
-                    <p className="text-[#666] mb-1">택배사</p>
+                    <p className="text-[#9b9b9b] mb-1">택배사</p>
                     <p className="text-[#e5e5e5]">{order.shippingCompany || '-'}</p>
-                    <p className="text-[#888] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
+                    <p className="text-[#c6c6c6] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
                   </div>
                   <div className="border border-[#333] bg-black p-3">
-                    <p className="text-[#666] mb-1">운송장번호</p>
+                    <p className="text-[#9b9b9b] mb-1">운송장번호</p>
                     <p className="text-[#e5e5e5] break-all">{order.trackingNumber || '-'}</p>
-                    <p className="text-[#888] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
+                    <p className="text-[#c6c6c6] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
                   </div>
                 </div>
 
                 <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                  <p className="text-[10px] uppercase tracking-widest text-[#666] mb-2">배송지</p>
+                  <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
                   <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
                 </div>
 
                 <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                  <p className="text-[10px] uppercase tracking-widest text-[#666] mb-2">배송 메모</p>
+                  <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송 메모</p>
                   <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
                 </div>
               </article>
@@ -828,14 +828,14 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
       <div className="space-y-3">
         <div className="border border-[#333] bg-[#111] p-4">
           <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">저장 보드</p>
-          <p className="text-xs text-[#999]">
+          <p className="text-xs text-[#d0d0d0]">
             찜한 의류/컬렉션 게시물 썸네일을 그리드로 배치할 공간입니다.
           </p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="border border-[#333] bg-[#0d0d0d] aspect-[4/5] p-3 flex items-end">
-              <p className="text-[10px] text-[#555] uppercase tracking-widest">빈 슬롯</p>
+              <p className="text-[10px] text-[#9a9a9a] uppercase tracking-widest">빈 슬롯</p>
             </div>
           ))}
         </div>
@@ -853,7 +853,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-[#666] uppercase">수량</p>
+              <p className="text-[10px] text-[#9b9b9b] uppercase">수량</p>
               <p className="text-lg text-[#e5e5e5]">{cart.length}</p>
             </div>
           </div>
@@ -861,11 +861,11 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">상품합계</p>
+            <p className="text-[#9b9b9b] mb-1">상품합계</p>
             <p className="text-[#e5e5e5]">{cartSubtotal.toLocaleString('ko-KR')}원</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#666] mb-1">결제 창</p>
+            <p className="text-[#9b9b9b] mb-1">결제 창</p>
             <p className="text-[#00ffd1]">헤더 장바구니 패널 사용</p>
           </div>
         </div>
@@ -886,19 +886,19 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-[#e5e5e5] truncate">{item.name}</p>
-                  <p className="text-[10px] text-[#666] mt-1">
+                  <p className="text-[10px] text-[#9b9b9b] mt-1">
                     {item.category || '항목'} {item.selectedSize ? `// 사이즈 ${item.selectedSize}` : ''}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-[#666]">×{item.quantity || 1}</p>
+                  <p className="text-[10px] text-[#9b9b9b]">×{item.quantity || 1}</p>
                   <p className="text-xs text-[#00ffd1]">{item.price.toLocaleString('ko-KR')}원</p>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+          <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
             장바구니가 비어 있습니다.
           </div>
         )}
@@ -935,7 +935,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     dailyStats: (
       <div className="space-y-4">
         {!isDesignatedAdminUser ? (
-          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
             관리자 계정에서만 접근 가능한 탭입니다.
           </div>
         ) : (
@@ -974,30 +974,30 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             {dailyStatsSummary && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#666]">총 방문자</p>
+                  <p className="text-[#9b9b9b]">총 방문자</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명</p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#666]">총 페이지 hit</p>
+                  <p className="text-[#9b9b9b]">총 페이지 hit</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회</p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#666]">생성 채팅방</p>
+                  <p className="text-[#9b9b9b]">생성 채팅방</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalCreatedRooms.toLocaleString('ko-KR')}개</p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#666]">총 메시지</p>
+                  <p className="text-[#9b9b9b]">총 메시지</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalMessages.toLocaleString('ko-KR')}개</p>
                 </div>
               </div>
             )}
 
             {isLoadingDailyStats && dailyStatsRows.length === 0 ? (
-              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
                 일일 데이터를 불러오는 중입니다...
               </div>
             ) : dailyStatsRows.length === 0 ? (
-              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
                 표시할 일일 데이터가 없습니다.
               </div>
             ) : (
@@ -1033,7 +1033,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     adminOrders: (
       <div className="space-y-4">
         {!isPrimaryAdmin ? (
-          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
             관리자 계정에서만 접근 가능한 탭입니다.
           </div>
         ) : (
@@ -1070,11 +1070,11 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             )}
 
             {isLoadingAdminOrders && adminOrders.length === 0 ? (
-              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
                 주문 목록을 불러오는 중입니다...
               </div>
             ) : adminOrders.length === 0 ? (
-              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
                 저장된 주문이 없습니다. 결제 완료 후 목록이 표시됩니다.
               </div>
             ) : (
@@ -1091,7 +1091,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                             비회원조회번호: {order.guestOrderNumber}
                           </p>
                         )}
-                        <p className="text-[10px] text-[#666] mt-1">
+                        <p className="text-[10px] text-[#9b9b9b] mt-1">
                           생성일: {formatDate(order.createdAt || undefined)}
                         </p>
                       </div>
@@ -1102,10 +1102,10 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                         <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
                           {order.paymentMethod || '-'}
                         </span>
-                        <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                        <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
                           {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
                         </span>
-                        <span className="px-2 py-1 border border-[#333] bg-black text-[#aaa]">
+                        <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
                           {order.channel || '-'}
                         </span>
                       </div>
@@ -1113,28 +1113,28 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                       <div className="border border-[#333] bg-black p-3">
-                        <p className="text-[#666] mb-1">주문자</p>
+                        <p className="text-[#9b9b9b] mb-1">주문자</p>
                         <p className="text-[#e5e5e5]">{order.customerName || '-'}</p>
-                        <p className="text-[#888] mt-1 break-all">{order.customerEmail || '-'}</p>
+                        <p className="text-[#c6c6c6] mt-1 break-all">{order.customerEmail || '-'}</p>
                       </div>
                       <div className="border border-[#333] bg-black p-3">
-                        <p className="text-[#666] mb-1">연락처</p>
+                        <p className="text-[#9b9b9b] mb-1">연락처</p>
                         <p className="text-[#e5e5e5]">{order.customerPhone || '-'}</p>
-                        <p className="text-[#888] mt-1">{order.customerCountry || '-'}</p>
+                        <p className="text-[#c6c6c6] mt-1">{order.customerCountry || '-'}</p>
                       </div>
                       <div className="border border-[#333] bg-black p-3">
-                        <p className="text-[#666] mb-1">주문 금액</p>
+                        <p className="text-[#9b9b9b] mb-1">주문 금액</p>
                         <p className="text-[#00ffd1] font-bold">
                           {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
                         </p>
-                        <p className="text-[#888] mt-1">
+                        <p className="text-[#c6c6c6] mt-1">
                           항목 {Array.isArray(order.items) ? order.items.length : 0}개
                         </p>
                       </div>
                     </div>
 
                     <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                      <p className="text-[10px] uppercase tracking-widest text-[#666] mb-2">배송지</p>
+                      <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
                       <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
                     </div>
 
@@ -1194,11 +1194,11 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                         <div className="border border-[#333] bg-[#0d0d0d] p-2">
-                          <p className="text-[#666]">발송일시</p>
+                          <p className="text-[#9b9b9b]">발송일시</p>
                           <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.shippedAt)}</p>
                         </div>
                         <div className="border border-[#333] bg-[#0d0d0d] p-2">
-                          <p className="text-[#666]">배송완료일시</p>
+                          <p className="text-[#9b9b9b]">배송완료일시</p>
                           <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.deliveredAt)}</p>
                         </div>
                         <button
@@ -1240,7 +1240,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     members: (
       <div className="space-y-4">
         {!isPrimaryAdmin ? (
-          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
             관리자 계정에서만 접근 가능한 탭입니다.
           </div>
         ) : (
@@ -1296,11 +1296,11 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             </div>
 
             {isLoadingMembers && members.length === 0 ? (
-              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#888]">
+              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
                 회원 목록을 불러오는 중입니다...
               </div>
             ) : members.length === 0 ? (
-              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#666]">
+              <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
                 등록된 회원이 없습니다.
               </div>
             ) : (
@@ -1312,7 +1312,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-xs text-[#e5e5e5] break-all">{member.email || '-'}</p>
-                          <p className="text-[10px] text-[#666] mt-1">
+                          <p className="text-[10px] text-[#9b9b9b] mt-1">
                             생성일: {formatDate(member.createdAt || undefined)}
                           </p>
                         </div>

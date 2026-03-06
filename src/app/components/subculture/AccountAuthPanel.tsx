@@ -301,7 +301,7 @@ export function AccountAuthPanel() {
           <h3 className="text-lg font-bold uppercase mb-3 text-[#00ffd1]">
             수파베이스 설정 필요
           </h3>
-          <p className="text-xs text-[#aaa] leading-relaxed">
+          <p className="text-xs text-[#d8d8d8] leading-relaxed">
             `.env.local`에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`를
             추가하면 계정 로그인 UI가 활성화됩니다.
           </p>
@@ -314,7 +314,7 @@ export function AccountAuthPanel() {
     return (
       <div className="bg-[#0a0a0a] border border-[#333] p-8 flex items-center justify-center gap-3 font-mono">
         <Loader2 className="w-4 h-4 animate-spin text-[#00ffd1]" />
-        <span className="text-xs uppercase tracking-widest text-[#aaa]">
+        <span className="text-xs uppercase tracking-widest text-[#d8d8d8]">
           신원 상태 불러오는 중
         </span>
       </div>
@@ -327,7 +327,7 @@ export function AccountAuthPanel() {
         <div className="bg-[#0a0a0a] border border-[#333] p-6">
           <div className="flex items-start justify-between gap-4 border-b border-[#333] pb-4 mb-4">
             <div>
-              <p className="text-[10px] text-[#666] uppercase tracking-widest">
+              <p className="text-[10px] text-[#9b9b9b] uppercase tracking-widest">
                 인증된 신원
               </p>
               <h3 className="text-xl font-bold uppercase mt-2">
@@ -376,7 +376,7 @@ export function AccountAuthPanel() {
           <p className="text-[10px] text-red-300/90 uppercase tracking-widest mb-2">
             위험 구역
           </p>
-          <p className="text-xs text-[#999] leading-relaxed mb-4">
+          <p className="text-xs text-[#d0d0d0] leading-relaxed mb-4">
             회원탈퇴 시 `delete_my_account()` RPC를 호출합니다. `auth.users` 삭제에 연결된
             FK cascade 데이터도 함께 삭제될 수 있습니다.
           </p>
@@ -395,7 +395,7 @@ export function AccountAuthPanel() {
 
   return (
     <div className="space-y-4 font-mono">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-[#0b0b0b] p-1 md:grid-cols-4">
         <button
           type="button"
           onClick={() => {
@@ -403,10 +403,10 @@ export function AccountAuthPanel() {
             clearMessages();
             setSignupError(null);
           }}
-          className={`py-3 border text-xs uppercase tracking-widest transition-colors ${
+          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
             activeTab === 'login'
               ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#999] hover:border-[#00ffd1]/60'
+              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
           }`}
         >
           로그인
@@ -418,10 +418,10 @@ export function AccountAuthPanel() {
             clearMessages();
             setSignupError(null);
           }}
-          className={`py-3 border text-xs uppercase tracking-widest transition-colors ${
+          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
             activeTab === 'signup'
               ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#999] hover:border-[#00ffd1]/60'
+              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
           }`}
         >
           회원가입
@@ -432,10 +432,10 @@ export function AccountAuthPanel() {
             setActiveTab('recover');
             clearMessages();
           }}
-          className={`py-3 border text-xs uppercase tracking-widest transition-colors ${
+          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
             activeTab === 'recover'
               ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#999] hover:border-[#00ffd1]/60'
+              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
           }`}
         >
           아이디/비번 찾기
@@ -446,10 +446,10 @@ export function AccountAuthPanel() {
             setActiveTab('guestOrder');
             clearMessages();
           }}
-          className={`py-3 border text-xs uppercase tracking-widest transition-colors ${
+          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
             activeTab === 'guestOrder'
               ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#999] hover:border-[#00ffd1]/60'
+              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
           }`}
         >
           비회원 주문조회
@@ -457,44 +457,57 @@ export function AccountAuthPanel() {
       </div>
 
       {activeTab === 'login' && (
-        <div className="space-y-4 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
-          <button
-            type="button"
-            onClick={() => void handleGoogleAuth()}
-            disabled={isBusy}
-            className="w-full py-3.5 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <GoogleIcon />
-            <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
-          </button>
+        <div className="border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
+            <div className="flex flex-col justify-between rounded-2xl border border-white/10 bg-[#111] p-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">간편 로그인</p>
+                <p className="mt-2 text-sm text-[#f2f2f2]">구글 계정으로 바로 로그인</p>
+                <p className="mt-1 text-xs text-[#bdbdbd]">별도 입력 없이 바로 이어서 들어갑니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleGoogleAuth()}
+                disabled={isBusy}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#00ffd1] px-3 py-3.5 text-xs tracking-widest text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:opacity-50"
+              >
+                <GoogleIcon />
+                <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
+              </button>
+            </div>
 
-          <form onSubmit={handleEmailAuth} className="space-y-3">
-            <input
-              type="email"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-              placeholder="이메일 주소"
-              autoComplete="email"
-              required
-            />
-            <input
-              type="password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-              placeholder="비밀번호"
-              autoComplete="current-password"
-              required
-            />
-            <button
-              type="submit"
-              disabled={isBusy}
-              className="w-full py-3.5 bg-[#e5e5e5] text-black font-bold uppercase hover:bg-[#00ffd1] transition-colors disabled:opacity-50"
-            >
-              {isBusy ? '처리중...' : '이메일 로그인'}
-            </button>
-          </form>
+            <form onSubmit={handleEmailAuth} className="space-y-3 rounded-2xl border border-white/10 bg-[#0e0e0e] p-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">이메일 로그인</p>
+                <p className="mt-2 text-sm text-[#f2f2f2]">이메일과 비밀번호로 로그인</p>
+              </div>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full rounded-xl bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                placeholder="이메일 주소"
+                autoComplete="email"
+                required
+              />
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full rounded-xl bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                placeholder="비밀번호"
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="submit"
+                disabled={isBusy}
+                className="w-full rounded-xl py-3.5 bg-[#e5e5e5] text-black font-bold uppercase hover:bg-[#00ffd1] transition-colors disabled:opacity-50"
+              >
+                {isBusy ? '처리중...' : '이메일 로그인'}
+              </button>
+            </form>
+          </div>
         </div>
       )}
 
@@ -581,7 +594,7 @@ export function AccountAuthPanel() {
 
           {foundEmails.length > 0 && (
             <div className="border border-[#333] bg-black p-3 text-xs">
-              <p className="text-[#666] mb-2">조회 결과</p>
+              <p className="text-[#9b9b9b] mb-2">조회 결과</p>
               {foundEmails.map((email) => (
                 <p key={email} className="text-[#e5e5e5]">{email}</p>
               ))}
@@ -634,7 +647,7 @@ export function AccountAuthPanel() {
               placeholder="주문 시 설정한 비밀번호"
               required
             />
-            <p className="text-[11px] text-[#888]">
+            <p className="text-[11px] text-[#c6c6c6]">
               주문번호 또는 핸드폰 번호 중 하나를 입력해 조회할 수 있습니다.
             </p>
             <button
@@ -659,35 +672,35 @@ export function AccountAuthPanel() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                 <div className="border border-[#333] bg-black p-3">
-                  <p className="text-[#666] mb-1">배송 상태</p>
+                  <p className="text-[#9b9b9b] mb-1">배송 상태</p>
                   <p className="text-[#e5e5e5]">
                     {getShippingStatusLabel(lookupOrder.shippingStatus)}
                   </p>
                 </div>
                 <div className="border border-[#333] bg-black p-3">
-                  <p className="text-[#666] mb-1">결제 금액</p>
+                  <p className="text-[#9b9b9b] mb-1">결제 금액</p>
                   <p className="text-[#e5e5e5]">{formatKrw(lookupOrder.amountTotal || 0)}</p>
                 </div>
                 <div className="border border-[#333] bg-black p-3">
-                  <p className="text-[#666] mb-1">택배사</p>
+                  <p className="text-[#9b9b9b] mb-1">택배사</p>
                   <p className="text-[#e5e5e5]">{lookupOrder.shippingCompany || '-'}</p>
                 </div>
                 <div className="border border-[#333] bg-black p-3">
-                  <p className="text-[#666] mb-1">운송장번호</p>
+                  <p className="text-[#9b9b9b] mb-1">운송장번호</p>
                   <p className="text-[#e5e5e5] break-all">{lookupOrder.trackingNumber || '-'}</p>
                 </div>
               </div>
               <div className="border border-[#333] bg-black p-3 text-xs">
-                <p className="text-[#666] mb-1">배송 메모</p>
+                <p className="text-[#9b9b9b] mb-1">배송 메모</p>
                 <p className="text-[#e5e5e5]">{lookupOrder.shippingNote || '-'}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                 <div className="border border-[#333] bg-black p-3">
-                  <p className="text-[#666] mb-1">발송일시</p>
+                  <p className="text-[#9b9b9b] mb-1">발송일시</p>
                   <p className="text-[#e5e5e5]">{formatDateTime(lookupOrder.shippedAt)}</p>
                 </div>
                 <div className="border border-[#333] bg-black p-3">
-                  <p className="text-[#666] mb-1">배송완료일시</p>
+                  <p className="text-[#9b9b9b] mb-1">배송완료일시</p>
                   <p className="text-[#e5e5e5]">{formatDateTime(lookupOrder.deliveredAt)}</p>
                 </div>
               </div>

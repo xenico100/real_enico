@@ -501,7 +501,7 @@ function AdminCollectionsConsoleInner() {
             <h1 className="font-heading text-5xl md:text-7xl uppercase tracking-tight leading-[0.9]">
               Collections
             </h1>
-            <p className="font-mono text-xs text-[#777] mt-2">
+            <p className="font-mono text-xs text-[#b8b8b8] mt-2">
               컬렉션 게시물 작성/수정/삭제 + 다중 이미지 배열 유지 (상세 슬라이드용)
             </p>
           </div>
@@ -536,7 +536,7 @@ function AdminCollectionsConsoleInner() {
         {!isConfigured && (
           <div className="border border-[#333] bg-[#0a0a0a] p-6 font-mono text-sm">
             <p className="text-[#00ffd1] mb-2 uppercase tracking-widest">Config Required</p>
-            <p className="text-[#aaa] text-xs">
+            <p className="text-[#d8d8d8] text-xs">
               `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` 설정 후 다시 확인하세요.
             </p>
           </div>
@@ -577,31 +577,31 @@ function AdminCollectionsConsoleInner() {
             <div className="grid grid-cols-1 gap-6">
             <div className={`space-y-6 ${workspaceView === 'list' ? 'hidden' : ''}`}>
               <div className="border border-[#333] bg-[#0a0a0a] p-5">
-                <p className="font-mono text-[10px] uppercase tracking-widest text-[#666] mb-3">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-3">
                   Access Status
                 </p>
 
                 {!isAuthReady || isCheckingAdmin ? (
-                  <div className="flex items-center gap-2 font-mono text-xs text-[#aaa]">
+                  <div className="flex items-center gap-2 font-mono text-xs text-[#d8d8d8]">
                     <Loader2 size={14} className="animate-spin text-[#00ffd1]" />
                     권한 확인 중...
                   </div>
                 ) : (
                   <div className="space-y-2 font-mono text-xs">
                     <div className="flex justify-between gap-3 border-b border-[#222] pb-2">
-                      <span className="text-[#666]">Authenticated</span>
-                      <span className={isAuthenticated ? 'text-[#00ffd1]' : 'text-[#888]'}>
+                      <span className="text-[#9b9b9b]">Authenticated</span>
+                      <span className={isAuthenticated ? 'text-[#00ffd1]' : 'text-[#c6c6c6]'}>
                         {isAuthenticated ? 'YES' : 'NO'}
                       </span>
                     </div>
                     <div className="flex justify-between gap-3 border-b border-[#222] pb-2">
-                      <span className="text-[#666]">Admin</span>
-                      <span className={isAdmin ? 'text-[#00ffd1]' : 'text-[#888]'}>
+                      <span className="text-[#9b9b9b]">Admin</span>
+                      <span className={isAdmin ? 'text-[#00ffd1]' : 'text-[#c6c6c6]'}>
                         {isAdmin ? 'YES' : 'NO'}
                       </span>
                     </div>
                     <div className="flex justify-between gap-3">
-                      <span className="text-[#666]">Visible Data</span>
+                      <span className="text-[#9b9b9b]">Visible Data</span>
                       <span className="text-[#e5e5e5]">
                         {canManageCollections ? 'ALL COLLECTIONS' : 'PUBLISHED ONLY'}
                       </span>
@@ -628,14 +628,14 @@ function AdminCollectionsConsoleInner() {
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       Title
                     </label>
                     <input
                       type="text"
                       value={form.title}
                       onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                       placeholder="컬렉션 제목"
                       required
                     />
@@ -643,19 +643,19 @@ function AdminCollectionsConsoleInner() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                      <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                         Season
                       </label>
                       <input
                         type="text"
                         value={form.season}
                         onChange={(e) => setForm((prev) => ({ ...prev, season: e.target.value }))}
-                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                         placeholder="예: 봄/여름 2027"
                       />
                     </div>
                     <div>
-                      <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                      <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                         Items Count
                       </label>
                       <input
@@ -663,7 +663,7 @@ function AdminCollectionsConsoleInner() {
                         inputMode="numeric"
                         value={form.items}
                         onChange={(e) => setForm((prev) => ({ ...prev, items: e.target.value }))}
-                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                         placeholder="24"
                         min={0}
                       />
@@ -671,19 +671,19 @@ function AdminCollectionsConsoleInner() {
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       Release Date
                     </label>
                     <input
                       type="date"
                       value={form.releaseDate}
                       onChange={(e) => setForm((prev) => ({ ...prev, releaseDate: e.target.value }))}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       Short Description
                     </label>
                     <textarea
@@ -692,13 +692,13 @@ function AdminCollectionsConsoleInner() {
                         setForm((prev) => ({ ...prev, description: e.target.value }))
                       }
                       rows={4}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1] resize-y"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1] resize-y"
                       placeholder="카드 요약 설명"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       Full Description
                     </label>
                     <textarea
@@ -707,7 +707,7 @@ function AdminCollectionsConsoleInner() {
                         setForm((prev) => ({ ...prev, fullDescription: e.target.value }))
                       }
                       rows={7}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1] resize-y"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1] resize-y"
                       placeholder="상세 팝업에 들어갈 본문 설명"
                     />
                   </div>
@@ -728,7 +728,7 @@ function AdminCollectionsConsoleInner() {
 
                   <div className="space-y-3 border border-[#333] bg-[#090909] p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-mono text-[10px] uppercase tracking-widest text-[#666]">
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b]">
                         Collection Images (jsonb array)
                       </p>
                       <span className="font-mono text-[10px] text-[#00ffd1]">
@@ -750,7 +750,7 @@ function AdminCollectionsConsoleInner() {
                           disabled={isUploading}
                         />
                       </label>
-                      <p className="text-[10px] text-[#666] font-mono">
+                      <p className="text-[10px] text-[#9b9b9b] font-mono">
                         Cloudflare R2 퍼블릭 URL 사용 / 배열 순서가 상세 팝업 이미지 순서로 사용됨
                       </p>
                     </div>
@@ -761,7 +761,7 @@ function AdminCollectionsConsoleInner() {
                         value={manualImageUrl}
                         onChange={(e) => setManualImageUrl(e.target.value)}
                         placeholder="https://... (manual URL)"
-                        className="flex-1 bg-black border border-[#333] px-3 py-2 text-xs focus:outline-none focus:border-[#00ffd1]"
+                        className="flex-1 bg-black border border-[#333] px-3 py-2 text-xs text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                       />
                       <button
                         type="button"
@@ -780,18 +780,18 @@ function AdminCollectionsConsoleInner() {
                             <div className="aspect-[4/5] bg-black border border-[#222] overflow-hidden mb-2 relative">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={url} alt="" className="w-full h-full object-contain bg-black" />
-                              <div className="absolute top-1 left-1 px-1 py-0.5 bg-black/80 border border-[#333] text-[9px] font-mono text-[#aaa]">
+                              <div className="absolute top-1 left-1 px-1 py-0.5 bg-black/80 border border-[#333] text-[9px] font-mono text-[#d8d8d8]">
                                 {index + 1}
                               </div>
                             </div>
                             <div className="flex items-start justify-between gap-2">
-                              <p className="font-mono text-[10px] text-[#888] break-all line-clamp-3">
+                              <p className="font-mono text-[10px] text-[#c6c6c6] break-all line-clamp-3">
                                 {url}
                               </p>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveImage(index)}
-                                className="text-[#666] hover:text-red-400 transition-colors"
+                                className="text-[#9b9b9b] hover:text-red-400 transition-colors"
                                 aria-label="Remove image"
                               >
                                 <X size={12} />
@@ -823,7 +823,7 @@ function AdminCollectionsConsoleInner() {
                     <h2 className="font-heading text-3xl uppercase tracking-tight mb-3">
                       Admin Login Required
                     </h2>
-                    <p className="font-mono text-xs text-[#888] leading-relaxed">
+                    <p className="font-mono text-xs text-[#c6c6c6] leading-relaxed">
                       `/admin/collections`에서는 관리자만 컬렉션 게시물 업로드/수정/삭제가 가능합니다.
                       일반 유저는 게시물 조회만 가능합니다.
                     </p>
@@ -848,10 +848,10 @@ function AdminCollectionsConsoleInner() {
 
               <div className="border border-[#333] bg-[#0a0a0a] p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-[#666]">
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b]">
                     컬렉션 게시물 목록
                   </p>
-                  <p className="font-mono text-xs text-[#999] mt-1">
+                  <p className="font-mono text-xs text-[#d0d0d0] mt-1">
                     {canManageCollections
                       ? '전체 컬렉션 (published / draft 포함)'
                       : 'published 컬렉션만 표시'}
@@ -863,12 +863,12 @@ function AdminCollectionsConsoleInner() {
               </div>
 
               {isLoadingCollections ? (
-                <div className="border border-[#333] bg-[#0a0a0a] p-8 flex items-center justify-center gap-3 font-mono text-xs text-[#aaa]">
+                <div className="border border-[#333] bg-[#0a0a0a] p-8 flex items-center justify-center gap-3 font-mono text-xs text-[#d8d8d8]">
                   <Loader2 size={14} className="animate-spin text-[#00ffd1]" />
                   컬렉션 불러오는 중...
                 </div>
               ) : sortedCollections.length === 0 ? (
-                <div className="border border-[#333] bg-[#0a0a0a] p-8 font-mono text-xs text-[#777] text-center">
+                <div className="border border-[#333] bg-[#0a0a0a] p-8 font-mono text-xs text-[#b8b8b8] text-center">
                   표시할 컬렉션 게시물이 없습니다.
                 </div>
               ) : (
@@ -891,7 +891,7 @@ function AdminCollectionsConsoleInner() {
                               className="w-full h-full object-contain bg-black"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#555]">
+                            <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#9a9a9a]">
                               NO IMAGE
                             </div>
                           )}
@@ -899,7 +899,7 @@ function AdminCollectionsConsoleInner() {
                             {collection.is_published ? (
                               <span className="text-[#00ffd1]">PUBLISHED</span>
                             ) : (
-                              <span className="text-[#aaa]">DRAFT</span>
+                              <span className="text-[#d8d8d8]">DRAFT</span>
                             )}
                           </div>
                         </div>
@@ -910,7 +910,7 @@ function AdminCollectionsConsoleInner() {
                               <h3 className="font-heading text-2xl uppercase tracking-tight leading-none break-words">
                                 {collection.title || '(untitled)'}
                               </h3>
-                              <p className="font-mono text-[10px] text-[#666] mt-2 break-all">
+                              <p className="font-mono text-[10px] text-[#9b9b9b] mt-2 break-all">
                                 {collection.id}
                               </p>
                             </div>
@@ -940,19 +940,19 @@ function AdminCollectionsConsoleInner() {
 
                           <div className="grid grid-cols-2 gap-2 text-xs font-mono">
                             <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#666] mb-1">Season</p>
+                              <p className="text-[#9b9b9b] mb-1">Season</p>
                               <p className="text-[#e5e5e5] break-words">{collection.season || '-'}</p>
                             </div>
                             <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#666] mb-1">Items</p>
+                              <p className="text-[#9b9b9b] mb-1">Items</p>
                               <p className="text-[#e5e5e5]">{formatItems(collection.items)}</p>
                             </div>
                             <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#666] mb-1">Release</p>
+                              <p className="text-[#9b9b9b] mb-1">Release</p>
                               <p className="text-[#e5e5e5]">{collection.release_date || '-'}</p>
                             </div>
                             <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#666] mb-1">Images</p>
+                              <p className="text-[#9b9b9b] mb-1">Images</p>
                               <p className="text-[#e5e5e5]">{imageList.length} files</p>
                             </div>
                           </div>
@@ -960,18 +960,18 @@ function AdminCollectionsConsoleInner() {
                           <p className="font-mono text-xs text-[#9a9a9a] leading-relaxed line-clamp-3">
                             {collection.description || '설명이 없습니다.'}
                           </p>
-                          <p className="font-mono text-xs text-[#777] leading-relaxed line-clamp-4 min-h-16 border-t border-[#222] pt-3">
+                          <p className="font-mono text-xs text-[#b8b8b8] leading-relaxed line-clamp-4 min-h-16 border-t border-[#222] pt-3">
                             {collection.full_description || '상세 설명이 없습니다.'}
                           </p>
 
-                          <div className="border-t border-[#222] pt-3 grid grid-cols-2 gap-2 text-[10px] font-mono text-[#666]">
+                          <div className="border-t border-[#222] pt-3 grid grid-cols-2 gap-2 text-[10px] font-mono text-[#9b9b9b]">
                             <div>
                               <p className="mb-1">Created</p>
-                              <p className="text-[#888]">{formatDate(collection.created_at)}</p>
+                              <p className="text-[#c6c6c6]">{formatDate(collection.created_at)}</p>
                             </div>
                             <div>
                               <p className="mb-1">Updated</p>
-                              <p className="text-[#888]">{formatDate(collection.updated_at)}</p>
+                              <p className="text-[#c6c6c6]">{formatDate(collection.updated_at)}</p>
                             </div>
                           </div>
                         </div>

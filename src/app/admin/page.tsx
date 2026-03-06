@@ -624,7 +624,7 @@ function AdminConsoleInner() {
             <h1 className="font-heading text-5xl md:text-7xl uppercase tracking-tight leading-[0.9]">
               Products
             </h1>
-            <p className="font-mono text-xs text-[#777] mt-2">
+            <p className="font-mono text-xs text-[#b8b8b8] mt-2">
               관리자만 업로드/수정/삭제 가능, 일반 유저는 조회만
             </p>
           </div>
@@ -667,7 +667,7 @@ function AdminConsoleInner() {
         {!isConfigured && (
           <div className="border border-[#333] bg-[#0a0a0a] p-6 font-mono text-sm">
             <p className="text-[#00ffd1] mb-2 uppercase tracking-widest">Config Required</p>
-            <p className="text-[#aaa] text-xs">
+            <p className="text-[#d8d8d8] text-xs">
               `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` 설정 후 다시 확인하세요.
             </p>
           </div>
@@ -687,19 +687,19 @@ function AdminConsoleInner() {
                   ) : dailyStatsSummary ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono">
                       <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
-                        <p className="text-[#727272]">방문자</p>
+                        <p className="text-[#b1b1b1]">방문자</p>
                         <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명</p>
                       </div>
                       <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
-                        <p className="text-[#727272]">페이지 hit</p>
+                        <p className="text-[#b1b1b1]">페이지 hit</p>
                         <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회</p>
                       </div>
                       <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
-                        <p className="text-[#727272]">생성 채팅방</p>
+                        <p className="text-[#b1b1b1]">생성 채팅방</p>
                         <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalCreatedRooms.toLocaleString('ko-KR')}개</p>
                       </div>
                       <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
-                        <p className="text-[#727272]">메시지</p>
+                        <p className="text-[#b1b1b1]">메시지</p>
                         <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalMessages.toLocaleString('ko-KR')}개</p>
                       </div>
                     </div>
@@ -745,31 +745,31 @@ function AdminConsoleInner() {
             <div className="grid grid-cols-1 gap-6">
             <div className={`space-y-6 ${workspaceView === 'list' ? 'hidden' : ''}`}>
               <div className="border border-[#333] bg-[#0a0a0a] p-5">
-                <p className="font-mono text-[10px] uppercase tracking-widest text-[#666] mb-3">
+                <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-3">
                   Access Status
                 </p>
 
                 {!isAuthReady || isCheckingAdmin ? (
-                  <div className="flex items-center gap-2 font-mono text-xs text-[#aaa]">
+                  <div className="flex items-center gap-2 font-mono text-xs text-[#d8d8d8]">
                     <Loader2 size={14} className="animate-spin text-[#00ffd1]" />
                     권한 확인 중...
                   </div>
                 ) : (
                   <div className="space-y-2 font-mono text-xs">
                     <div className="flex justify-between gap-3 border-b border-[#222] pb-2">
-                      <span className="text-[#666]">Authenticated</span>
-                      <span className={isAuthenticated ? 'text-[#00ffd1]' : 'text-[#888]'}>
+                      <span className="text-[#9b9b9b]">Authenticated</span>
+                      <span className={isAuthenticated ? 'text-[#00ffd1]' : 'text-[#c6c6c6]'}>
                         {isAuthenticated ? 'YES' : 'NO'}
                       </span>
                     </div>
                     <div className="flex justify-between gap-3 border-b border-[#222] pb-2">
-                      <span className="text-[#666]">Admin</span>
-                      <span className={isAdmin ? 'text-[#00ffd1]' : 'text-[#888]'}>
+                      <span className="text-[#9b9b9b]">Admin</span>
+                      <span className={isAdmin ? 'text-[#00ffd1]' : 'text-[#c6c6c6]'}>
                         {isAdmin ? 'YES' : 'NO'}
                       </span>
                     </div>
                     <div className="flex justify-between gap-3">
-                      <span className="text-[#666]">Visible Data</span>
+                      <span className="text-[#9b9b9b]">Visible Data</span>
                       <span className="text-[#e5e5e5]">
                         {canManageProducts ? 'ALL PRODUCTS' : 'PUBLISHED ONLY'}
                       </span>
@@ -796,21 +796,21 @@ function AdminConsoleInner() {
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       Title
                     </label>
                     <input
                       type="text"
                       value={form.title}
                       onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                       placeholder="상품명"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       Category
                     </label>
                     <select
@@ -823,7 +823,7 @@ function AdminConsoleInner() {
                             : DEFAULT_PRODUCT_CATEGORY,
                         }))
                       }
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                     >
                       {PRODUCT_CATEGORIES.map((category) => (
                         <option key={category} value={category}>
@@ -835,7 +835,7 @@ function AdminConsoleInner() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                      <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                         가격
                       </label>
                       <input
@@ -843,13 +843,13 @@ function AdminConsoleInner() {
                         inputMode="numeric"
                         value={form.price}
                         onChange={(e) => setForm((prev) => ({ ...prev, price: e.target.value }))}
-                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                         placeholder="10000"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                      <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                         통화
                       </label>
                       <input
@@ -858,7 +858,7 @@ function AdminConsoleInner() {
                         onChange={(e) =>
                           setForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))
                         }
-                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1]"
+                        className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                         placeholder="KRW"
                         maxLength={10}
                       />
@@ -866,7 +866,7 @@ function AdminConsoleInner() {
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       상세 설명
                     </label>
                     <textarea
@@ -875,13 +875,13 @@ function AdminConsoleInner() {
                         setForm((prev) => ({ ...prev, description: e.target.value }))
                       }
                       rows={5}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1] resize-y"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1] resize-y"
                       placeholder="게시물 상세 설명"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#666] mb-2">
+                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
                       의류 사양
                     </label>
                     <textarea
@@ -890,7 +890,7 @@ function AdminConsoleInner() {
                         setForm((prev) => ({ ...prev, specs: e.target.value }))
                       }
                       rows={5}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm focus:outline-none focus:border-[#00ffd1] resize-y"
+                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1] resize-y"
                       placeholder={'소재: 코튼 100%\n핏: 오버핏\n세탁: 찬물 단독세탁'}
                     />
                   </div>
@@ -911,7 +911,7 @@ function AdminConsoleInner() {
 
                   <div className="space-y-3 border border-[#333] bg-[#090909] p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-mono text-[10px] uppercase tracking-widest text-[#666]">
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b]">
                         이미지
                       </p>
                       <span className="font-mono text-[10px] text-[#00ffd1]">
@@ -926,7 +926,7 @@ function AdminConsoleInner() {
                         accept="image/*"
                         multiple
                         onChange={(e) => void handleUploadImages(e.target.files)}
-                        className="block w-full text-xs text-[#aaa] file:mr-3 file:border file:border-[#333] file:bg-[#111] file:text-[#e5e5e5] file:px-3 file:py-2 file:cursor-pointer"
+                        className="block w-full text-xs text-[#d8d8d8] file:mr-3 file:border file:border-[#333] file:bg-[#111] file:text-[#e5e5e5] file:px-3 file:py-2 file:cursor-pointer"
                         disabled={isUploading}
                       />
                       <button
@@ -944,7 +944,7 @@ function AdminConsoleInner() {
                         value={manualImageUrl}
                         onChange={(e) => setManualImageUrl(e.target.value)}
                         placeholder="이미지 URL 직접 입력"
-                        className="flex-1 bg-black border border-[#333] px-3 py-2 text-xs focus:outline-none focus:border-[#00ffd1]"
+                        className="flex-1 bg-black border border-[#333] px-3 py-2 text-xs text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                       />
                       <button
                         type="button"
@@ -964,13 +964,13 @@ function AdminConsoleInner() {
                               <img src={url} alt="" className="w-full h-full object-contain bg-black" />
                             </div>
                             <div className="flex items-start justify-between gap-2">
-                              <p className="font-mono text-[10px] text-[#888] break-all line-clamp-3">
+                              <p className="font-mono text-[10px] text-[#c6c6c6] break-all line-clamp-3">
                                 {url}
                               </p>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveImage(index)}
-                                className="text-[#666] hover:text-red-400 transition-colors"
+                                className="text-[#9b9b9b] hover:text-red-400 transition-colors"
                               >
                                 <X size={12} />
                               </button>
@@ -1001,7 +1001,7 @@ function AdminConsoleInner() {
                     <h2 className="font-heading text-3xl uppercase tracking-tight mb-3">
                       Admin Login Required
                     </h2>
-                    <p className="font-mono text-xs text-[#888] leading-relaxed">
+                    <p className="font-mono text-xs text-[#c6c6c6] leading-relaxed">
                       `/admin` 에서는 관리자만 상품 업로드/수정/삭제가 가능합니다. 일반 유저는
                       게시물 조회만 가능합니다.
                     </p>
@@ -1026,10 +1026,10 @@ function AdminConsoleInner() {
 
               <div className="border border-[#333] bg-[#0a0a0a] p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-[#666]">
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b]">
                     의류 게시물 목록
                   </p>
-                  <p className="font-mono text-xs text-[#999] mt-1">
+                  <p className="font-mono text-xs text-[#d0d0d0] mt-1">
                     {canManageProducts
                       ? '전체 상품 (published / draft 포함)'
                       : 'published 상품만 표시'}
@@ -1066,12 +1066,12 @@ function AdminConsoleInner() {
               </div>
 
               {isLoadingProducts ? (
-                <div className="border border-[#333] bg-[#0a0a0a] p-8 flex items-center justify-center gap-3 font-mono text-xs text-[#aaa]">
+                <div className="border border-[#333] bg-[#0a0a0a] p-8 flex items-center justify-center gap-3 font-mono text-xs text-[#d8d8d8]">
                   <Loader2 size={14} className="animate-spin text-[#00ffd1]" />
                   상품 불러오는 중...
                 </div>
               ) : filteredProducts.length === 0 ? (
-                <div className="border border-[#333] bg-[#0a0a0a] p-8 font-mono text-xs text-[#777] text-center">
+                <div className="border border-[#333] bg-[#0a0a0a] p-8 font-mono text-xs text-[#b8b8b8] text-center">
                   표시할 상품이 없습니다.
                 </div>
               ) : (
@@ -1092,7 +1092,7 @@ function AdminConsoleInner() {
                               className="w-full h-full object-contain bg-black"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#555]">
+                            <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#9a9a9a]">
                               NO IMAGE
                             </div>
                           )}
@@ -1100,7 +1100,7 @@ function AdminConsoleInner() {
                             {product.is_published ? (
                               <span className="text-[#00ffd1]">PUBLISHED</span>
                             ) : (
-                              <span className="text-[#aaa]">DRAFT</span>
+                              <span className="text-[#d8d8d8]">DRAFT</span>
                             )}
                           </div>
                         </div>
@@ -1114,7 +1114,7 @@ function AdminConsoleInner() {
                               <p className="font-mono text-[10px] text-[#00ffd1] mt-2 uppercase tracking-widest">
                                 {resolveProductCategory(product.category)}
                               </p>
-                              <p className="font-mono text-[10px] text-[#666] mt-2 break-all">
+                              <p className="font-mono text-[10px] text-[#9b9b9b] mt-2 break-all">
                                 {product.id}
                               </p>
                             </div>
@@ -1144,13 +1144,13 @@ function AdminConsoleInner() {
 
                           <div className="grid grid-cols-2 gap-2 text-xs font-mono">
                             <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#666] mb-1">Price</p>
+                              <p className="text-[#9b9b9b] mb-1">Price</p>
                               <p className="text-[#e5e5e5]">
                                 {formatPrice(product.price, product.currency)}
                               </p>
                             </div>
                             <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#666] mb-1">Images</p>
+                              <p className="text-[#9b9b9b] mb-1">Images</p>
                               <p className="text-[#e5e5e5]">{imageList.length} files</p>
                             </div>
                           </div>
@@ -1162,14 +1162,14 @@ function AdminConsoleInner() {
                             {product.specs || '의류 사양 없음'}
                           </p>
 
-                          <div className="border-t border-[#222] pt-3 grid grid-cols-2 gap-2 text-[10px] font-mono text-[#666]">
+                          <div className="border-t border-[#222] pt-3 grid grid-cols-2 gap-2 text-[10px] font-mono text-[#9b9b9b]">
                             <div>
                               <p className="mb-1">Created</p>
-                              <p className="text-[#888]">{formatDate(product.created_at)}</p>
+                              <p className="text-[#c6c6c6]">{formatDate(product.created_at)}</p>
                             </div>
                             <div>
                               <p className="mb-1">Updated</p>
-                              <p className="text-[#888]">{formatDate(product.updated_at)}</p>
+                              <p className="text-[#c6c6c6]">{formatDate(product.updated_at)}</p>
                             </div>
                           </div>
                         </div>
