@@ -234,6 +234,8 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   }, [profile?.full_name, user]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+  const latestDailyStats = dailyStatsRows[0] || null;
+  const dailyStatsRangeLabel = `${Math.max(dailyStatsRows.length, 0)}일`;
 
   const tabs: { id: MyPageTab; label: string; count?: number }[] = [
     { id: 'profile', label: '계정' },
@@ -971,7 +973,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">일일 데이터</p>
                   <p className="text-xs text-[#9a9a9a] mt-2">
-                    최근 7일 기준 방문자/페이지 hit/생성 채팅방/메시지 집계를 확인할 수 있습니다.
+                    오늘(KST) 값과 최근 7일 누적 값을 구분해서 확인할 수 있습니다.
                   </p>
                 </div>
                 <button
@@ -998,22 +1000,42 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             )}
 
             {dailyStatsSummary && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">총 방문자</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명</p>
+                  <p className="text-[#9b9b9b]">오늘 방문자 (KST)</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {(latestDailyStats?.visitorCount || 0).toLocaleString('ko-KR')}명
+                  </p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">총 페이지 hit</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회</p>
+                  <p className="text-[#9b9b9b]">오늘 페이지 hit (KST)</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {(latestDailyStats?.pageHitCount || 0).toLocaleString('ko-KR')}회
+                  </p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">생성 채팅방</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalCreatedRooms.toLocaleString('ko-KR')}개</p>
+                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 누적 방문자</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명
+                  </p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">총 메시지</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">{dailyStatsSummary.totalMessages.toLocaleString('ko-KR')}개</p>
+                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 누적 페이지 hit</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 생성 채팅방</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {dailyStatsSummary.totalCreatedRooms.toLocaleString('ko-KR')}개
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 누적 메시지</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {dailyStatsSummary.totalMessages.toLocaleString('ko-KR')}개
+                  </p>
                 </div>
               </div>
             )}
