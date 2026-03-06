@@ -1,4 +1,4 @@
-export const VISIT_SOURCES = ['instagram', 'youtube', 'other'] as const;
+export const VISIT_SOURCES = ['instagram', 'youtube', 'threads', 'twitter', 'other'] as const;
 
 export type VisitSource = (typeof VISIT_SOURCES)[number];
 
@@ -34,6 +34,19 @@ function classifySourceToken(value: string | null | undefined): VisitSource | nu
     token === 'yt'
   ) {
     return 'youtube';
+  }
+
+  if (token.includes('threads') || token.includes('threads.net')) {
+    return 'threads';
+  }
+
+  if (
+    token.includes('twitter') ||
+    token.includes('t.co') ||
+    token.includes('x.com') ||
+    token === 'x'
+  ) {
+    return 'twitter';
   }
 
   return null;
@@ -133,6 +146,8 @@ export function createEmptyVisitSourceBreakdown() {
   return {
     instagram: 0,
     youtube: 0,
+    threads: 0,
+    twitter: 0,
     other: 0,
   };
 }

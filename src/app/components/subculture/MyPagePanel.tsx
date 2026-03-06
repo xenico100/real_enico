@@ -25,6 +25,8 @@ const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 type VisitSourceBreakdown = {
   instagram: number;
   youtube: number;
+  threads: number;
+  twitter: number;
   other: number;
 };
 
@@ -125,12 +127,16 @@ type AdminOrderDraft = {
 const VISIT_SOURCE_CHART_SEGMENTS = [
   { key: 'instagram', label: '인스타그램', color: '#ff5aa5' },
   { key: 'youtube', label: '유튜브', color: '#ff4d4d' },
+  { key: 'threads', label: '쓰레드', color: '#f6f2eb' },
+  { key: 'twitter', label: '트위터', color: '#63b8ff' },
   { key: 'other', label: '그 외', color: '#00ffd1' },
 ] as const;
 
 const EMPTY_VISIT_SOURCE_BREAKDOWN: VisitSourceBreakdown = {
   instagram: 0,
   youtube: 0,
+  threads: 0,
+  twitter: 0,
   other: 0,
 };
 
@@ -187,7 +193,12 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
 }
 
 function buildVisitSourceChartStyle(breakdown: VisitSourceBreakdown): CSSProperties {
-  const total = breakdown.instagram + breakdown.youtube + breakdown.other;
+  const total =
+    breakdown.instagram +
+    breakdown.youtube +
+    breakdown.threads +
+    breakdown.twitter +
+    breakdown.other;
 
   if (total <= 0) {
     return {
@@ -218,7 +229,12 @@ function VisitSourceDonutCard({
   subtitle: string;
   breakdown: VisitSourceBreakdown;
 }) {
-  const total = breakdown.instagram + breakdown.youtube + breakdown.other;
+  const total =
+    breakdown.instagram +
+    breakdown.youtube +
+    breakdown.threads +
+    breakdown.twitter +
+    breakdown.other;
   const chartStyle = buildVisitSourceChartStyle(breakdown);
 
   return (
@@ -1132,24 +1148,6 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   </p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">오늘 인스타 유입</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">
-                    {(latestDailyStats?.sourceVisitors.instagram || 0).toLocaleString('ko-KR')}명
-                  </p>
-                </div>
-                <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">오늘 유튜브 유입</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">
-                    {(latestDailyStats?.sourceVisitors.youtube || 0).toLocaleString('ko-KR')}명
-                  </p>
-                </div>
-                <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">오늘 그 외 유입</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">
-                    {(latestDailyStats?.sourceVisitors.other || 0).toLocaleString('ko-KR')}명
-                  </p>
-                </div>
-                <div className="border border-[#333] bg-[#111] p-3">
                   <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 누적 방문자</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">
                     {dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명
@@ -1159,24 +1157,6 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 누적 페이지 hit</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">
                     {dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회
-                  </p>
-                </div>
-                <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 인스타 유입</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">
-                    {dailyStatsSummary.totalSourceVisitors.instagram.toLocaleString('ko-KR')}명
-                  </p>
-                </div>
-                <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 유튜브 유입</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">
-                    {dailyStatsSummary.totalSourceVisitors.youtube.toLocaleString('ko-KR')}명
-                  </p>
-                </div>
-                <div className="border border-[#333] bg-[#111] p-3">
-                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 그 외 유입</p>
-                  <p className="text-[#00ffd1] mt-1 font-semibold">
-                    {dailyStatsSummary.totalSourceVisitors.other.toLocaleString('ko-KR')}명
                   </p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
@@ -1205,15 +1185,12 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             ) : (
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_320px] xl:items-start">
                 <div className="overflow-x-auto border border-[#333] bg-[#101010]">
-                  <table className="w-full min-w-[980px] text-xs">
+                  <table className="w-full min-w-[760px] text-xs">
                     <thead className="bg-black/60 text-[#8a8a8a]">
                       <tr>
                         <th className="text-left px-3 py-2 font-medium">날짜(KST)</th>
                         <th className="text-right px-3 py-2 font-medium">방문자</th>
                         <th className="text-right px-3 py-2 font-medium">페이지 hit</th>
-                        <th className="text-right px-3 py-2 font-medium">인스타</th>
-                        <th className="text-right px-3 py-2 font-medium">유튜브</th>
-                        <th className="text-right px-3 py-2 font-medium">그 외</th>
                         <th className="text-right px-3 py-2 font-medium">생성 채팅방</th>
                         <th className="text-right px-3 py-2 font-medium">메시지</th>
                       </tr>
@@ -1221,24 +1198,21 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                     <tbody>
                       {dailyStatsRows.map((row) => (
                         <tr key={row.dateKst} className="border-t border-[#252525]">
-                          <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
-                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
-                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
-                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.instagram.toLocaleString('ko-KR')}</td>
-                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.youtube.toLocaleString('ko-KR')}</td>
-                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.other.toLocaleString('ko-KR')}</td>
-                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
-                          <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
+                        <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                   </table>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
                   <VisitSourceDonutCard
                     title="오늘 유입 비중"
-                    subtitle="오늘 기준 인스타 / 유튜브 / 그 외"
+                    subtitle="오늘 기준 인스타 / 유튜브 / 쓰레드 / 트위터 / 그 외"
                     breakdown={latestDailyStats?.sourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
                   />
                   <VisitSourceDonutCard

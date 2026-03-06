@@ -190,6 +190,8 @@ export async function GET(request: Request) {
       totalSourceVisitors: {
         instagram: acc.totalSourceVisitors.instagram + row.sourceVisitors.instagram,
         youtube: acc.totalSourceVisitors.youtube + row.sourceVisitors.youtube,
+        threads: acc.totalSourceVisitors.threads + row.sourceVisitors.threads,
+        twitter: acc.totalSourceVisitors.twitter + row.sourceVisitors.twitter,
         other: acc.totalSourceVisitors.other + row.sourceVisitors.other,
       },
       totalCreatedRooms: acc.totalCreatedRooms + row.createdRoomCount,
