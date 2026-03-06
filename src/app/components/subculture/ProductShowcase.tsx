@@ -837,49 +837,27 @@ export function ProductShowcase({
           </div>
           
           <div className="w-full md:w-auto mt-8 md:mt-0 md:min-w-[560px] flex flex-col gap-3">
-            <div className="relative overflow-hidden border-[3px] border-black bg-[#e8dcc7] text-black shadow-[6px_6px_0_0_#111]">
-              <div className="absolute inset-0 opacity-[0.12] bg-[linear-gradient(0deg,transparent_0,transparent_18px,rgba(0,0,0,0.18)_19px),linear-gradient(90deg,rgba(0,0,0,0.035)_0,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:100%_20px,12px_12px]" />
+            <div className="relative overflow-hidden border border-[#2a2a2a] bg-[#0a0a0a] text-[#f3f3f3] shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+              <div className="absolute inset-0 opacity-[0.08] bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:18px_18px]" />
 
-              <div className="relative border-b-[3px] border-black bg-[#c93b31] px-4 py-3 text-[#fff7eb]">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div className="flex items-start gap-3">
-                    <span className="inline-flex min-w-[72px] justify-center border-2 border-black bg-[#ffe15a] px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-black shadow-[2px_2px_0_0_#111]">
-                      Index
-                    </span>
-                    <div>
-                      <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#ffe9d6]">
-                        Category Board
-                      </p>
-                      <p className="mt-1 font-heading text-2xl uppercase leading-none tracking-tight">
-                        상품 분류표
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="self-start md:self-auto border-2 border-black bg-[#111] px-3 py-2 text-right shadow-[3px_3px_0_0_rgba(0,0,0,0.32)]">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#f1cdbf]">
-                      Visible
-                    </p>
-                    <p className="font-heading text-2xl leading-none text-[#fff6ea]">
-                      {filteredProducts.length}
-                      <span className="mx-1 text-[#f08a62]">/</span>
-                      <span className="text-[#ffd84d]">{catalogProducts.length}</span>
-                    </p>
-                  </div>
+              <div className="relative flex items-end justify-between gap-4 border-b border-[#242424] px-4 py-4">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#6f6f6f]">
+                    Category
+                  </p>
+                  <p className="mt-2 font-heading text-[1.9rem] uppercase leading-none tracking-tight text-white">
+                    카테고리
+                  </p>
                 </div>
+
+                <p className="shrink-0 font-heading text-3xl leading-none text-[#00ffd1]">
+                  {filteredProducts.length}
+                  <span className="ml-1 text-xl text-[#5d5d5d]">/ {catalogProducts.length}</span>
+                </p>
               </div>
 
-              <div className="relative p-4 md:p-5">
-                <div className="mb-4 flex items-center justify-between gap-3 border-b-2 border-black/70 pb-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-black/65">
-                    1998 Catalog Selection
-                  </p>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/45">
-                    눌러서 바로 필터
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <div className="relative p-3 md:p-4">
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   {categories.map((cat, index) => {
                     const isActive = activeCategory === cat;
 
@@ -887,35 +865,21 @@ export function ProductShowcase({
                       <button
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
-                        className={`group relative overflow-hidden border-2 px-3 py-3 text-left transition-all duration-200 ${
+                        className={`group relative overflow-hidden border px-3 py-3 text-left transition-all duration-200 ${
                           isActive
-                            ? 'border-black bg-[#111] text-[#fff6e8] shadow-[4px_4px_0_0_#c93b31] -rotate-[1deg]'
-                            : 'border-black bg-[#f7eedf] text-black shadow-[3px_3px_0_0_rgba(0,0,0,0.2)] hover:bg-[#ffe15a]'
+                            ? 'border-[#00ffd1] bg-[#00ffd1] text-black shadow-[0_0_24px_rgba(0,255,209,0.18)]'
+                            : 'border-[#2e2e2e] bg-[#111] text-[#f1f1f1] hover:border-[#00ffd1]/60 hover:text-white'
                         }`}
                       >
-                        <span
-                          className={`absolute right-2 top-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full border text-[10px] font-mono ${
-                            isActive
-                              ? 'border-[#ffe15a] bg-[#c93b31] text-[#fff7eb]'
-                              : 'border-black/70 bg-white/70 text-black/70'
-                          }`}
-                        >
-                          {String(categoryCounts[cat as keyof typeof categoryCounts]).padStart(2, '0')}
+                        <span className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? 'bg-black' : 'bg-[#00ffd1]/0 group-hover:bg-[#00ffd1]/65'}`} />
+                        <span className={`block font-mono text-[10px] uppercase tracking-[0.2em] ${isActive ? 'text-black/60' : 'text-[#6a6a6a]'}`}>
+                          {String(index + 1).padStart(2, '0')}
                         </span>
-
-                        <span className="block font-mono text-[10px] uppercase tracking-[0.16em] text-black/45 group-hover:text-black/65">
-                          {String(index + 1).padStart(2, '0')} / shelf
-                        </span>
-                        <span className="mt-2 block font-heading text-[1.15rem] uppercase leading-none tracking-tight">
+                        <span className="mt-2 block font-heading text-[1.12rem] uppercase leading-none tracking-tight">
                           {cat}
                         </span>
-                        <span
-                          className={`mt-3 block h-[3px] w-full ${
-                            isActive ? 'bg-[#ffe15a]' : 'bg-black/70 group-hover:bg-[#c93b31]'
-                          }`}
-                        />
-                        <span className="mt-2 block font-mono text-[10px] uppercase tracking-[0.18em] text-current/60">
-                          {isActive ? 'selected now' : 'open filter'}
+                        <span className={`mt-3 block font-mono text-[11px] ${isActive ? 'text-black/70' : 'text-[#8e8e8e]'}`}>
+                          {String(categoryCounts[cat as keyof typeof categoryCounts]).padStart(2, '0')}
                         </span>
                       </button>
                     );
