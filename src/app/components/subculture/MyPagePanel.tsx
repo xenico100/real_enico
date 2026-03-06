@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
@@ -122,6 +122,18 @@ type AdminOrderDraft = {
   shippingNote: string;
 };
 
+const VISIT_SOURCE_CHART_SEGMENTS = [
+  { key: 'instagram', label: '인스타그램', color: '#ff5aa5' },
+  { key: 'youtube', label: '유튜브', color: '#ff4d4d' },
+  { key: 'other', label: '그 외', color: '#00ffd1' },
+] as const;
+
+const EMPTY_VISIT_SOURCE_BREAKDOWN: VisitSourceBreakdown = {
+  instagram: 0,
+  youtube: 0,
+  other: 0,
+};
+
 function formatDate(value: string | undefined) {
   if (!value) return '-';
   const date = new Date(value);
@@ -172,6 +184,94 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
   }
 
   return status || '-';
+}
+
+function buildVisitSourceChartStyle(breakdown: VisitSourceBreakdown): CSSProperties {
+  const total = breakdown.instagram + breakdown.youtube + breakdown.other;
+
+  if (total <= 0) {
+    return {
+      background: 'conic-gradient(#1a1a1a 0deg 360deg)',
+    };
+  }
+
+  let currentAngle = 0;
+  const segments = VISIT_SOURCE_CHART_SEGMENTS.map(({ key, color }) => {
+    const amount = breakdown[key];
+    const ratio = amount / total;
+    const start = currentAngle;
+    currentAngle += ratio * 360;
+    return `${color} ${start}deg ${currentAngle}deg`;
+  });
+
+  return {
+    background: `conic-gradient(${segments.join(', ')})`,
+  };
+}
+
+function VisitSourceDonutCard({
+  title,
+  subtitle,
+  breakdown,
+}: {
+  title: string;
+  subtitle: string;
+  breakdown: VisitSourceBreakdown;
+}) {
+  const total = breakdown.instagram + breakdown.youtube + breakdown.other;
+  const chartStyle = buildVisitSourceChartStyle(breakdown);
+
+  return (
+    <div className="rounded-[20px] border border-[#24443e] bg-[#0f1414] p-4">
+      <div className="mb-4">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-[#76b7aa]">{title}</p>
+        <p className="mt-1 text-[11px] text-[#8ea6a1]">{subtitle}</p>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="relative h-28 w-28 shrink-0">
+          <div
+            className="h-full w-full rounded-full border border-white/10 shadow-[inset_0_0_20px_rgba(0,0,0,0.25)]"
+            style={chartStyle}
+          />
+          <div className="absolute inset-[18%] flex items-center justify-center rounded-full border border-[#1f2d2a] bg-[#050808] text-center">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7f9792]">합계</p>
+              <p className="mt-1 text-lg font-semibold text-white">
+                {total.toLocaleString('ko-KR')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-2 text-xs">
+          {VISIT_SOURCE_CHART_SEGMENTS.map(({ key, label, color }) => {
+            const count = breakdown[key];
+            const ratio = total > 0 ? Math.round((count / total) * 100) : 0;
+
+            return (
+              <div
+                key={key}
+                className="flex items-center justify-between rounded-xl border border-[#263230] bg-black/40 px-3 py-2"
+              >
+                <div className="flex items-center gap-2 text-[#d8d8d8]">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span>{label}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-[#f0f0f0]">{count.toLocaleString('ko-KR')}명</p>
+                  <p className="text-[10px] text-[#7f9792]">{ratio}%</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function createMemberDraft(member: MemberRecord): MemberDraft {
@@ -1103,35 +1203,50 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 표시할 일일 데이터가 없습니다.
               </div>
             ) : (
-              <div className="overflow-x-auto border border-[#333] bg-[#101010]">
-                <table className="w-full min-w-[980px] text-xs">
-                  <thead className="bg-black/60 text-[#8a8a8a]">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium">날짜(KST)</th>
-                      <th className="text-right px-3 py-2 font-medium">방문자</th>
-                      <th className="text-right px-3 py-2 font-medium">페이지 hit</th>
-                      <th className="text-right px-3 py-2 font-medium">인스타</th>
-                      <th className="text-right px-3 py-2 font-medium">유튜브</th>
-                      <th className="text-right px-3 py-2 font-medium">그 외</th>
-                      <th className="text-right px-3 py-2 font-medium">생성 채팅방</th>
-                      <th className="text-right px-3 py-2 font-medium">메시지</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dailyStatsRows.map((row) => (
-                      <tr key={row.dateKst} className="border-t border-[#252525]">
-                        <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.instagram.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.youtube.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.other.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_320px] xl:items-start">
+                <div className="overflow-x-auto border border-[#333] bg-[#101010]">
+                  <table className="w-full min-w-[980px] text-xs">
+                    <thead className="bg-black/60 text-[#8a8a8a]">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">날짜(KST)</th>
+                        <th className="text-right px-3 py-2 font-medium">방문자</th>
+                        <th className="text-right px-3 py-2 font-medium">페이지 hit</th>
+                        <th className="text-right px-3 py-2 font-medium">인스타</th>
+                        <th className="text-right px-3 py-2 font-medium">유튜브</th>
+                        <th className="text-right px-3 py-2 font-medium">그 외</th>
+                        <th className="text-right px-3 py-2 font-medium">생성 채팅방</th>
+                        <th className="text-right px-3 py-2 font-medium">메시지</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {dailyStatsRows.map((row) => (
+                        <tr key={row.dateKst} className="border-t border-[#252525]">
+                          <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
+                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
+                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
+                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.instagram.toLocaleString('ko-KR')}</td>
+                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.youtube.toLocaleString('ko-KR')}</td>
+                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.other.toLocaleString('ko-KR')}</td>
+                          <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
+                          <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                  <VisitSourceDonutCard
+                    title="오늘 유입 비중"
+                    subtitle="오늘 기준 인스타 / 유튜브 / 그 외"
+                    breakdown={latestDailyStats?.sourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
+                  />
+                  <VisitSourceDonutCard
+                    title={`최근 ${dailyStatsRangeLabel} 유입 비중`}
+                    subtitle="누적 유입 비중"
+                    breakdown={dailyStatsSummary?.totalSourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
+                  />
+                </div>
               </div>
             )}
           </>
