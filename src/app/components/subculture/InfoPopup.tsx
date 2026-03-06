@@ -74,7 +74,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
   };
 
   const myPageTitle =
-    isAuthenticated || !isAuthReady ? '마이페이지' : '로그인 / 회원가입';
+    isAuthenticated || !isAuthReady ? '마이페이지' : '로그인 / 주문조회';
 
   const content = {
     about: (

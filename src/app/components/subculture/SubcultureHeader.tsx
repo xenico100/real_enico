@@ -56,7 +56,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
   const myPageLabel = isSignedIn
     ? '마이페이지'
     : isAuthReady
-      ? '로그인 / 회원가입'
+      ? '로그인 / 주문조회'
       : '마이페이지';
   const navItems: NavItem[] = [
     { key: 'about', label: '소개', action: 'info' },

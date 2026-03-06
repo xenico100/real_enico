@@ -73,20 +73,19 @@ function normalizeItems(value: unknown) {
 }
 
 export async function POST(request: Request) {
-  let payload: { guestOrderNumber?: string; phone?: string; password?: string } = {};
+  let payload: { phone?: string; password?: string } = {};
   try {
     payload = (await request.json()) as typeof payload;
   } catch {
     return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
   }
 
-  const guestOrderNumber = normalizeText(payload.guestOrderNumber).toUpperCase();
   const phone = normalizePhone(payload.phone);
   const password = normalizeText(payload.password);
 
-  if ((!guestOrderNumber && !phone) || !password) {
+  if (!phone || !password) {
     return NextResponse.json(
-      { message: '비회원 주문번호 또는 핸드폰 번호와 비밀번호를 입력해 주세요.' },
+      { message: '주문한 핸드폰 번호와 주문 비밀번호를 입력해 주세요.' },
       { status: 400 },
     );
   }
@@ -125,59 +124,38 @@ export async function POST(request: Request) {
     );
   };
 
-  let matchedOrder: GuestLookupRow | null = null;
+  const last4Digits = phone.slice(-4);
+  let phoneQuery = serviceClient
+    .from('orders')
+    .select(selectColumns)
+    .eq('channel', 'guest')
+    .order('created_at', { ascending: false })
+    .limit(200);
 
-  if (guestOrderNumber) {
-    const { data, error } = await serviceClient
-      .from('orders')
-      .select(selectColumns)
-      .eq('guest_order_number', guestOrderNumber)
-      .eq('channel', 'guest')
-      .maybeSingle<GuestLookupRow>();
-
-    if (error) {
-      return mapLookupError(error);
-    }
-
-    if (data?.guest_password_hash && verifyGuestLookupPassword(password, data.guest_password_hash)) {
-      matchedOrder = data;
-    }
+  if (last4Digits.length === 4) {
+    phoneQuery = phoneQuery.ilike('customer_phone', `%${last4Digits}%`);
   }
 
-  if (!matchedOrder && phone) {
-    const last4Digits = phone.slice(-4);
-    let phoneQuery = serviceClient
-      .from('orders')
-      .select(selectColumns)
-      .eq('channel', 'guest')
-      .order('created_at', { ascending: false })
-      .limit(200);
+  const { data: rows, error } = await phoneQuery.returns<GuestLookupRow[]>();
 
-    if (last4Digits.length === 4) {
-      phoneQuery = phoneQuery.ilike('customer_phone', `%${last4Digits}%`);
-    }
-
-    const { data: rows, error } = await phoneQuery.returns<GuestLookupRow[]>();
-
-    if (error) {
-      return mapLookupError(error);
-    }
-
-    const phoneMatchedRows = (rows || []).filter(
-      (row) => normalizePhone(row.customer_phone) === phone,
-    );
-
-    matchedOrder =
-      phoneMatchedRows.find(
-        (row) =>
-          Boolean(row.guest_password_hash) &&
-          verifyGuestLookupPassword(password, row.guest_password_hash || ''),
-      ) || null;
+  if (error) {
+    return mapLookupError(error);
   }
+
+  const phoneMatchedRows = (rows || []).filter(
+    (row) => normalizePhone(row.customer_phone) === phone,
+  );
+
+  const matchedOrder =
+    phoneMatchedRows.find(
+      (row) =>
+        Boolean(row.guest_password_hash) &&
+        verifyGuestLookupPassword(password, row.guest_password_hash || ''),
+    ) || null;
 
   if (!matchedOrder) {
     return NextResponse.json(
-      { message: '주문번호/핸드폰번호 또는 비밀번호가 올바르지 않습니다.' },
+      { message: '핸드폰 번호 또는 주문 비밀번호가 올바르지 않습니다.' },
       { status: 401 },
     );
   }
@@ -208,7 +186,7 @@ export async function POST(request: Request) {
     deliveredAt: matchedOrder.delivered_at,
     createdAt: matchedOrder.created_at,
     updatedAt: matchedOrder.updated_at,
-    matchedBy: guestOrderNumber ? 'guestOrderNumber' : 'phone',
+    matchedBy: 'phone',
   };
 
   return NextResponse.json({ order });

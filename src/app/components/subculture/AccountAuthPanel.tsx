@@ -114,7 +114,6 @@ export function AccountAuthPanel() {
   const [foundEmails, setFoundEmails] = useState<string[]>([]);
   const [isFindingId, setIsFindingId] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-  const [guestOrderNumber, setGuestOrderNumber] = useState('');
   const [guestLookupPhone, setGuestLookupPhone] = useState('');
   const [guestOrderPassword, setGuestOrderPassword] = useState('');
   const [isLookupLoading, setIsLookupLoading] = useState(false);
@@ -263,11 +262,10 @@ export function AccountAuthPanel() {
     setLookupError(null);
     setLookupOrder(null);
 
-    const normalizedOrderNumber = guestOrderNumber.trim().toUpperCase();
     const normalizedPhone = guestLookupPhone.trim();
     const normalizedPassword = guestOrderPassword.trim();
-    if ((!normalizedOrderNumber && !normalizedPhone) || !normalizedPassword) {
-      setLookupError('비회원 주문번호 또는 핸드폰 번호와 비밀번호를 입력해 주세요.');
+    if (!normalizedPhone || !normalizedPassword) {
+      setLookupError('주문한 핸드폰 번호와 주문 비밀번호를 입력해 주세요.');
       return;
     }
 
@@ -277,8 +275,7 @@ export function AccountAuthPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          guestOrderNumber: normalizedOrderNumber || undefined,
-          phone: normalizedPhone || undefined,
+          phone: normalizedPhone,
           password: normalizedPassword,
         }),
       });
@@ -627,20 +624,21 @@ export function AccountAuthPanel() {
 
       {activeTab === 'guestOrder' && (
         <div className="space-y-4 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
+          <div className="border border-[#00ffd1]/35 bg-[#00ffd1]/6 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#00ffd1]">
+              Mobile Guest Lookup
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-[#d6fff7]">
+              모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 바로 배송조회할 수 있습니다.
+            </p>
+          </div>
           <form onSubmit={handleGuestLookup} className="space-y-3">
-            <input
-              type="text"
-              value={guestOrderNumber}
-              onChange={(event) => setGuestOrderNumber(event.target.value)}
-              className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-              placeholder="비회원 주문번호 (선택)"
-            />
             <input
               type="tel"
               value={guestLookupPhone}
               onChange={(event) => setGuestLookupPhone(event.target.value)}
               className="w-full bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-              placeholder="주문한 핸드폰 번호 (선택)"
+              placeholder="주문한 핸드폰 번호"
             />
             <input
               type="password"
@@ -650,8 +648,8 @@ export function AccountAuthPanel() {
               placeholder="주문 시 설정한 비밀번호"
               required
             />
-            <p className="text-[11px] text-[#c6c6c6]">
-              주문번호 또는 핸드폰 번호 중 하나를 입력해 조회할 수 있습니다.
+            <p className="text-[11px] leading-relaxed text-[#c6c6c6]">
+              주문 직후 안내받은 비회원 주문 비밀번호를 함께 입력하면 바로 조회됩니다.
             </p>
             <button
               type="submit"
@@ -677,9 +675,12 @@ export function AccountAuthPanel() {
 
           {lookupOrder && (
             <div className="space-y-3 border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
-              <p className="text-xs text-[#00ffd1] uppercase tracking-widest">
-                주문번호: {lookupOrder.guestOrderNumber || lookupOrder.orderCode}
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-[#00ffd1] uppercase tracking-widest">
+                  비회원 주문 조회 결과
+                </p>
+                <p className="text-[11px] text-[#c7fff6]">{lookupOrder.customerPhone || '-'}</p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                 <div className="border border-[#333] bg-black p-3">
                   <p className="text-[#9b9b9b] mb-1">배송 상태</p>
