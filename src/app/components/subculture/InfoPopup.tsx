@@ -87,6 +87,9 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           
           <h3 className="text-[#00ffd1] text-xl font-bold mb-4 uppercase">브랜드 소개</h3>
           <p className="text-sm leading-relaxed mb-4">
+            저같은 사람도 옷을 만듭니다. 응원해주세요.
+          </p>
+          <p className="text-sm leading-relaxed mb-4">
             enico veck은 서브컬처를 좋아하는 사람들,
             그리고 각자의 특별함을 가진 사람들을 모아
             하나의 가족처럼 연결하려는 디자이너 브랜드입니다.
