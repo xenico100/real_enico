@@ -134,7 +134,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
 
   return (
     <div
-      className="fixed inset-x-0 z-[220] bg-[#020409] md:bg-black/80 md:backdrop-blur-sm overflow-hidden"
+      className="fixed inset-x-0 z-[220] flex items-center justify-center overflow-hidden bg-[#020409]/96 px-3 py-[calc(env(safe-area-inset-top)+14px)] md:bg-black/80 md:px-6 md:py-6 md:backdrop-blur-sm"
       style={viewportStyle || { top: 0, bottom: 0 }}
       onClick={onClose}
       role="dialog"
@@ -142,7 +142,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
       aria-label="단체랜덤채팅"
     >
       <div
-        className="w-full h-full max-h-full md:max-w-2xl md:mx-auto md:my-4 md:max-h-[88vh] md:rounded-2xl md:border md:border-[#232734] bg-[#050912] text-[#f3f6ff] flex flex-col overflow-hidden"
+        className="flex h-full max-h-full w-full max-w-[860px] flex-col overflow-hidden rounded-[24px] border border-[#232734] bg-[#050912] text-[#f3f6ff] shadow-[0_28px_120px_rgba(0,0,0,0.55)] md:h-auto md:max-h-[88vh]"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="shrink-0 border-b border-[#1a2233] px-3 py-2.5 md:px-5 md:py-4 bg-[#070d1a]">
