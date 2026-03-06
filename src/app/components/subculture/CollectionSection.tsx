@@ -102,7 +102,7 @@ export function CollectionSection({
           <div className="mb-6 border border-black/20 bg-white/80 px-4 py-3 font-mono text-[11px] text-black/60">
             {isRecoveringCollections
               ? '실제 컬렉션 게시물을 다시 불러오는 중입니다...'
-              : '컬렉션 DB를 바로 쓰지 못해 기본 게시물을 표시 중입니다.'}
+              : '실제 컬렉션 게시물을 찾지 못했습니다. 샘플 이미지는 더 이상 표시하지 않습니다.'}
           </div>
         ) : null}
 

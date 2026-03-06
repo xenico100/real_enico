@@ -290,7 +290,7 @@ export function ProductShowcase({
           <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] text-[#9a9a9a]">
             {isRecoveringProducts
               ? '실제 의류 게시물을 다시 불러오는 중입니다...'
-              : '등록된 게시글이 없어 임의 게시글을 표시합니다. `/admin`에서 게시글을 업로드해 주세요.'}
+              : '실제 의류 게시물을 찾지 못했습니다. 샘플 이미지는 더 이상 표시하지 않습니다.'}
           </div>
         ) : null}
 

@@ -19,92 +19,6 @@ export interface Product {
   smartstoreUrl?: string;
 }
 
-type ProductSeed = Omit<Product, 'images'>;
-
-const productsSeed: ProductSeed[] = [
-  {
-    id: '의류-001',
-    name: '전술 해체 베스트',
-    category: '아우터',
-    price: 890,
-    image:
-      'https://images.unsplash.com/photo-1764787016268-31d48b3978f0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0YWN0aWNhbCUyMHZlc3QlMjBzdHJlZXR3ZWFyfGVufDF8fHx8MTc3MDE3Mjk0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '비대칭 구조를 적용한 밀리터리 무드 베스트',
-  },
-  {
-    id: '의류-002',
-    name: '아방가르드 그래픽 셔츠',
-    category: '셔츠',
-    price: 1250,
-    image:
-      'https://images.unsplash.com/photo-1764998112680-2f617dc9be40?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdmFudCUyMGdhcmRlJTIwZmFzaGlvbiUyMGJsYWNrfGVufDF8fHx8MTc3MDE3Mjk0NXww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '해체 그래픽 포인트가 들어간 오버핏 셔츠',
-  },
-  {
-    id: '의류-003',
-    name: '디스토피아 카고 팬츠',
-    category: '팬츠',
-    price: 980,
-    image:
-      'https://images.unsplash.com/photo-1764697584354-eb6d52727e04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkeXN0b3BpYW4lMjBmYXNoaW9uJTIwZWRpdG9yaWFsfGVufDF8fHx8MTc3MDE3Mjk0MXww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '포스트 아포칼립스 무드의 와이드 카고 팬츠',
-  },
-  {
-    id: '의류-004',
-    name: '인더스트리얼 카고 백',
-    category: '가방',
-    price: 450,
-    image:
-      'https://images.unsplash.com/photo-1632513985069-e2559c8fa70b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bmRlcmdyb3VuZCUyMGZhc2hpb24lMjBib290c3xlbnwxfHx8fDE3NzAxNzI5NDF8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '강화 구조 디테일이 들어간 헤비 유틸리티 백',
-  },
-  {
-    id: '의류-005',
-    name: '리컨스트럭트 슬립 드레스',
-    category: '드레스',
-    price: 1120,
-    image:
-      'https://images.unsplash.com/photo-1628565931779-4f4f0b4f578a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZWNvbnN0cnVjdGVkJTIwamFja2V0JTIwZmFzaGlvbnxlbnwxfHx8fDE3NzAxNzI5NDV8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '모듈형 절개 포인트가 들어간 실험적 드레스',
-  },
-  {
-    id: '의류-006',
-    name: '아나키 스티치 인형',
-    category: '인형',
-    price: 320,
-    image:
-      'https://images.unsplash.com/photo-1558015382-8feeaeb602f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwdW5rJTIwZmFzaGlvbiUyMGFjY2Vzc29yaWVzJTIwY2hhaW5zfGVufDF8fHx8MTc3MDE3Mjk0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '핸드 스티치 디테일이 들어간 서브컬처 무드 인형',
-  },
-  {
-    id: '의류-007',
-    name: '사이버펑크 유틸리티 베스트',
-    category: '아우터',
-    price: 780,
-    image:
-      'https://images.unsplash.com/photo-1587038255943-390cadaefffe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdXR1cmlzdGljJTIwc3RyZWV0d2VhciUyMGphY2tldHxlbnwxfHx8fDE3NzAxNzI5NDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '멀티 포켓과 반사 포인트가 들어간 베스트',
-  },
-  {
-    id: '의류-008',
-    name: '하이퍼리얼 유틸리티 백',
-    category: '가방',
-    price: 560,
-    image:
-      'https://images.unsplash.com/photo-1652766540048-de0a878a3266?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmR1c3RyaWFsJTIwZmFzaGlvbiUyMGFjY2Vzc29yaWVzfGVufDF8fHx8MTc3MDE3Mjk0Mnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '데일리 착용 가능한 인더스트리얼 무드 크로스백',
-  },
-];
-
-const detailImagePool = [
-  'https://images.unsplash.com/photo-1483985988355-763728e1935b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1496747611176-843222e1e57c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1445205170230-053b83016050?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1504593811423-6dd665756598?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-];
-
 const FALLBACK_IMAGE_URL =
   'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
 
@@ -274,19 +188,6 @@ const SOLD_OUT_PRODUCT_KEY_SET = new Set(
 const SMARTSTORE_LINK_MAP = new Map<string, string>(
   SMARTSTORE_LINK_ENTRIES.map(([title, url]) => [normalizeCategoryHintKey(title), url]),
 );
-
-const FALLBACK_PRODUCTS: Product[] = productsSeed.map((product, index) => {
-  const extraImages = [
-    detailImagePool[index % detailImagePool.length],
-    detailImagePool[(index + 2) % detailImagePool.length],
-    detailImagePool[(index + 4) % detailImagePool.length],
-  ];
-
-  return {
-    ...product,
-    images: Array.from(new Set([product.image, ...extraImages])),
-  };
-});
 
 function getSmartstoreUrlByTitle(title: string) {
   return SMARTSTORE_LINK_MAP.get(normalizeCategoryHintKey(title));
@@ -619,7 +520,7 @@ export function resolveInitialProductCatalog(rows: StorefrontProductRow[]) {
   const products = buildProductCatalog(rows);
 
   return {
-    products: products.length > 0 ? products : FALLBACK_PRODUCTS,
+    products,
     usingFallbackCatalog: products.length === 0,
   };
 }
