@@ -143,6 +143,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [paypalSdkReady, setPaypalSdkReady] = useState(false);
   const [paypalError, setPaypalError] = useState<string | null>(null);
+  const [paypalRetryNonce, setPaypalRetryNonce] = useState(0);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -207,42 +208,81 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
     if (window.paypal) {
       setPaypalSdkReady(true);
+      setPaypalError(null);
       return;
     }
 
+    setPaypalSdkReady(false);
+
     const existingScript = document.getElementById(PAYPAL_SDK_SCRIPT_ID) as HTMLScriptElement | null;
+    const scriptUrl = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
+      PAYPAL_CLIENT_ID,
+    )}&currency=${encodeURIComponent(PAYPAL_CURRENCY)}&intent=capture&components=buttons`;
     const handleLoad = () => {
+      if (!window.paypal) {
+        setPaypalError('PayPal SDK를 불러왔지만 버튼 초기화에 실패했습니다. 다시 시도해 주세요.');
+        return;
+      }
       setPaypalSdkReady(true);
       setPaypalError(null);
     };
     const handleError = () => {
-      setPaypalError('PayPal SDK 로드에 실패했습니다.');
+      setPaypalSdkReady(false);
+      setPaypalError('PayPal SDK 로드에 실패했습니다. 광고 차단기나 브라우저 차단 설정을 확인해 주세요.');
     };
+    const timeoutId = window.setTimeout(() => {
+      if (!window.paypal) {
+        setPaypalError('PayPal 버튼 로드가 지연되고 있습니다. 다시 시도해 주세요.');
+      }
+    }, 6000);
 
     if (existingScript) {
-      existingScript.addEventListener('load', handleLoad);
-      existingScript.addEventListener('error', handleError);
-      return () => {
-        existingScript.removeEventListener('load', handleLoad);
-        existingScript.removeEventListener('error', handleError);
-      };
+      if (existingScript.src !== scriptUrl) {
+        existingScript.remove();
+      } else {
+        existingScript.addEventListener('load', handleLoad);
+        existingScript.addEventListener('error', handleError);
+
+        if (window.paypal) {
+          handleLoad();
+        }
+
+        return () => {
+          window.clearTimeout(timeoutId);
+          existingScript.removeEventListener('load', handleLoad);
+          existingScript.removeEventListener('error', handleError);
+        };
+      }
     }
 
     const script = document.createElement('script');
     script.id = PAYPAL_SDK_SCRIPT_ID;
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
-      PAYPAL_CLIENT_ID,
-    )}&currency=${encodeURIComponent(PAYPAL_CURRENCY)}&intent=capture&components=buttons`;
+    script.src = scriptUrl;
     script.async = true;
     script.addEventListener('load', handleLoad);
     script.addEventListener('error', handleError);
     document.body.appendChild(script);
 
     return () => {
+      window.clearTimeout(timeoutId);
       script.removeEventListener('load', handleLoad);
       script.removeEventListener('error', handleError);
     };
-  }, [isOpen, mode]);
+  }, [isOpen, mode, paypalRetryNonce]);
+
+  useEffect(() => {
+    if (!isOpen || mode !== 'checkout') return;
+    if (!PAYPAL_CLIENT_ID) return;
+    if (!paypalError) return;
+
+    const retryTimer = window.setTimeout(() => {
+      if (!window.paypal) {
+        setPaypalRetryNonce((value) => value + 1);
+      }
+    }, 800);
+
+    return () => window.clearTimeout(retryTimer);
+  }, [isOpen, mode, paypalError]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const canCheckout = cart.length > 0;
@@ -978,11 +1018,27 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       {paypalError && (
                         <p className="text-[10px] text-red-300 mb-2">{paypalError}</p>
                       )}
+                      {!paypalSdkReady && !paypalError && (
+                        <p className="text-[10px] text-[#9a9a9a] mb-2">PayPal 버튼 불러오는 중...</p>
+                      )}
                       <div
                         ref={paypalContainerRef}
                         className="min-h-[44px]"
                         aria-label="paypal-sandbox-button"
                       />
+                      {paypalError && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaypalError(null);
+                            setPaypalSdkReady(false);
+                            setPaypalRetryNonce((value) => value + 1);
+                          }}
+                          className="mt-3 w-full border border-[#666] px-3 py-2 text-[10px] uppercase tracking-widest text-[#d8d8d8] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1]"
+                        >
+                          PayPal 다시 시도
+                        </button>
+                      )}
                     </div>
                     {!isAuthenticated && (
                       <p className="text-[10px] text-[#888]">
