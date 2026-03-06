@@ -7,12 +7,8 @@ import { HeroSection } from '@/app/components/subculture/HeroSection';
 import { ProductShowcase } from '@/app/components/subculture/ProductShowcase';
 import { CollectionSection } from '@/app/components/subculture/CollectionSection';
 import { FashionCartProvider } from '@/app/context/FashionCartContext';
-import type { Collection } from '@/app/components/subculture/CollectionSection';
-import type { Product } from '@/app/components/subculture/ProductShowcase';
-import type {
-  StorefrontCollectionRow,
-  StorefrontProductRow,
-} from '@/lib/storefront/shared';
+import type { Collection } from '@/lib/storefront/collectionCatalog';
+import type { Product } from '@/lib/storefront/productCatalog';
 
 const CartOverlay = dynamic(
   () => import('@/app/components/subculture/CartOverlay').then((mod) => mod.CartOverlay),
@@ -40,11 +36,18 @@ const RandomChatModal = dynamic(
 );
 
 interface AppProps {
-  initialProductRows?: StorefrontProductRow[];
-  initialCollectionRows?: StorefrontCollectionRow[];
+  initialProducts?: Product[];
+  usingFallbackProducts?: boolean;
+  initialCollections?: Collection[];
+  usingFallbackCollections?: boolean;
 }
 
-export default function App({ initialProductRows, initialCollectionRows }: AppProps) {
+export default function App({
+  initialProducts,
+  usingFallbackProducts,
+  initialCollections,
+  usingFallbackCollections,
+}: AppProps) {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'mypage' | null>(null);
   const [isRandomChatOpen, setIsRandomChatOpen] = useState(false);
@@ -88,11 +91,13 @@ export default function App({ initialProductRows, initialCollectionRows }: AppPr
         <main className="relative z-10">
           <HeroSection />
           <ProductShowcase
-            initialProducts={initialProductRows}
+            initialProducts={initialProducts}
+            usingFallbackCatalog={usingFallbackProducts}
             onProductClick={setSelectedProduct}
           />
           <CollectionSection
-            initialCollections={initialCollectionRows}
+            initialCollections={initialCollections}
+            usingFallbackCatalog={usingFallbackCollections}
             onCollectionClick={setSelectedCollection}
           />
         </main>

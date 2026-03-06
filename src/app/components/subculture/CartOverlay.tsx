@@ -689,7 +689,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => removeFromCart(item.id)}
+                                  onClick={() => removeFromCart(item.id, item.selectedSize)}
                                   className="p-2 border border-[#333] bg-[#111] text-[#666] hover:text-[#00ffd1] hover:border-[#00ffd1] transition-colors shrink-0"
                                 >
                                   <Trash2 size={14} />

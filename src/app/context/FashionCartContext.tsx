@@ -15,20 +15,28 @@ export interface FashionCartItem {
 interface FashionCartContextType {
   cart: FashionCartItem[];
   addToCart: (item: FashionCartItem) => void;
-  removeFromCart: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
+  removeFromCart: (id: string, selectedSize?: string | null) => void;
+  updateQuantity: (id: string, quantity: number, selectedSize?: string | null) => void;
   clearCart: () => void;
 }
 
 const FashionCartContext = createContext<FashionCartContextType | undefined>(undefined);
 const MAX_CART_ITEM_QUANTITY = 1;
 
+export function getFashionCartItemKey(id: string, selectedSize?: string | null) {
+  return `${id}::${selectedSize?.trim() || ''}`;
+}
+
 export function FashionCartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<FashionCartItem[]>([]);
 
   const addToCart = (item: FashionCartItem) => {
     setCart((prevCart) => {
-      const existingItem = prevCart.find((i) => i.id === item.id);
+      const nextItemKey = getFashionCartItemKey(item.id, item.selectedSize);
+      const existingItem = prevCart.find(
+        (cartItem) =>
+          getFashionCartItemKey(cartItem.id, cartItem.selectedSize) === nextItemKey,
+      );
       const normalizedQuantity = Math.min(
         MAX_CART_ITEM_QUANTITY,
         Math.max(1, item.quantity || 1),
@@ -36,7 +44,7 @@ export function FashionCartProvider({ children }: { children: ReactNode }) {
 
       if (existingItem) {
         return prevCart.map((i) =>
-          i.id === item.id
+          getFashionCartItemKey(i.id, i.selectedSize) === nextItemKey
             ? {
                 ...i,
                 quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, i.quantity || 1)),
@@ -49,17 +57,23 @@ export function FashionCartProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const removeFromCart = (id: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  const removeFromCart = (id: string, selectedSize?: string | null) => {
+    const targetKey = getFashionCartItemKey(id, selectedSize);
+    setCart((prevCart) =>
+      prevCart.filter(
+        (item) => getFashionCartItemKey(item.id, item.selectedSize) !== targetKey,
+      ),
+    );
   };
 
-  const updateQuantity = (id: string, quantity: number) => {
+  const updateQuantity = (id: string, quantity: number, selectedSize?: string | null) => {
+    const targetKey = getFashionCartItemKey(id, selectedSize);
     if (quantity <= 0) {
-      removeFromCart(id);
+      removeFromCart(id, selectedSize);
     } else {
       setCart((prevCart) =>
         prevCart.map((item) =>
-          item.id === id
+          getFashionCartItemKey(item.id, item.selectedSize) === targetKey
             ? {
                 ...item,
                 quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, quantity)),

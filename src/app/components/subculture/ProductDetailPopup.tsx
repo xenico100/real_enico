@@ -3,10 +3,13 @@
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useFashionCart } from '@/app/context/FashionCartContext';
+import {
+  getFashionCartItemKey,
+  useFashionCart,
+} from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import { useMemo, useRef, useState, type TouchEventHandler } from 'react';
-import type { Product } from '@/app/components/subculture/ProductShowcase';
+import type { Product } from '@/lib/storefront/productCatalog';
 
 interface ProductDetailPopupProps {
   product: Product;
@@ -32,7 +35,9 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     index: getDefaultActiveImageIndex(),
   }));
   const touchStartX = useRef<number | null>(null);
-  const isInCart = cart.some((item) => item.id === product.id);
+  const isInCart = cart.some(
+    (item) => getFashionCartItemKey(item.id, item.selectedSize) === getFashionCartItemKey(product.id, null),
+  );
   const isSoldOut = Boolean(product.isSoldOut);
   const smartstoreUrl = typeof product.smartstoreUrl === 'string' ? product.smartstoreUrl : '';
 

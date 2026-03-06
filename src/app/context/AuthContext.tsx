@@ -91,7 +91,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [hasLocalAuthToken, setHasLocalAuthToken] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -104,17 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       isMountedRef.current = false;
     };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const keys = Object.keys(window.localStorage);
-      const hasToken = keys.some((key) => key.startsWith('sb-') && key.endsWith('-auth-token'));
-      setHasLocalAuthToken(hasToken);
-    } catch {
-      setHasLocalAuthToken(false);
-    }
   }, []);
 
   const clearMessages = useCallback(() => {
@@ -162,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const syncSession = async (nextSession: Session | null) => {
     setSafeState(setSession, nextSession);
     setSafeState(setUser, nextSession?.user ?? null);
-    setSafeState(setHasLocalAuthToken, Boolean(nextSession?.access_token));
     await fetchProfile(nextSession?.user ?? null);
     setSafeState(setIsAuthReady, true);
   };
@@ -340,7 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user,
         profile,
-        isAuthenticated: Boolean(user || session?.user || hasLocalAuthToken),
+        isAuthenticated: Boolean(user || session?.user),
         isAuthReady,
         isConfigured,
         isBusy,

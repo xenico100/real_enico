@@ -1,733 +1,39 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  DEFAULT_PRODUCT_CATEGORY,
   PRODUCT_CATEGORIES,
-  isProductCategory,
   type ProductCategory,
 } from '@/app/constants/productCategories';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import {
+  getFashionCartItemKey,
+  useFashionCart,
+} from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
-import type { StorefrontProductRow } from '@/lib/storefront/shared';
-import { useFashionCart } from '@/app/context/FashionCartContext';
-
-export interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  image: string;
-  images: string[];
-  description: string;
-  apparelSpecs?: string;
-  updatedAt?: string | null;
-  isSoldOut?: boolean;
-  smartstoreUrl?: string;
-}
-
-type ProductSeed = Omit<Product, 'images'>;
-
-const productsSeed: ProductSeed[] = [
-  {
-    id: '의류-001',
-    name: '전술 해체 베스트',
-    category: '아우터',
-    price: 890,
-    image: 'https://images.unsplash.com/photo-1764787016268-31d48b3978f0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0YWN0aWNhbCUyMHZlc3QlMjBzdHJlZXR3ZWFyfGVufDF8fHx8MTc3MDE3Mjk0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '비대칭 구조를 적용한 밀리터리 무드 베스트',
-  },
-  {
-    id: '의류-002',
-    name: '아방가르드 그래픽 셔츠',
-    category: '셔츠',
-    price: 1250,
-    image: 'https://images.unsplash.com/photo-1764998112680-2f617dc9be40?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhdmFudCUyMGdhcmRlJTIwZmFzaGlvbiUyMGJsYWNrfGVufDF8fHx8MTc3MDE3Mjk0NXww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '해체 그래픽 포인트가 들어간 오버핏 셔츠',
-  },
-  {
-    id: '의류-003',
-    name: '디스토피아 카고 팬츠',
-    category: '팬츠',
-    price: 980,
-    image: 'https://images.unsplash.com/photo-1764697584354-eb6d52727e04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkeXN0b3BpYW4lMjBmYXNoaW9uJTIwZWRpdG9yaWFsfGVufDF8fHx8MTc3MDE3Mjk0MXww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '포스트 아포칼립스 무드의 와이드 카고 팬츠',
-  },
-  {
-    id: '의류-004',
-    name: '인더스트리얼 카고 백',
-    category: '가방',
-    price: 450,
-    image: 'https://images.unsplash.com/photo-1632513985069-e2559c8fa70b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1bmRlcmdyb3VuZCUyMGZhc2hpb24lMjBib290c3xlbnwxfHx8fDE3NzAxNzI5NDF8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '강화 구조 디테일이 들어간 헤비 유틸리티 백',
-  },
-  {
-    id: '의류-005',
-    name: '리컨스트럭트 슬립 드레스',
-    category: '드레스',
-    price: 1120,
-    image: 'https://images.unsplash.com/photo-1628565931779-4f4f0b4f578a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZWNvbnN0cnVjdGVkJTIwamFja2V0JTIwZmFzaGlvbnxlbnwxfHx8fDE3NzAxNzI5NDV8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '모듈형 절개 포인트가 들어간 실험적 드레스',
-  },
-  {
-    id: '의류-006',
-    name: '아나키 스티치 인형',
-    category: '인형',
-    price: 320,
-    image: 'https://images.unsplash.com/photo-1558015382-8feeaeb602f6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwdW5rJTIwZmFzaGlvbiUyMGFjY2Vzc29yaWVzJTIwY2hhaW5zfGVufDF8fHx8MTc3MDE3Mjk0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '핸드 스티치 디테일이 들어간 서브컬처 무드 인형',
-  },
-  {
-    id: '의류-007',
-    name: '사이버펑크 유틸리티 베스트',
-    category: '아우터',
-    price: 780,
-    image: 'https://images.unsplash.com/photo-1587038255943-390cadaefffe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdXR1cmlzdGljJTIwc3RyZWV0d2VhciUyMGphY2tldHxlbnwxfHx8fDE3NzAxNzI5NDB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '멀티 포켓과 반사 포인트가 들어간 베스트',
-  },
-  {
-    id: '의류-008',
-    name: '하이퍼리얼 유틸리티 백',
-    category: '가방',
-    price: 560,
-    image: 'https://images.unsplash.com/photo-1652766540048-de0a878a3266?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmR1c3RyaWFsJTIwZmFzaGlvbiUyMGFjY2Vzc29yaWVzfGVufDF8fHx8MTc3MDE3Mjk0Mnww&ixlib=rb-4.1.0&q=80&w=1080',
-    description: '데일리 착용 가능한 인더스트리얼 무드 크로스백',
-  },
-];
-
-const detailImagePool = [
-  'https://images.unsplash.com/photo-1483985988355-763728e1935b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1496747611176-843222e1e57c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1445205170230-053b83016050?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-  'https://images.unsplash.com/photo-1504593811423-6dd665756598?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=1080',
-];
-
-const fallbackProducts: Product[] = productsSeed.map((product, index) => {
-  const extraImages = [
-    detailImagePool[index % detailImagePool.length],
-    detailImagePool[(index + 2) % detailImagePool.length],
-    detailImagePool[(index + 4) % detailImagePool.length],
-  ];
-
-  return {
-    ...product,
-    images: Array.from(new Set([product.image, ...extraImages])),
-  };
-});
-
-const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
-
-const UPLOAD_TITLE_CATEGORY_HINTS: Array<{ title: string; category: ProductCategory }> = [
-  { title: 'enico MIX shirts', category: '셔츠' },
-  { title: 'INFINITY CASTLE Crop Shirts', category: '셔츠' },
-  { title: 'Ben’s Shirts', category: '셔츠' },
-  { title: 'Re: kevin shirts', category: '셔츠' },
-  { title: 'Flannel double-label shirt', category: '셔츠' },
-  { title: 'enico damm denim jacket', category: '아우터' },
-  { title: 'Enico Veck 1st Linen Jacket', category: '아우터' },
-  { title: 'enico veck’s denim hood jacket', category: '아우터' },
-  { title: 'enico veck 2025 denim jacket', category: '아우터' },
-  { title: 'BERSERK Jacket', category: '아우터' },
-  { title: 'INFINITY CASTLE Kimono', category: '아우터' },
-  { title: 'Mononoke Jacket', category: '아우터' },
-  { title: 'Roronoa Coat', category: '아우터' },
-  { title: 'Akira Jacket', category: '아우터' },
-  { title: 'EVA-JACEKT', category: '아우터' },
-  { title: 'Re: flower of evil jacket', category: '아우터' },
-  { title: 'enico MIX pants', category: '팬츠' },
-  { title: 'BERSERK Pants', category: '팬츠' },
-  { title: 'INFINITY CASTLE Shorts', category: '팬츠' },
-  { title: 'Ben’s Cago Pants', category: '팬츠' },
-  { title: 'Mononoke Pants', category: '팬츠' },
-  { title: "Re: kevin's pants", category: '팬츠' },
-  { title: 'BOMB DEVIL Dress+Choker', category: '드레스' },
-  { title: '퍼펙트 블루의 가면', category: '악세사리' },
-  { title: 'Mononoke Bolero', category: '악세사리' },
-  { title: '가치아쿠타의 장갑', category: '악세사리' },
-  { title: 'Knit Shark', category: '인형' },
-  { title: 'Night Kitty', category: '인형' },
-  { title: 'Night Face', category: '인형' },
-  { title: 'Night Dee', category: '인형' },
-  { title: 'Check Shark', category: '인형' },
-  { title: 'Check Kitty', category: '인형' },
-  { title: 'Desert Bat', category: '인형' },
-  { title: 'Desert Dee', category: '인형' },
-  { title: 'Desert Angry Shark', category: '인형' },
-  { title: 'Enico Dee', category: '인형' },
-  { title: '2Face Shark', category: '인형' },
-  { title: 'Where GA-O-RI', category: '인형' },
-];
-
-function normalizeCategoryHintKey(value: string) {
-  return value
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/['’`"“”]/g, '')
-    .replace(/[^a-z0-9가-힣]+/g, '');
-}
-
-const UPLOAD_HINT_KEYWORDS = UPLOAD_TITLE_CATEGORY_HINTS.map(({ title, category }) => ({
-  key: normalizeCategoryHintKey(title),
-  category,
-})).sort((a, b) => b.key.length - a.key.length);
-
-const IMAGE_PATH_CATEGORY_HINTS: Array<{ markers: string[]; category: ProductCategory }> = [
-  { markers: ['/manual-upload/outer/', '/manual-jackets/'], category: '아우터' },
-  { markers: ['/manual-upload/shirts/'], category: '셔츠' },
-  { markers: ['/manual-upload/pants/'], category: '팬츠' },
-  { markers: ['/manual-upload/bags/'], category: '가방' },
-  {
-    markers: ['/manual-upload/accessories/', '/manual-upload/accessory/'],
-    category: '악세사리',
-  },
-  { markers: ['/manual-upload/dolls/', '/manual-dolls/'], category: '인형' },
-  { markers: ['/manual-upload/dresses/'], category: '드레스' },
-];
-
-// Product_20260228_185717.csv 최신순(최종수정일 DESC) 기준
-const CSV_LATEST_TITLE_ORDER = [
-  'Re: flower of evil jacket',
-  'Re: kevin shirts',
-  "Re: kevin's pants",
-  'Roronoa Coat',
-  '가치아쿠타의 장갑',
-  'Mononoke Jacket',
-  'Mononoke Pants',
-  'Mononoke Bolero',
-  '퍼펙트 블루의 가면',
-  'enico MIX shirts',
-  'Knit Shark',
-  'enico veck 2025 denim jacket',
-  'enico veck’s denim hood jacket',
-  'enico damm denim jacket',
-  'BOMB DEVIL Dress+Choker',
-  'Ben’s Shirts',
-  'Ben’s Cago Pants',
-  'INFINITY CASTLE Shorts',
-  'INFINITY CASTLE Crop Shirts',
-  'INFINITY CASTLE Kimono',
-  'BERSERK Jacket',
-  'Night Kitty',
-  'Night Dee',
-  'Check Kitty',
-  'Enico Dee',
-  'Where GA-O-RI',
-] as const;
-
-const CSV_LATEST_ORDER_INDEX = new Map(
-  CSV_LATEST_TITLE_ORDER.map((title, index) => [normalizeCategoryHintKey(title), index] as const),
-);
-
-const SOLD_OUT_PRODUCT_TITLES = [
-  'EVA-JACEKT',
-  'Akira Jacket',
-  'Flannel double-label shirt',
-  'eco bag',
-  'Blue Flower Shoulder bag',
-  'enico MIX pants',
-  'BERSERK Pants',
-  'Night Face',
-  'Check Shark',
-  'Desert Bat',
-  'Desert Dee',
-  'Desert Angry Shark',
-  '2Face Shark',
-  'Enico Veck 1st Linen Jacket',
-] as const;
-
-const SOLD_OUT_PRODUCT_KEY_SET = new Set(
-  SOLD_OUT_PRODUCT_TITLES.map((title) => normalizeCategoryHintKey(title)),
-);
-
-const SMARTSTORE_LINK_ENTRIES = [
-  ['Re: flower of evil jacket', 'https://smartstore.naver.com/xenicolack/products/12987517638'],
-  ['Re: kevin shirts', 'https://smartstore.naver.com/xenicolack/products/12954569209'],
-  ['EVA-JACEKT', 'https://smartstore.naver.com/xenicolack/products/12750665896'],
-  ['Akira Jacket', 'https://smartstore.naver.com/xenicolack/products/12750550748'],
-  ['Roronoa Coat', 'https://smartstore.naver.com/xenicolack/products/12750370101'],
-  ['Mononoke Jacket', 'https://smartstore.naver.com/xenicolack/products/12484352509'],
-  ['Mononoke Pants', 'https://smartstore.naver.com/xenicolack/products/12484330301'],
-  ['Mononoke Bolero', 'https://smartstore.naver.com/xenicolack/products/12484310979'],
-  ['enico MIX shirts', 'https://smartstore.naver.com/xenicolack/products/12483153706'],
-  ['Knit Shark', 'https://smartstore.naver.com/xenicolack/products/12483114304'],
-  ['Flannel double-label shirt', 'https://smartstore.naver.com/xenicolack/products/12419625593'],
-  ['enico veck 2025 denim jacket', 'https://smartstore.naver.com/xenicolack/products/12419570574'],
-  ['enico vecks denim hood jacket', 'https://smartstore.naver.com/xenicolack/products/12419532271'],
-  ['enico veck’s denim hood jacket', 'https://smartstore.naver.com/xenicolack/products/12419532271'],
-  ['enico MIX pants', 'https://smartstore.naver.com/xenicolack/products/12411038354'],
-  ['enico damm denim jacket', 'https://smartstore.naver.com/xenicolack/products/12411009689'],
-  ['BOMB DEVIL Dress+Choker', 'https://smartstore.naver.com/xenicolack/products/12400272864'],
-  ['Bens Shirts', 'https://smartstore.naver.com/xenicolack/products/12400120212'],
-  ['Ben’s Shirts', 'https://smartstore.naver.com/xenicolack/products/12400120212'],
-  ['Bens Cago Pants', 'https://smartstore.naver.com/xenicolack/products/12400111093'],
-  ['Ben’s Cago Pants', 'https://smartstore.naver.com/xenicolack/products/12400111093'],
-  ['INFINITY CASTLE Shorts', 'https://smartstore.naver.com/xenicolack/products/12400056381'],
-  ['INFINITY CASTLE Crop Shirts', 'https://smartstore.naver.com/xenicolack/products/12400039037'],
-  ['INFINITY CASTLE Kimono', 'https://smartstore.naver.com/xenicolack/products/12400001309'],
-  ['BERSERK Pants', 'https://smartstore.naver.com/xenicolack/products/12398151386'],
-  ['BERSERK Jacket', 'https://smartstore.naver.com/xenicolack/products/12398123187'],
-  ['Night Kitty', 'https://smartstore.naver.com/xenicolack/products/11985901605'],
-  ['Night Face', 'https://smartstore.naver.com/xenicolack/products/11985887749'],
-  ['Night Dee', 'https://smartstore.naver.com/xenicolack/products/11985873950'],
-  ['Check Shark', 'https://smartstore.naver.com/xenicolack/products/11985589156'],
-  ['Check Kitty', 'https://smartstore.naver.com/xenicolack/products/11985575576'],
-  ['Desert Bat', 'https://smartstore.naver.com/xenicolack/products/11985539433'],
-  ['Desert Dee', 'https://smartstore.naver.com/xenicolack/products/11985527327'],
-  ['Desert Angry Shark', 'https://smartstore.naver.com/xenicolack/products/11985513043'],
-  ['Enico Dee', 'https://smartstore.naver.com/xenicolack/products/11985483562'],
-  ['2Face Shark', 'https://smartstore.naver.com/xenicolack/products/11985452653'],
-  ['Where GA-O-RI', 'https://smartstore.naver.com/xenicolack/products/11985411499'],
-  ['Enico Veck 1st Linen Jacket', 'https://smartstore.naver.com/xenicolack/products/11187002300'],
-  ["Re: kevin's pants", 'https://smartstore.naver.com/xenicolack/products/12898733412'],
-] as const;
-
-const SMARTSTORE_LINK_MAP = new Map<string, string>(
-  SMARTSTORE_LINK_ENTRIES.map(([title, url]) => [normalizeCategoryHintKey(title), url]),
-);
-
-function getSmartstoreUrlByTitle(title: string) {
-  return SMARTSTORE_LINK_MAP.get(normalizeCategoryHintKey(title));
-}
-
-function normalizeStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return [];
-
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        return parsed
-          .filter((item): item is string => typeof item === 'string')
-          .map((item) => item.trim())
-          .filter((item) => item.length > 0);
-      }
-    } catch {
-      return [trimmed];
-    }
-  }
-
-  return [];
-}
-
-function extractRawText(raw: unknown, keys: string[]) {
-  if (!raw || typeof raw !== 'object') return '';
-  const target = raw as Record<string, unknown>;
-
-  for (const key of keys) {
-    const value = target[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return '';
-}
-
-function extractRawImages(raw: unknown): string[] {
-  if (!raw || typeof raw !== 'object') return [];
-  const target = raw as Record<string, unknown>;
-  const candidates: string[] = [];
-
-  const push = (value: unknown) => {
-    candidates.push(...normalizeStringArray(value));
-  };
-
-  push(target.images);
-  push(target.image_urls);
-  push(target.imageUrls);
-  push(target.productImages);
-  push(target.additionalImages);
-  push(target.optionalImages);
-  push(target.detailImages);
-
-  const singleKeys = [
-    'thumbnail_url',
-    'thumbnailUrl',
-    'representImageUrl',
-    'represent_image_url',
-    'imageUrl',
-    'image_url',
-    'originImageUrl',
-  ];
-
-  for (const key of singleKeys) {
-    const value = target[key];
-    if (typeof value === 'string' && value.trim()) {
-      candidates.push(value.trim());
-    }
-  }
-
-  return candidates;
-}
-
-function normalizeImagesForProduct(
-  imagesValue: unknown,
-  thumbnailUrl: string | null,
-  raw: unknown,
-) {
-  const merged = [
-    ...normalizeStringArray(imagesValue),
-    ...extractRawImages(raw),
-    ...(thumbnailUrl ? [thumbnailUrl.trim()] : []),
-  ].filter((item) => item.length > 0);
-
-  return Array.from(new Set(merged));
-}
-
-function htmlToPlainText(value: string | null) {
-  if (!value) return '';
-  return value
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function inferCategory(text: string): ProductCategory {
-  const normalized = text.toLowerCase();
-
-  if (
-    normalized.includes('셔츠') ||
-    normalized.includes('남방') ||
-    normalized.includes('블라우스') ||
-    normalized.includes('shirt')
-  ) {
-    return '셔츠';
-  }
-
-  if (
-    normalized.includes('팬츠') ||
-    normalized.includes('바지') ||
-    normalized.includes('슬랙스') ||
-    normalized.includes('데님') ||
-    normalized.includes('pants') ||
-    normalized.includes('jean')
-  ) {
-    return '팬츠';
-  }
-
-  if (
-    normalized.includes('악세사리') ||
-    normalized.includes('액세서리') ||
-    normalized.includes('장갑') ||
-    normalized.includes('mask') ||
-    normalized.includes('glove') ||
-    normalized.includes('acc') ||
-    normalized.includes('accessory') ||
-    normalized.includes('볼레로') ||
-    normalized.includes('bolero')
-  ) {
-    return '악세사리';
-  }
-
-  if (
-    normalized.includes('가방') ||
-    normalized.includes('백') ||
-    normalized.includes('bag') ||
-    normalized.includes('backpack') ||
-    normalized.includes('토트')
-  ) {
-    return '가방';
-  }
-
-  if (
-    normalized.includes('인형') ||
-    normalized.includes('doll') ||
-    normalized.includes('toy') ||
-    normalized.includes('plush')
-  ) {
-    return '인형';
-  }
-
-  if (
-    normalized.includes('드레스') ||
-    normalized.includes('원피스') ||
-    normalized.includes('dress') ||
-    normalized.includes('skirt')
-  ) {
-    return '드레스';
-  }
-
-  if (
-    normalized.includes('아우터') ||
-    normalized.includes('자켓') ||
-    normalized.includes('점퍼') ||
-    normalized.includes('코트') ||
-    normalized.includes('베스트') ||
-    normalized.includes('outer') ||
-    normalized.includes('jacket') ||
-    normalized.includes('coat') ||
-    normalized.includes('vest')
-  ) {
-    return '아우터';
-  }
-
-  return DEFAULT_PRODUCT_CATEGORY;
-}
-
-function inferCategoryFromUploadHints(title: string | null | undefined): ProductCategory | null {
-  const normalizedTitle = normalizeCategoryHintKey(title || '');
-  if (!normalizedTitle) return null;
-
-  for (const hint of UPLOAD_HINT_KEYWORDS) {
-    if (!hint.key) continue;
-    if (normalizedTitle === hint.key || normalizedTitle.includes(hint.key)) {
-      return hint.category;
-    }
-  }
-
-  return null;
-}
-
-function inferCategoryFromImagePath(row: StorefrontProductRow): ProductCategory | null {
-  const imageCandidates = normalizeImagesForProduct(row.images, row.thumbnail_url ?? null, row.raw)
-    .map((item) => item.toLowerCase());
-
-  for (const url of imageCandidates) {
-    for (const hint of IMAGE_PATH_CATEGORY_HINTS) {
-      if (hint.markers.some((marker) => url.includes(marker))) {
-        return hint.category;
-      }
-    }
-  }
-
-  return null;
-}
-
-function resolveCategory(row: StorefrontProductRow) {
-  if (row.category && isProductCategory(row.category)) {
-    return row.category;
-  }
-
-  const explicit = extractRawText(row.raw, [
-    'category',
-    'category_name',
-    'categoryName',
-    'wholeCategoryName',
-    'firstCategoryName',
-    'secondCategoryName',
-    'leafCategoryName',
-  ]);
-
-  if (isProductCategory(explicit)) {
-    return explicit;
-  }
-
-  const imageHint = inferCategoryFromImagePath(row);
-  if (imageHint) {
-    return imageHint;
-  }
-
-  const hintedCategory = inferCategoryFromUploadHints(row.title);
-  if (hintedCategory) {
-    return hintedCategory;
-  }
-
-  return inferCategory(`${explicit} ${row.title || ''}`);
-}
-
-function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
-  const images = normalizeImagesForProduct(
-    row.images,
-    row.thumbnail_url ?? null,
-    row.raw,
-  );
-  const plainDetail = htmlToPlainText(row.detail_html ?? null);
-  const explicitDescription = (row.description || '').trim();
-  const rawDescription = extractRawText(row.raw, [
-    'description',
-    'summary',
-    'content',
-    'detail',
-    'detailSummary',
-  ]);
-  const rawSpecs = extractRawText(row.raw, [
-    'specs',
-    'spec',
-    'apparelSpecs',
-    'materialInfo',
-    'sizeSpec',
-  ]);
-
-  const title =
-    row.title?.trim() ||
-    `상품 ${row.id}`;
-  const numericPrice = Number(row.price);
-  const price = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const description =
-    explicitDescription || plainDetail || rawDescription || `${title} 상세 페이지`;
-  const apparelSpecs =
-    (typeof row.specs === 'string' ? row.specs.trim() : '') ||
-    rawSpecs;
-
-  return {
-    id: row.id,
-    name: title,
-    category: resolveCategory(row),
-    price,
-    image: images[0] || FALLBACK_IMAGE_URL,
-    images: images.length > 0 ? images : [FALLBACK_IMAGE_URL],
-    description,
-    apparelSpecs: apparelSpecs || undefined,
-    updatedAt: row.updated_at ?? row.created_at ?? null,
-    isSoldOut: SOLD_OUT_PRODUCT_KEY_SET.has(normalizeCategoryHintKey(title)),
-    smartstoreUrl: getSmartstoreUrlByTitle(title),
-  };
-}
-
-function sortProductsByCsvLatest(products: Product[]) {
-  return [...products].sort((a, b) => {
-    const aIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(a.name));
-    const bIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(b.name));
-
-    const aHasCsv = typeof aIdx === 'number';
-    const bHasCsv = typeof bIdx === 'number';
-
-    if (aHasCsv && bHasCsv) {
-      return (aIdx as number) - (bIdx as number);
-    }
-
-    if (aHasCsv && !bHasCsv) return -1;
-    if (!aHasCsv && bHasCsv) return 1;
-
-    const aTime = new Date(a.updatedAt || 0).getTime();
-    const bTime = new Date(b.updatedAt || 0).getTime();
-    return bTime - aTime;
-  });
-}
+import type { Product } from '@/lib/storefront/productCatalog';
 
 interface ProductShowcaseProps {
-  initialProducts?: StorefrontProductRow[];
+  initialProducts?: Product[];
+  usingFallbackCatalog?: boolean;
   onProductClick: (product: Product) => void;
 }
 
-function mapProductRows(rows: StorefrontProductRow[]) {
-  return sortProductsByCsvLatest(
-    rows
-      .map(mapDbRowToProduct)
-      .filter((item): item is Product => Boolean(item)),
-  );
-}
+export type { Product };
 
 export function ProductShowcase({
   initialProducts = [],
+  usingFallbackCatalog = false,
   onProductClick,
 }: ProductShowcaseProps) {
   const { cart, addToCart } = useFashionCart();
-  const hasInitialProducts = initialProducts.length > 0;
-  const [activeCategory, setActiveCategory] = useState('전체');
-  const [dbProducts, setDbProducts] = useState<Product[] | null>(() => {
-    const serverProducts = mapProductRows(initialProducts);
-    return serverProducts.length > 0 ? serverProducts : null;
-  });
-  const [isUsingFallbackCatalog, setIsUsingFallbackCatalog] = useState(() => !hasInitialProducts);
-  const [isLoadingDbProducts, setIsLoadingDbProducts] = useState(false);
-  const [dbLoadError, setDbLoadError] = useState<string | null>(null);
-  const categories = ['전체', ...PRODUCT_CATEGORIES];
-
-  useEffect(() => {
-    if (hasInitialProducts) {
-      return;
-    }
-
-    let active = true;
-
-    const loadProducts = async () => {
-      setIsLoadingDbProducts(true);
-      setDbLoadError(null);
-
-      try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          throw new Error(
-            'Supabase env가 설정되지 않았습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 확인하세요.',
-          );
-        }
-
-        let { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('is_published', true)
-          .order('updated_at', { ascending: false });
-
-        if (error?.message?.toLowerCase().includes('updated_at')) {
-          const createdAtFallback = await supabase
-            .from('products')
-            .select('*')
-            .eq('is_published', true)
-            .order('created_at', { ascending: false });
-          data = createdAtFallback.data;
-          error = createdAtFallback.error;
-        }
-
-        if (error?.message?.toLowerCase().includes('is_published')) {
-          const fallbackQuery = await supabase
-            .from('products')
-            .select('*')
-            .order('updated_at', { ascending: false });
-          data = fallbackQuery.data;
-          error = fallbackQuery.error;
-
-          if (error?.message?.toLowerCase().includes('updated_at')) {
-            const createdAtFallback = await supabase
-              .from('products')
-              .select('*')
-              .order('created_at', { ascending: false });
-            data = createdAtFallback.data;
-            error = createdAtFallback.error;
-          }
-        }
-
-        if (error) throw error;
-        if (!active) return;
-
-        const sortedByCsvLatest = mapProductRows((data ?? []) as StorefrontProductRow[]);
-
-        if (sortedByCsvLatest.length === 0) {
-          setDbProducts(fallbackProducts);
-          setIsUsingFallbackCatalog(true);
-        } else {
-          setDbProducts(sortedByCsvLatest);
-          setIsUsingFallbackCatalog(false);
-        }
-      } catch (error) {
-        if (!active) return;
-        setDbLoadError(
-          error instanceof Error ? error.message : '게시물 로드 실패',
-        );
-        setDbProducts(fallbackProducts);
-        setIsUsingFallbackCatalog(true);
-      } finally {
-        if (active) setIsLoadingDbProducts(false);
-      }
-    };
-
-    void loadProducts();
-    return () => {
-      active = false;
-    };
-  }, [hasInitialProducts]);
-
-  const catalogProducts = dbProducts ?? fallbackProducts;
-
-  const filteredProducts = activeCategory === '전체' 
-    ? catalogProducts 
-    : catalogProducts.filter(product => product.category === activeCategory);
-
+  const [activeCategory, setActiveCategory] = useState<'전체' | ProductCategory>('전체');
+  const categories = ['전체', ...PRODUCT_CATEGORIES] as const;
+  const catalogProducts = initialProducts;
+  const filteredProducts =
+    activeCategory === '전체'
+      ? catalogProducts
+      : catalogProducts.filter((product) => product.category === activeCategory);
   const categoryCounts = categories.reduce<Record<string, number>>((accumulator, category) => {
     accumulator[category] =
       category === '전체'
@@ -735,11 +41,12 @@ export function ProductShowcase({
         : catalogProducts.filter((product) => product.category === category).length;
     return accumulator;
   }, {});
-
-  const cartProductIds = new Set(cart.map((item) => item.id));
+  const cartProductKeys = new Set(
+    cart.map((item) => getFashionCartItemKey(item.id, item.selectedSize)),
+  );
 
   const productCards = filteredProducts.map((product) => {
-    const isInCart = cartProductIds.has(product.id);
+    const isInCart = cartProductKeys.has(getFashionCartItemKey(product.id, null));
     const isSoldOut = Boolean(product.isSoldOut);
     const shouldUseDirectImage = shouldBypassImageOptimization(product.image);
 
@@ -749,93 +56,91 @@ export function ProductShowcase({
         onClick={() => onProductClick(product)}
         className="group cursor-pointer relative bg-[#111] border border-[#333] hover:border-[#00ffd1] transition-colors duration-300"
       >
-      {/* Image Container */}
-      <div className="relative overflow-hidden bg-black aspect-[1080/1350]">
-        <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 group-hover:opacity-20 z-10 transition-opacity duration-300" />
-        
-        {/* Image */}
-        <Image
-          src={product.image}
-          alt={product.name}
-          fill
-          unoptimized={shouldUseDirectImage}
-          sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
-          className="object-contain object-center bg-black"
-        />
-        
-        {/* Glitch Overlay Elements on Hover */}
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-100 z-20 mix-blend-exclusion pointer-events-none">
-           <div className="w-full h-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_3px)] opacity-20" />
+        <div className="relative overflow-hidden bg-black aspect-[1080/1350]">
+          <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 group-hover:opacity-20 z-10 transition-opacity duration-300" />
+
+          <Image
+            src={product.image}
+            alt={product.name}
+            fill
+            unoptimized={shouldUseDirectImage}
+            sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            className="object-contain object-center bg-black"
+          />
+
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-100 z-20 mix-blend-exclusion pointer-events-none">
+            <div className="w-full h-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_3px)] opacity-20" />
+          </div>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="p-2 md:p-4 relative overflow-hidden">
-         {/* Background noise/scanlines */}
-         <div className="absolute inset-0 bg-[#0a0a0a] z-0" />
-         
-         <div className="relative z-10 flex flex-col gap-1.5 md:gap-2">
-           <h3 className="font-heading text-[11px] md:text-xl uppercase leading-tight md:leading-none text-[#e5e5e5] group-hover:text-[#00ffd1] transition-colors line-clamp-2">
-             {product.name}
-           </h3>
-           
-           <div className="flex justify-between items-center mt-1 md:mt-2">
-             <span className="font-mono text-[9px] md:text-xs text-[#888] truncate">{product.category}</span>
-             <div className="flex items-center gap-2">
-               {isSoldOut ? (
-                 <span className="font-mono text-[9px] md:text-[10px] font-bold text-[#ff8888] uppercase tracking-widest">
-                   품절
-                 </span>
-               ) : null}
-               <span className="font-mono text-[10px] md:text-sm font-bold text-[#e5e5e5] whitespace-nowrap">
-                 {product.price.toLocaleString('ko-KR')}원
-               </span>
-             </div>
-           </div>
+        <div className="p-2 md:p-4 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[#0a0a0a] z-0" />
 
-           <button
-             type="button"
-             onClick={(event) => {
-               event.stopPropagation();
-               if (isInCart || isSoldOut) return;
-               addToCart({
-                 id: product.id,
-                 name: product.name,
-                 price: product.price,
-                 quantity: 1,
-                 image: product.image,
-                 category: product.category,
-               });
-             }}
-             disabled={isInCart || isSoldOut}
-             className={`mt-2 md:mt-3 w-full border px-2 py-2 text-[10px] md:text-xs font-mono uppercase tracking-widest transition-colors ${
-               isSoldOut
-                 ? 'border-[#6d2d2d] bg-[#1f0e0e] text-[#ffabab] cursor-not-allowed'
-                 : isInCart
-                 ? 'border-[#2d6d62] bg-[#0e1f1c] text-[#8fd6c8] cursor-default'
-                 : 'border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black'
-             }`}
-           >
-             {isSoldOut ? '품절' : isInCart ? '장바구니 담김 (재고 1개)' : '장바구니 담기'}
-           </button>
-         </div>
-      </div>
+          <div className="relative z-10 flex flex-col gap-1.5 md:gap-2">
+            <h3 className="font-heading text-[11px] md:text-xl uppercase leading-tight md:leading-none text-[#e5e5e5] group-hover:text-[#00ffd1] transition-colors line-clamp-2">
+              {product.name}
+            </h3>
 
+            <div className="flex justify-between items-center mt-1 md:mt-2">
+              <span className="font-mono text-[9px] md:text-xs text-[#888] truncate">
+                {product.category}
+              </span>
+              <div className="flex items-center gap-2">
+                {isSoldOut ? (
+                  <span className="font-mono text-[9px] md:text-[10px] font-bold text-[#ff8888] uppercase tracking-widest">
+                    품절
+                  </span>
+                ) : null}
+                <span className="font-mono text-[10px] md:text-sm font-bold text-[#e5e5e5] whitespace-nowrap">
+                  {product.price.toLocaleString('ko-KR')}원
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (isInCart || isSoldOut) return;
+                addToCart({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  quantity: 1,
+                  image: product.image,
+                  category: product.category,
+                });
+              }}
+              disabled={isInCart || isSoldOut}
+              className={`mt-2 md:mt-3 w-full border px-2 py-2 text-[10px] md:text-xs font-mono uppercase tracking-widest transition-colors ${
+                isSoldOut
+                  ? 'border-[#6d2d2d] bg-[#1f0e0e] text-[#ffabab] cursor-not-allowed'
+                  : isInCart
+                    ? 'border-[#2d6d62] bg-[#0e1f1c] text-[#8fd6c8] cursor-default'
+                    : 'border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black'
+              }`}
+            >
+              {isSoldOut ? '품절' : isInCart ? '장바구니 담김 (재고 1개)' : '장바구니 담기'}
+            </button>
+          </div>
+        </div>
       </div>
     );
   });
 
   return (
-    <section id="clothes-section" className="py-20 bg-[#050505] min-h-screen border-t border-[#333] scroll-mt-24">
+    <section
+      id="clothes-section"
+      className="py-20 bg-[#050505] min-h-screen border-t border-[#333] scroll-mt-24"
+    >
       <div className="px-4 md:px-10">
-        {/* Header - Industrial Label Style */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#333] pb-4">
           <div>
             <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.86]">
               의류
             </h2>
           </div>
-          
+
           <div className="w-full md:w-auto mt-8 md:mt-0 md:min-w-[560px] flex flex-col gap-3">
             <div className="relative overflow-hidden border border-[#2a2a2a] bg-[#0a0a0a] text-[#f3f3f3] shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
               <div className="absolute inset-0 opacity-[0.08] bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:18px_18px]" />
@@ -858,28 +163,43 @@ export function ProductShowcase({
 
               <div className="relative p-3 md:p-4">
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                  {categories.map((cat, index) => {
-                    const isActive = activeCategory === cat;
+                  {categories.map((category, index) => {
+                    const isActive = activeCategory === category;
 
                     return (
                       <button
-                        key={cat}
-                        onClick={() => setActiveCategory(cat)}
+                        key={category}
+                        type="button"
+                        onClick={() => setActiveCategory(category)}
                         className={`group relative overflow-hidden border px-3 py-3 text-left transition-all duration-200 ${
                           isActive
                             ? 'border-[#00ffd1] bg-[#00ffd1] text-black shadow-[0_0_24px_rgba(0,255,209,0.18)]'
                             : 'border-[#2e2e2e] bg-[#111] text-[#f1f1f1] hover:border-[#00ffd1]/60 hover:text-white'
                         }`}
                       >
-                        <span className={`absolute left-0 top-0 h-full w-[3px] ${isActive ? 'bg-black' : 'bg-[#00ffd1]/0 group-hover:bg-[#00ffd1]/65'}`} />
-                        <span className={`block font-mono text-[10px] uppercase tracking-[0.2em] ${isActive ? 'text-black/60' : 'text-[#6a6a6a]'}`}>
+                        <span
+                          className={`absolute left-0 top-0 h-full w-[3px] ${
+                            isActive
+                              ? 'bg-black'
+                              : 'bg-[#00ffd1]/0 group-hover:bg-[#00ffd1]/65'
+                          }`}
+                        />
+                        <span
+                          className={`block font-mono text-[10px] uppercase tracking-[0.2em] ${
+                            isActive ? 'text-black/60' : 'text-[#6a6a6a]'
+                          }`}
+                        >
                           {String(index + 1).padStart(2, '0')}
                         </span>
                         <span className="mt-2 block font-heading text-[1.12rem] uppercase leading-none tracking-tight">
-                          {cat}
+                          {category}
                         </span>
-                        <span className={`mt-3 block font-mono text-[11px] ${isActive ? 'text-black/70' : 'text-[#8e8e8e]'}`}>
-                          {String(categoryCounts[cat as keyof typeof categoryCounts]).padStart(2, '0')}
+                        <span
+                          className={`mt-3 block font-mono text-[11px] ${
+                            isActive ? 'text-black/70' : 'text-[#8e8e8e]'
+                          }`}
+                        >
+                          {String(categoryCounts[category]).padStart(2, '0')}
                         </span>
                       </button>
                     );
@@ -890,28 +210,22 @@ export function ProductShowcase({
           </div>
         </div>
 
-        {(isLoadingDbProducts || dbLoadError) && (
-          <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px]">
-            {isLoadingDbProducts ? (
-              <p className="text-[#9a9a9a]">게시물 불러오는 중...</p>
-            ) : (
-              <p className="text-[#ff9f9f]">
-                게시물 로드 실패: {dbLoadError}
-              </p>
-            )}
-          </div>
-        )}
-
-        {!isLoadingDbProducts && isUsingFallbackCatalog && !dbLoadError && (
+        {usingFallbackCatalog ? (
           <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] text-[#9a9a9a]">
-            등록된 게시글이 없어 임의 게시글을 표시합니다. `/admin`에서 게시글을 업로드해 주세요.
+            등록된 게시글이 없어 임의 게시글을 표시합니다. `/admin`에서 게시글을 업로드해
+            주세요.
+          </div>
+        ) : null}
+
+        {catalogProducts.length === 0 ? (
+          <div className="border border-[#333] bg-[#0a0a0a] px-4 py-10 text-center font-mono text-sm text-[#9a9a9a]">
+            표시할 의류 게시물이 없습니다.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
+            {productCards}
           </div>
         )}
-
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
-          {productCards}
-        </div>
-
       </div>
     </section>
   );

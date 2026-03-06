@@ -5,7 +5,7 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRef, useState, type TouchEventHandler } from 'react';
 import { shouldBypassImageOptimization } from '@/lib/images';
-import type { Collection } from './CollectionSection';
+import type { Collection } from '@/lib/storefront/collectionCatalog';
 
 interface CollectionDetailPopupProps {
   collection: Collection;
