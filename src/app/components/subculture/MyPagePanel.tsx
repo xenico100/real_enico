@@ -1183,7 +1183,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 표시할 일일 데이터가 없습니다.
               </div>
             ) : (
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_320px] xl:items-start">
+              <div className="space-y-4">
                 <div className="overflow-x-auto border border-[#333] bg-[#101010]">
                   <table className="w-full min-w-[760px] text-xs">
                     <thead className="bg-black/60 text-[#8a8a8a]">
@@ -1209,7 +1209,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   </table>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                <div className="grid gap-4 md:grid-cols-2">
                   <VisitSourceDonutCard
                     title="오늘 유입 비중"
                     subtitle="오늘 기준 인스타 / 유튜브 / 쓰레드 / 트위터 / 그 외"
