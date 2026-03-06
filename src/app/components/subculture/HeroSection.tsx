@@ -1,8 +1,12 @@
 'use client';
 
 import Image from 'next/image';
+import { motion } from 'motion/react';
 
 export function HeroSection() {
+  const marqueeText = '• enicoveck aka 夢想人 •';
+  const marqueeItems = Array.from({ length: 12 }, () => marqueeText);
+
   const handleEnterChaos = () => {
     document
       .getElementById('collection-section')
@@ -50,11 +54,15 @@ export function HeroSection() {
 
       <div className="relative z-20 w-full max-w-[100vw] px-4 text-center">
         <div className="mb-12 overflow-hidden border-y border-[#333] bg-black py-2">
-          <div className="flex whitespace-nowrap gap-8 font-mono text-xs text-[#666]">
-            {Array.from({ length: 12 }, (_, index) => (
-              <span key={index}>enicoveck archive issue •</span>
+          <motion.div
+            className="flex w-max whitespace-nowrap font-mono text-xs text-[#666]"
+            animate={{ x: ['0%', '-50%'] }}
+            transition={{ repeat: Infinity, duration: 20, ease: 'linear' }}
+          >
+            {[...marqueeItems, ...marqueeItems].map((text, index) => (
+              <span key={index} className="mr-8">{text}</span>
             ))}
-          </div>
+          </motion.div>
         </div>
 
         <div className="relative inline-block group">
