@@ -83,7 +83,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
           </motion.div>
 
           {/* Desktop Nav */}
-          <nav className="relative right-12 hidden md:flex flex-col items-end gap-2 font-mono text-sm lg:right-20 xl:right-24">
+          <nav className="relative right-6 hidden md:flex flex-col items-end gap-2 font-mono text-sm lg:right-10 xl:right-12">
             {navItems.map((item, i) => (
               (() => {
                 const isFunctional = item.key === 'mypage' || item.key === 'randomChat';
