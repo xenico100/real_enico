@@ -995,9 +995,27 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
                         disabled={isSubmittingOrder || !isAuthenticated}
-                        className="py-4 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors uppercase text-xs tracking-widest disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[#00ffd1]"
+                        className="group relative overflow-hidden border border-[#00ffd1] px-4 py-4 text-left uppercase tracking-widest text-[#00ffd1] transition-all duration-200 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[#00ffd1]"
                       >
-                        {isSubmittingOrder ? '처리중...' : '회원 계좌이체 구매'}
+                        {!isSubmittingOrder && isAuthenticated ? (
+                          <>
+                            <span className="absolute left-0 top-0 h-full w-[3px] bg-[#00ffd1] transition-all duration-200 group-hover:w-full group-hover:opacity-100" />
+                            <span className="absolute inset-0 bg-[#00ffd1] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                          </>
+                        ) : null}
+                        <span className="relative z-10 flex items-center justify-between gap-3">
+                          <span className="flex flex-col gap-1">
+                            <span className="font-mono text-[10px] tracking-[0.2em] text-[#00ffd1]/70 transition-colors duration-200 group-hover:text-black/60">
+                              01
+                            </span>
+                            <span className="text-xs text-[#00ffd1] transition-colors duration-200 group-hover:text-black">
+                              {isSubmittingOrder ? '처리중...' : '회원 계좌이체 구매'}
+                            </span>
+                          </span>
+                          <span className="text-sm text-[#00ffd1] transition-colors duration-200 group-hover:text-black">
+                            →
+                          </span>
+                        </span>
                       </button>
                       <button
                         type="button"
