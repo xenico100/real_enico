@@ -121,6 +121,15 @@ export function AccountAuthPanel() {
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupOrder, setLookupOrder] = useState<GuestLookupOrder | null>(null);
 
+  const openLoginTab = () => {
+    setActiveTab('login');
+    clearMessages();
+    setSignupError(null);
+    setRecoverError(null);
+    setRecoverMessage(null);
+    setLookupError(null);
+  };
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setSignupError(null);
@@ -395,22 +404,7 @@ export function AccountAuthPanel() {
 
   return (
     <div className="space-y-4 font-mono">
-      <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-[#0b0b0b] p-1 md:grid-cols-4">
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('login');
-            clearMessages();
-            setSignupError(null);
-          }}
-          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
-            activeTab === 'login'
-              ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
-          }`}
-        >
-          로그인
-        </button>
+      <div className="grid grid-cols-1 gap-1 rounded-2xl border border-white/10 bg-[#0b0b0b] p-1 sm:grid-cols-3">
         <button
           type="button"
           onClick={() => {
@@ -459,17 +453,12 @@ export function AccountAuthPanel() {
       {activeTab === 'login' && (
         <div className="border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
-            <div className="flex flex-col justify-between rounded-2xl border border-white/10 bg-[#111] p-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">간편 로그인</p>
-                <p className="mt-2 text-sm text-[#f2f2f2]">구글 계정으로 바로 로그인</p>
-                <p className="mt-1 text-xs text-[#bdbdbd]">별도 입력 없이 바로 이어서 들어갑니다.</p>
-              </div>
+            <div className="flex min-h-[188px] flex-col justify-center rounded-2xl border border-white/10 bg-[#111] p-4">
               <button
                 type="button"
                 onClick={() => void handleGoogleAuth()}
                 disabled={isBusy}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#00ffd1] px-3 py-3.5 text-xs tracking-widest text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:opacity-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#00ffd1] px-3 py-3.5 text-xs tracking-widest text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:opacity-50"
               >
                 <GoogleIcon />
                 <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
@@ -560,6 +549,13 @@ export function AccountAuthPanel() {
           >
             {isBusy ? '처리중...' : '이메일 회원가입'}
           </button>
+          <button
+            type="button"
+            onClick={openLoginTab}
+            className="w-full py-3 text-xs uppercase tracking-widest text-[#bdbdbd] transition-colors hover:text-[#00ffd1]"
+          >
+            로그인으로 돌아가기
+          </button>
         </form>
       )}
 
@@ -619,6 +615,13 @@ export function AccountAuthPanel() {
               {isResettingPassword ? '전송중...' : '비밀번호 재설정 메일 보내기'}
             </button>
           </form>
+          <button
+            type="button"
+            onClick={openLoginTab}
+            className="w-full py-3 text-xs uppercase tracking-widest text-[#bdbdbd] transition-colors hover:text-[#00ffd1]"
+          >
+            로그인으로 돌아가기
+          </button>
         </div>
       )}
 
@@ -658,6 +661,13 @@ export function AccountAuthPanel() {
               {isLookupLoading ? '조회중...' : '비회원 주문조회'}
             </button>
           </form>
+          <button
+            type="button"
+            onClick={openLoginTab}
+            className="w-full py-3 text-xs uppercase tracking-widest text-[#bdbdbd] transition-colors hover:text-[#00ffd1]"
+          >
+            로그인으로 돌아가기
+          </button>
 
           {lookupError && (
             <div className="border border-red-700 bg-red-950/20 p-3 text-xs text-red-300">

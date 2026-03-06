@@ -157,13 +157,13 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
             </div>
 
             {/* Right: Info Panel */}
-            <div className="lg:w-[38%] h-full border-l border-[#333] bg-[#0a0a0a] overflow-y-auto overscroll-contain p-5 md:p-6">
-               <div className="mb-12">
-                 <h2 className="text-4xl md:text-5xl font-heading font-black uppercase text-[#e5e5e5] leading-[0.9] mb-5 tracking-tighter">
+            <div className="lg:w-[38%] h-full border-l border-[#333] bg-[#0a0a0a] overflow-y-auto overscroll-contain px-5 py-6 md:px-7 md:py-7">
+               <div className="mb-12 px-1 md:px-2">
+                 <h2 className="max-w-[calc(100%-3.5rem)] pr-6 text-[2rem] md:text-[2.75rem] font-heading font-black uppercase text-[#e5e5e5] leading-[0.92] mb-5 tracking-[-0.03em] break-words">
                    {collection.title}
                  </h2>
                  {showDescription && (
-                   <p className="font-mono text-sm text-[#888] leading-relaxed border-l-2 border-[#00ffd1] pl-4">
+                   <p className="font-mono text-sm text-[#888] leading-relaxed border-l-2 border-[#00ffd1] pl-4 pr-1">
                      {fullDescription}
                    </p>
                  )}

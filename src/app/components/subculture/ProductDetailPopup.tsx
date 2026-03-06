@@ -240,17 +240,17 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           </div>
 
           {/* Right: Info (Terminal) */}
-          <div className="w-full md:w-1/2 min-h-0 p-8 md:p-12 flex flex-col bg-[#0a0a0a] text-[#e5e5e5] relative overflow-visible md:overflow-y-auto md:overscroll-contain">
+          <div className="w-full md:w-1/2 min-h-0 px-5 py-7 md:px-10 md:py-10 lg:px-12 lg:py-12 flex flex-col bg-[#0a0a0a] text-[#e5e5e5] relative overflow-visible md:overflow-y-auto md:overscroll-contain">
             {/* Background Grid */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#333_1px,transparent_1px),linear-gradient(to_bottom,#333_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.05] pointer-events-none" />
 
-            <div className="relative z-10">
+            <div className="relative z-10 px-1 md:px-2">
               <div className="flex justify-between items-start mb-8 border-b border-[#333] pb-4">
                 <span className="font-mono text-xs text-[#666]">{'/// 분류_문서'}</span>
                 <span className="font-mono text-xs text-[#00ffd1] animate-pulse">● 활성</span>
               </div>
 
-              <h2 className="text-4xl md:text-5xl font-heading font-black uppercase leading-none mb-6 text-white tracking-tighter">
+              <h2 className="max-w-[calc(100%-3.5rem)] pr-6 text-[2rem] md:text-[2.75rem] lg:text-5xl font-heading font-black uppercase leading-[0.92] mb-6 text-white tracking-[-0.03em] break-words">
                 {product.name}
               </h2>
 
@@ -258,7 +258,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
               <div className="relative z-10 mb-8 border border-[#333] bg-[#0d0d0d] p-4 md:p-5">
                 <div className="flex justify-between items-end mb-5">
                   <span className="font-mono text-xs text-[#666] uppercase tracking-widest">가격</span>
-                  <span className="font-heading text-4xl text-[#e5e5e5]">
+                  <span className="pl-4 text-right font-heading text-3xl md:text-4xl leading-none text-[#e5e5e5] break-keep">
                     {product.price.toLocaleString('ko-KR')}원
                   </span>
                 </div>
@@ -312,13 +312,13 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 </div>
               </div>
 
-              <div className="font-mono text-xs md:text-sm text-[#888] mb-8 leading-relaxed">
+              <div className="font-mono text-xs md:text-sm text-[#888] mb-8 leading-relaxed pr-1">
                 <p>{product.description || '상세 설명이 없습니다.'}</p>
               </div>
 
               {/* Extended Detail Sections (scrollable) */}
               <div className="mb-10 space-y-6 border-t border-[#333] pt-6">
-                <div className="grid grid-cols-2 gap-3 font-mono text-[11px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-[11px]">
                   <div className="border border-[#333] bg-[#111] p-3">
                     <p className="text-[#666] mb-1">항목 식별값</p>
                     <p className="text-[#e5e5e5]">{product.id}</p>
