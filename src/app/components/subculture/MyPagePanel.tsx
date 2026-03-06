@@ -22,10 +22,17 @@ type AdminComposerType = 'products' | 'collections';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 
+type VisitSourceBreakdown = {
+  instagram: number;
+  youtube: number;
+  other: number;
+};
+
 type DailyStatsRow = {
   dateKst: string;
   visitorCount: number;
   pageHitCount: number;
+  sourceVisitors: VisitSourceBreakdown;
   createdRoomCount: number;
   messageCount: number;
 };
@@ -33,6 +40,7 @@ type DailyStatsRow = {
 type DailyStatsSummary = {
   totalVisitors: number;
   totalPageHits: number;
+  totalSourceVisitors: VisitSourceBreakdown;
   totalCreatedRooms: number;
   totalMessages: number;
 };
@@ -767,85 +775,95 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             주문 내역이 없습니다.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {memberOrders.map((order) => (
-              <article key={order.id} className="border border-[#333] bg-[#111] p-4 space-y-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-[#e5e5e5] break-all">
-                      주문번호: {order.orderCode || order.guestOrderNumber || order.id}
-                    </p>
-                    <p className="text-[10px] text-[#9b9b9b] mt-1">
-                      생성일: {formatDate(order.createdAt || undefined)}
-                    </p>
+              <article
+                key={order.id}
+                className="overflow-hidden rounded-[22px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+              >
+                <div className="border-b border-[#1f2d2a] bg-[#101816] px-4 py-4">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#76b7aa]">
+                    Order Card
                   </div>
-                  <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
-                    <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
-                      {getShippingStatusLabel(order.shippingStatus)}
-                    </span>
-                    <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                      {order.paymentMethod || '-'}
-                    </span>
-                    <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                      {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                  <div className="border border-[#333] bg-black p-3">
-                    <p className="text-[#9b9b9b] mb-1">주문 금액</p>
-                    <p className="text-[#00ffd1] font-bold">
-                      {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
-                    </p>
-                    <p className="text-[#c6c6c6] mt-1">항목 {order.items.length}개</p>
-                  </div>
-                  <div className="border border-[#333] bg-black p-3">
-                    <p className="text-[#9b9b9b] mb-1">택배사</p>
-                    <p className="text-[#e5e5e5]">{order.shippingCompany || '-'}</p>
-                    <p className="text-[#c6c6c6] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
-                  </div>
-                  <div className="border border-[#333] bg-black p-3">
-                    <p className="text-[#9b9b9b] mb-1">운송장번호</p>
-                    <p className="text-[#e5e5e5] break-all">{order.trackingNumber || '-'}</p>
-                    <p className="text-[#c6c6c6] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
-                  </div>
-                </div>
-
-                <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                  <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
-                  <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
-                </div>
-
-                <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                  <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송 메모</p>
-                  <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
-                </div>
-
-                {order.paymentReceiptUrl ? (
-                  <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
-                        이체확인 사진
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-xs text-[#e5e5e5] break-all">
+                        주문번호: {order.orderCode || order.guestOrderNumber || order.id}
                       </p>
-                      <a
-                        href={order.paymentReceiptUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
-                      >
-                        새 탭에서 보기
-                      </a>
+                      <p className="text-[10px] text-[#9b9b9b] mt-1">
+                        생성일: {formatDate(order.createdAt || undefined)}
+                      </p>
                     </div>
-                    <div className="relative aspect-[4/5] overflow-hidden border border-[#333] bg-black">
-                      <img
-                        src={order.paymentReceiptUrl}
-                        alt="이체확인 사진"
-                        className="h-full w-full object-contain bg-black"
-                      />
+                    <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                      <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                        {getShippingStatusLabel(order.shippingStatus)}
+                      </span>
+                      <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
+                        {order.paymentMethod || '-'}
+                      </span>
+                      <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
+                        {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
+                      </span>
                     </div>
                   </div>
-                ) : null}
+                </div>
+
+                <div className="space-y-3 p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                      <p className="text-[#9b9b9b] mb-1">주문 금액</p>
+                      <p className="text-[#00ffd1] font-bold">
+                        {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
+                      </p>
+                      <p className="text-[#c6c6c6] mt-1">항목 {order.items.length}개</p>
+                    </div>
+                    <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                      <p className="text-[#9b9b9b] mb-1">택배사</p>
+                      <p className="text-[#e5e5e5]">{order.shippingCompany || '-'}</p>
+                      <p className="text-[#c6c6c6] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
+                    </div>
+                    <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                      <p className="text-[#9b9b9b] mb-1">운송장번호</p>
+                      <p className="text-[#e5e5e5] break-all">{order.trackingNumber || '-'}</p>
+                      <p className="text-[#c6c6c6] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
+                    <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송 메모</p>
+                    <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
+                  </div>
+
+                  {order.paymentReceiptUrl ? (
+                    <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                          이체확인 사진
+                        </p>
+                        <a
+                          href={order.paymentReceiptUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
+                        >
+                          새 탭에서 보기
+                        </a>
+                      </div>
+                      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-[#333] bg-black">
+                        <img
+                          src={order.paymentReceiptUrl}
+                          alt="이체확인 사진"
+                          className="h-full w-full object-contain bg-black"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </article>
             ))}
           </div>
@@ -1014,6 +1032,24 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   </p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">오늘 인스타 유입</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {(latestDailyStats?.sourceVisitors.instagram || 0).toLocaleString('ko-KR')}명
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">오늘 유튜브 유입</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {(latestDailyStats?.sourceVisitors.youtube || 0).toLocaleString('ko-KR')}명
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">오늘 그 외 유입</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {(latestDailyStats?.sourceVisitors.other || 0).toLocaleString('ko-KR')}명
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
                   <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 누적 방문자</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">
                     {dailyStatsSummary.totalVisitors.toLocaleString('ko-KR')}명
@@ -1023,6 +1059,24 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 누적 페이지 hit</p>
                   <p className="text-[#00ffd1] mt-1 font-semibold">
                     {dailyStatsSummary.totalPageHits.toLocaleString('ko-KR')}회
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 인스타 유입</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {dailyStatsSummary.totalSourceVisitors.instagram.toLocaleString('ko-KR')}명
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 유튜브 유입</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {dailyStatsSummary.totalSourceVisitors.youtube.toLocaleString('ko-KR')}명
+                  </p>
+                </div>
+                <div className="border border-[#333] bg-[#111] p-3">
+                  <p className="text-[#9b9b9b]">최근 {dailyStatsRangeLabel} 그 외 유입</p>
+                  <p className="text-[#00ffd1] mt-1 font-semibold">
+                    {dailyStatsSummary.totalSourceVisitors.other.toLocaleString('ko-KR')}명
                   </p>
                 </div>
                 <div className="border border-[#333] bg-[#111] p-3">
@@ -1050,12 +1104,15 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
               </div>
             ) : (
               <div className="overflow-x-auto border border-[#333] bg-[#101010]">
-                <table className="w-full min-w-[680px] text-xs">
+                <table className="w-full min-w-[980px] text-xs">
                   <thead className="bg-black/60 text-[#8a8a8a]">
                     <tr>
                       <th className="text-left px-3 py-2 font-medium">날짜(KST)</th>
                       <th className="text-right px-3 py-2 font-medium">방문자</th>
                       <th className="text-right px-3 py-2 font-medium">페이지 hit</th>
+                      <th className="text-right px-3 py-2 font-medium">인스타</th>
+                      <th className="text-right px-3 py-2 font-medium">유튜브</th>
+                      <th className="text-right px-3 py-2 font-medium">그 외</th>
                       <th className="text-right px-3 py-2 font-medium">생성 채팅방</th>
                       <th className="text-right px-3 py-2 font-medium">메시지</th>
                     </tr>
@@ -1066,6 +1123,9 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                         <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
                         <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
                         <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.instagram.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.youtube.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.sourceVisitors.other.toLocaleString('ko-KR')}</td>
                         <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
                         <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
                       </tr>
@@ -1126,182 +1186,197 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 저장된 주문이 없습니다. 결제 완료 후 목록이 표시됩니다.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {adminOrders.map((order) => (
-                  <article key={order.id} className="border border-[#333] bg-[#111] p-4 space-y-3">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div>
-                        <p className="text-xs text-[#e5e5e5] break-all">
-                          주문번호: {order.orderCode || order.guestOrderNumber || order.id}
-                        </p>
-                        {order.guestOrderNumber && (
-                          <p className="text-[10px] text-[#00ffd1] mt-1 break-all">
-                            비회원조회번호: {order.guestOrderNumber}
+                  <article
+                    key={order.id}
+                    className="overflow-hidden rounded-[22px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                  >
+                    <div className="border-b border-[#1f2d2a] bg-[#101816] px-4 py-4">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#76b7aa]">
+                        Admin Order
+                      </div>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-xs text-[#e5e5e5] break-all">
+                            주문번호: {order.orderCode || order.guestOrderNumber || order.id}
                           </p>
-                        )}
-                        <p className="text-[10px] text-[#9b9b9b] mt-1">
-                          생성일: {formatDate(order.createdAt || undefined)}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
-                        <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
-                          {getShippingStatusLabel(order.shippingStatus)}
-                        </span>
-                        <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
-                          {order.paymentMethod || '-'}
-                        </span>
-                        <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                          {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
-                        </span>
-                        <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                          {order.channel || '-'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                      <div className="border border-[#333] bg-black p-3">
-                        <p className="text-[#9b9b9b] mb-1">주문자</p>
-                        <p className="text-[#e5e5e5]">{order.customerName || '-'}</p>
-                        <p className="text-[#c6c6c6] mt-1 break-all">{order.customerEmail || '-'}</p>
-                      </div>
-                      <div className="border border-[#333] bg-black p-3">
-                        <p className="text-[#9b9b9b] mb-1">연락처</p>
-                        <p className="text-[#e5e5e5]">{order.customerPhone || '-'}</p>
-                        <p className="text-[#c6c6c6] mt-1">{order.customerCountry || '-'}</p>
-                      </div>
-                      <div className="border border-[#333] bg-black p-3">
-                        <p className="text-[#9b9b9b] mb-1">주문 금액</p>
-                        <p className="text-[#00ffd1] font-bold">
-                          {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
-                        </p>
-                        <p className="text-[#c6c6c6] mt-1">
-                          항목 {Array.isArray(order.items) ? order.items.length : 0}개
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                      <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
-                      <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
-                    </div>
-
-                    {order.paymentReceiptUrl ? (
-                      <div className="border border-[#333] bg-[#0d0d0d] p-3">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
-                            이체확인 사진
+                          {order.guestOrderNumber && (
+                            <p className="text-[10px] text-[#00ffd1] mt-1 break-all">
+                              비회원조회번호: {order.guestOrderNumber}
+                            </p>
+                          )}
+                          <p className="text-[10px] text-[#9b9b9b] mt-1">
+                            생성일: {formatDate(order.createdAt || undefined)}
                           </p>
-                          <a
-                            href={order.paymentReceiptUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
-                          >
-                            새 탭에서 보기
-                          </a>
                         </div>
-                        <div className="relative aspect-[4/5] overflow-hidden border border-[#333] bg-black">
-                          <img
-                            src={order.paymentReceiptUrl}
-                            alt="이체확인 사진"
-                            className="h-full w-full object-contain bg-black"
+                        <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                          <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                            {getShippingStatusLabel(order.shippingStatus)}
+                          </span>
+                          <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                            {order.paymentMethod || '-'}
+                          </span>
+                          <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
+                            {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
+                          </span>
+                          <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
+                            {order.channel || '-'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                        <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                          <p className="text-[#9b9b9b] mb-1">주문자</p>
+                          <p className="text-[#e5e5e5]">{order.customerName || '-'}</p>
+                          <p className="text-[#c6c6c6] mt-1 break-all">{order.customerEmail || '-'}</p>
+                        </div>
+                        <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                          <p className="text-[#9b9b9b] mb-1">연락처</p>
+                          <p className="text-[#e5e5e5]">{order.customerPhone || '-'}</p>
+                          <p className="text-[#c6c6c6] mt-1">{order.customerCountry || '-'}</p>
+                        </div>
+                        <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                          <p className="text-[#9b9b9b] mb-1">주문 금액</p>
+                          <p className="text-[#00ffd1] font-bold">
+                            {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
+                          </p>
+                          <p className="text-[#c6c6c6] mt-1">
+                            항목 {Array.isArray(order.items) ? order.items.length : 0}개
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
+                        <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
+                        <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
+                      </div>
+
+                      {order.paymentReceiptUrl ? (
+                        <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                              이체확인 사진
+                            </p>
+                            <a
+                              href={order.paymentReceiptUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
+                            >
+                              새 탭에서 보기
+                            </a>
+                          </div>
+                          <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-[#333] bg-black">
+                            <img
+                              src={order.paymentReceiptUrl}
+                              alt="이체확인 사진"
+                              className="h-full w-full object-contain bg-black"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="rounded-xl border border-[#2b3835] bg-[#0d1111] p-3 space-y-3">
+                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">배송정보 입력</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          <select
+                            value={adminOrderDrafts[order.id]?.paymentStatus || 'pending_transfer'}
+                            onChange={(event) =>
+                              updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          >
+                            <option value="pending_transfer">이체확인중</option>
+                            <option value="transfer_confirmed">이체확인</option>
+                            <option value="captured">결제완료(captured)</option>
+                            <option value="completed">결제완료(completed)</option>
+                          </select>
+                          <select
+                            value={adminOrderDrafts[order.id]?.shippingStatus || 'preparing'}
+                            onChange={(event) =>
+                              updateAdminOrderDraft(order.id, 'shippingStatus', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          >
+                            <option value="preparing">배송준비중</option>
+                            <option value="shipping">배송중</option>
+                            <option value="delivered">배송완료</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={adminOrderDrafts[order.id]?.shippingCompany || ''}
+                            onChange={(event) =>
+                              updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="택배사"
+                          />
+                          <input
+                            type="text"
+                            value={adminOrderDrafts[order.id]?.trackingNumber || ''}
+                            onChange={(event) =>
+                              updateAdminOrderDraft(order.id, 'trackingNumber', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="운송장번호"
+                          />
+                          <input
+                            type="text"
+                            value={adminOrderDrafts[order.id]?.shippingNote || ''}
+                            onChange={(event) =>
+                              updateAdminOrderDraft(order.id, 'shippingNote', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="배송 메모"
                           />
                         </div>
-                      </div>
-                    ) : null}
-
-                    <div className="border border-[#333] bg-black p-3 space-y-2">
-                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">배송정보 입력</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                        <select
-                          value={adminOrderDrafts[order.id]?.paymentStatus || 'pending_transfer'}
-                          onChange={(event) =>
-                            updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
-                          }
-                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                        >
-                          <option value="pending_transfer">이체확인중</option>
-                          <option value="transfer_confirmed">이체확인</option>
-                          <option value="captured">결제완료(captured)</option>
-                          <option value="completed">결제완료(completed)</option>
-                        </select>
-                        <select
-                          value={adminOrderDrafts[order.id]?.shippingStatus || 'preparing'}
-                          onChange={(event) =>
-                            updateAdminOrderDraft(order.id, 'shippingStatus', event.target.value)
-                          }
-                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                        >
-                          <option value="preparing">배송준비중</option>
-                          <option value="shipping">배송중</option>
-                          <option value="delivered">배송완료</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={adminOrderDrafts[order.id]?.shippingCompany || ''}
-                          onChange={(event) =>
-                            updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
-                          }
-                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="택배사"
-                        />
-                        <input
-                          type="text"
-                          value={adminOrderDrafts[order.id]?.trackingNumber || ''}
-                          onChange={(event) =>
-                            updateAdminOrderDraft(order.id, 'trackingNumber', event.target.value)
-                          }
-                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="운송장번호"
-                        />
-                        <input
-                          type="text"
-                          value={adminOrderDrafts[order.id]?.shippingNote || ''}
-                          onChange={(event) =>
-                            updateAdminOrderDraft(order.id, 'shippingNote', event.target.value)
-                          }
-                          className="w-full bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="배송 메모"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                        <div className="border border-[#333] bg-[#0d0d0d] p-2">
-                          <p className="text-[#9b9b9b]">발송일시</p>
-                          <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.shippedAt)}</p>
-                        </div>
-                        <div className="border border-[#333] bg-[#0d0d0d] p-2">
-                          <p className="text-[#9b9b9b]">배송완료일시</p>
-                          <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.deliveredAt)}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleSaveOrderShipping(order.id)}
-                          className="py-2 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors uppercase text-xs tracking-widest"
-                        >
-                          배송정보 저장
-                        </button>
-                      </div>
-                    </div>
-
-                    {Array.isArray(order.items) && order.items.length > 0 && (
-                      <div className="space-y-2">
-                        {order.items.map((item, index) => (
-                          <div
-                            key={`${order.id}-${item.id}-${index}`}
-                            className="border border-[#333] bg-[#0f0f0f] px-3 py-2 flex items-center justify-between gap-3 text-xs"
-                          >
-                            <p className="text-[#e5e5e5] truncate">
-                              {item.name} ({item.category || '-'})
-                              {item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : ''}
-                            </p>
-                            <p className="text-[#00ffd1] shrink-0">
-                              ×{item.quantity || 1} / {Number(item.lineTotal || 0).toLocaleString('ko-KR')}원
-                            </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                          <div className="rounded-lg border border-[#2b2b2b] bg-[#0b0b0b] p-2">
+                            <p className="text-[#9b9b9b]">발송일시</p>
+                            <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.shippedAt)}</p>
                           </div>
-                        ))}
+                          <div className="rounded-lg border border-[#2b2b2b] bg-[#0b0b0b] p-2">
+                            <p className="text-[#9b9b9b]">배송완료일시</p>
+                            <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.deliveredAt)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveOrderShipping(order.id)}
+                            className="rounded-lg py-2 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors uppercase text-xs tracking-widest"
+                          >
+                            배송정보 저장
+                          </button>
+                        </div>
                       </div>
-                    )}
+
+                      {Array.isArray(order.items) && order.items.length > 0 && (
+                        <div className="rounded-xl border border-[#252525] bg-[#0b0b0b] p-3">
+                          <p className="mb-3 text-[10px] uppercase tracking-widest text-[#8ea8c7]">
+                            주문 상품 목록
+                          </p>
+                          <div className="space-y-2">
+                            {order.items.map((item, index) => (
+                              <div
+                                key={`${order.id}-${item.id}-${index}`}
+                                className="rounded-lg border border-[#2a2a2a] bg-[#111] px-3 py-2 flex items-center justify-between gap-3 text-xs"
+                              >
+                                <p className="text-[#e5e5e5] truncate">
+                                  {item.name} ({item.category || '-'})
+                                  {item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : ''}
+                                </p>
+                                <p className="text-[#00ffd1] shrink-0">
+                                  ×{item.quantity || 1} / {Number(item.lineTotal || 0).toLocaleString('ko-KR')}원
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </article>
                 ))}
               </div>
@@ -1377,90 +1452,100 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 등록된 회원이 없습니다.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {members.map((member) => {
                   const draft = memberDrafts[member.id] || createMemberDraft(member);
                   return (
-                    <div key={member.id} className="border border-[#333] bg-[#111] p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs text-[#e5e5e5] break-all">{member.email || '-'}</p>
-                          <p className="text-[10px] text-[#9b9b9b] mt-1">
-                            생성일: {formatDate(member.createdAt || undefined)}
-                          </p>
+                    <div
+                      key={member.id}
+                      className="overflow-hidden rounded-[22px] border border-[#2e3d49] bg-[#111] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                    >
+                      <div className="border-b border-[#202830] bg-[#13181d] px-4 py-4">
+                        <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#8ea8c7]">
+                          Member Card
                         </div>
-                        {member.isPrimaryAdmin && (
-                          <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[10px] uppercase tracking-widest text-[#00ffd1]">
-                            주 관리자
-                          </span>
-                        )}
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-[#e5e5e5] break-all">{member.email || '-'}</p>
+                            <p className="text-[10px] text-[#9b9b9b] mt-1">
+                              생성일: {formatDate(member.createdAt || undefined)}
+                            </p>
+                          </div>
+                          {member.isPrimaryAdmin && (
+                            <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                              주 관리자
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                        <input
-                          type="text"
-                          value={draft.fullName}
-                          onChange={(event) =>
-                            updateMemberDraft(member.id, 'fullName', event.target.value)
-                          }
-                          className="w-full bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="이름"
-                        />
-                        <input
-                          type="text"
-                          value={draft.phone}
-                          onChange={(event) =>
-                            updateMemberDraft(member.id, 'phone', event.target.value)
-                          }
-                          className="w-full bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="전화번호"
-                        />
-                        <input
-                          type="text"
-                          value={draft.address}
-                          onChange={(event) =>
-                            updateMemberDraft(member.id, 'address', event.target.value)
-                          }
-                          className="w-full md:col-span-2 bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="주소"
-                        />
-                        <input
-                          type="email"
-                          value={draft.email}
-                          onChange={(event) =>
-                            updateMemberDraft(member.id, 'email', event.target.value)
-                          }
-                          className="w-full bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="이메일"
-                        />
-                        <input
-                          type="password"
-                          value={draft.password}
-                          onChange={(event) =>
-                            updateMemberDraft(member.id, 'password', event.target.value)
-                          }
-                          className="w-full bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          placeholder="비밀번호 변경 시에만 입력"
-                        />
-                      </div>
+                      <div className="space-y-3 p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          <input
+                            type="text"
+                            value={draft.fullName}
+                            onChange={(event) =>
+                              updateMemberDraft(member.id, 'fullName', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="이름"
+                          />
+                          <input
+                            type="text"
+                            value={draft.phone}
+                            onChange={(event) =>
+                              updateMemberDraft(member.id, 'phone', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="전화번호"
+                          />
+                          <input
+                            type="text"
+                            value={draft.address}
+                            onChange={(event) =>
+                              updateMemberDraft(member.id, 'address', event.target.value)
+                            }
+                            className="w-full rounded-lg md:col-span-2 bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="주소"
+                          />
+                          <input
+                            type="email"
+                            value={draft.email}
+                            onChange={(event) =>
+                              updateMemberDraft(member.id, 'email', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="이메일"
+                          />
+                          <input
+                            type="password"
+                            value={draft.password}
+                            onChange={(event) =>
+                              updateMemberDraft(member.id, 'password', event.target.value)
+                            }
+                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            placeholder="비밀번호 변경 시에만 입력"
+                          />
+                        </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleSaveMember(member.id)}
-                          disabled={isLoadingMembers}
-                          className="py-2 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs uppercase tracking-widest disabled:opacity-50"
-                        >
-                          회원정보 저장
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteMember(member.id)}
-                          disabled={isLoadingMembers || member.isPrimaryAdmin}
-                          className="py-2 border border-red-700 text-red-300 hover:bg-red-600 hover:text-white transition-colors text-xs uppercase tracking-widest disabled:opacity-50"
-                        >
-                          회원 삭제
-                        </button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveMember(member.id)}
+                            disabled={isLoadingMembers}
+                            className="rounded-lg py-2 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs uppercase tracking-widest disabled:opacity-50"
+                          >
+                            회원정보 저장
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteMember(member.id)}
+                            disabled={isLoadingMembers || member.isPrimaryAdmin}
+                            className="rounded-lg py-2 border border-red-700 text-red-300 hover:bg-red-600 hover:text-white transition-colors text-xs uppercase tracking-widest disabled:opacity-50"
+                          >
+                            회원 삭제
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

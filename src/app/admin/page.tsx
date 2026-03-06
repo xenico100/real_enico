@@ -43,10 +43,17 @@ type AdminRow = {
   created_at?: string | null;
 };
 
+type VisitSourceBreakdown = {
+  instagram: number;
+  youtube: number;
+  other: number;
+};
+
 type DailyStatsRow = {
   dateKst: string;
   visitorCount: number;
   pageHitCount: number;
+  sourceVisitors: VisitSourceBreakdown;
   createdRoomCount: number;
   messageCount: number;
 };
@@ -54,6 +61,7 @@ type DailyStatsRow = {
 type DailyStatsSummary = {
   totalVisitors: number;
   totalPageHits: number;
+  totalSourceVisitors: VisitSourceBreakdown;
   totalCreatedRooms: number;
   totalMessages: number;
 };
@@ -703,6 +711,24 @@ function AdminConsoleInner() {
                       <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
                         <p className="text-[#b1b1b1]">메시지</p>
                         <p className="text-[#00ffd1] mt-1">{dailyStatsSummary.totalMessages.toLocaleString('ko-KR')}개</p>
+                      </div>
+                      <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
+                        <p className="text-[#b1b1b1]">인스타 유입</p>
+                        <p className="text-[#00ffd1] mt-1">
+                          {dailyStatsSummary.totalSourceVisitors.instagram.toLocaleString('ko-KR')}명
+                        </p>
+                      </div>
+                      <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
+                        <p className="text-[#b1b1b1]">유튜브 유입</p>
+                        <p className="text-[#00ffd1] mt-1">
+                          {dailyStatsSummary.totalSourceVisitors.youtube.toLocaleString('ko-KR')}명
+                        </p>
+                      </div>
+                      <div className="border border-[#2b2b2b] bg-[#0f0f0f] p-2.5">
+                        <p className="text-[#b1b1b1]">그 외 유입</p>
+                        <p className="text-[#00ffd1] mt-1">
+                          {dailyStatsSummary.totalSourceVisitors.other.toLocaleString('ko-KR')}명
+                        </p>
                       </div>
                     </div>
                   ) : (

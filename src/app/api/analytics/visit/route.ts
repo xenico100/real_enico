@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  mergeVisitSource,
+  normalizeVisitSource,
+  parseVisitMeta,
+  serializeVisitMeta,
+} from '@/lib/analytics/visitSource';
 import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -25,11 +31,15 @@ function normalizeVisitorId(value: string | undefined) {
 
 export async function POST(request: NextRequest) {
   let path = '/';
+  let source = 'other';
 
   try {
-    const payload = (await request.json()) as { path?: unknown };
+    const payload = (await request.json()) as { path?: unknown; source?: unknown };
     if (typeof payload?.path === 'string' && payload.path.trim()) {
       path = payload.path.trim().slice(0, 200);
+    }
+    if (typeof payload?.source === 'string') {
+      source = normalizeVisitSource(payload.source);
     }
   } catch {
     // ignore body parse errors
@@ -46,10 +56,10 @@ export async function POST(request: NextRequest) {
 
     const { data: existingRow, error: readError } = await supabase
       .from('site_daily_visitors')
-      .select('hit_count')
+      .select('hit_count,last_path')
       .eq('visit_date', visitDate)
       .eq('visitor_id', visitorId)
-      .maybeSingle<{ hit_count?: number | null }>();
+      .maybeSingle<{ hit_count?: number | null; last_path?: string | null }>();
 
     if (readError && readError.code !== 'PGRST116') {
       throw readError;
@@ -62,7 +72,7 @@ export async function POST(request: NextRequest) {
         first_seen_at: now.toISOString(),
         last_seen_at: now.toISOString(),
         hit_count: 1,
-        last_path: path,
+        last_path: serializeVisitMeta(path, source),
       });
 
       if (insertError) {
@@ -70,12 +80,13 @@ export async function POST(request: NextRequest) {
       }
     } else {
       const nextHitCount = Math.max(1, Number(existingRow.hit_count || 0) + 1);
+      const nextSource = mergeVisitSource(parseVisitMeta(existingRow.last_path).source, source);
       const { error: updateError } = await supabase
         .from('site_daily_visitors')
         .update({
           hit_count: nextHitCount,
           last_seen_at: now.toISOString(),
-          last_path: path,
+          last_path: serializeVisitMeta(path, nextSource),
         })
         .eq('visit_date', visitDate)
         .eq('visitor_id', visitorId);

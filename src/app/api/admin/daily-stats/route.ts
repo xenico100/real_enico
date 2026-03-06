@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import {
+  createEmptyVisitSourceBreakdown,
+  parseVisitMeta,
+  type VisitSource,
+} from '@/lib/analytics/visitSource';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
@@ -49,6 +54,14 @@ function isAdminEmail(email: string | null | undefined) {
   return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
 }
 
+function appendSourceCount(
+  bucket: ReturnType<typeof createEmptyVisitSourceBreakdown>,
+  source: VisitSource,
+  amount: number,
+) {
+  bucket[source] += amount;
+}
+
 export async function GET(request: Request) {
   const config = getServerConfig();
   if (!config) {
@@ -90,6 +103,7 @@ export async function GET(request: Request) {
     dateKst: string;
     visitorCount: number;
     pageHitCount: number;
+    sourceVisitors: ReturnType<typeof createEmptyVisitSourceBreakdown>;
     createdRoomCount: number;
     messageCount: number;
   }> = [];
@@ -103,10 +117,11 @@ export async function GET(request: Request) {
 
     let visitorCount = 0;
     let pageHitCount = 0;
+    const sourceVisitors = createEmptyVisitSourceBreakdown();
 
     const { data: visitorRows, error: visitorsError } = await serviceClient
       .from('site_daily_visitors')
-      .select('hit_count')
+      .select('hit_count,last_path')
       .eq('visit_date', dateKst)
       .limit(50000);
 
@@ -119,10 +134,15 @@ export async function GET(request: Request) {
 
     if (!visitorsError) {
       visitorCount = (visitorRows || []).length;
-      pageHitCount = (visitorRows || []).reduce((sum: number, row: { hit_count?: number }) => {
-        const hitCount = Number(row.hit_count || 0);
-        return sum + (Number.isFinite(hitCount) ? hitCount : 0);
-      }, 0);
+      pageHitCount = (visitorRows || []).reduce(
+        (sum: number, row: { hit_count?: number; last_path?: string | null }) => {
+          const source = parseVisitMeta(row.last_path).source;
+          appendSourceCount(sourceVisitors, source, 1);
+          const hitCount = Number(row.hit_count || 0);
+          return sum + (Number.isFinite(hitCount) ? hitCount : 0);
+        },
+        0,
+      );
     }
 
     const { count: createdRoomCountValue, error: roomError } = await serviceClient
@@ -155,6 +175,7 @@ export async function GET(request: Request) {
       dateKst,
       visitorCount,
       pageHitCount,
+      sourceVisitors,
       createdRoomCount: createdRoomCountValue || 0,
       messageCount: messageCountValue || 0,
     });
@@ -166,12 +187,18 @@ export async function GET(request: Request) {
     (acc, row) => ({
       totalVisitors: acc.totalVisitors + row.visitorCount,
       totalPageHits: acc.totalPageHits + row.pageHitCount,
+      totalSourceVisitors: {
+        instagram: acc.totalSourceVisitors.instagram + row.sourceVisitors.instagram,
+        youtube: acc.totalSourceVisitors.youtube + row.sourceVisitors.youtube,
+        other: acc.totalSourceVisitors.other + row.sourceVisitors.other,
+      },
       totalCreatedRooms: acc.totalCreatedRooms + row.createdRoomCount,
       totalMessages: acc.totalMessages + row.messageCount,
     }),
     {
       totalVisitors: 0,
       totalPageHits: 0,
+      totalSourceVisitors: createEmptyVisitSourceBreakdown(),
       totalCreatedRooms: 0,
       totalMessages: 0,
     },

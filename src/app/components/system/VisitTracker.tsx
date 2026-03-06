@@ -2,8 +2,10 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { inferVisitSource, normalizeVisitSource } from '@/lib/analytics/visitSource';
 
 const TRACK_STORAGE_PREFIX = 'visit_track';
+const SOURCE_STORAGE_PREFIX = 'visit_source';
 
 function toSeoulDateKey(date: Date) {
   return new Intl.DateTimeFormat('sv-SE', {
@@ -50,11 +52,30 @@ export function VisitTracker() {
       window.sessionStorage.setItem(storageKey, '1');
     }
 
+    let source = 'other';
+    if (typeof window !== 'undefined') {
+      const sourceStorageKey = `${SOURCE_STORAGE_PREFIX}:${dateKey}`;
+      const storedSource = normalizeVisitSource(window.localStorage.getItem(sourceStorageKey));
+      const inferredSource = inferVisitSource({
+        currentUrl: window.location.href,
+        referrer: document.referrer,
+      });
+
+      source =
+        inferredSource !== 'other'
+          ? inferredSource
+          : storedSource !== 'other'
+            ? storedSource
+            : 'other';
+
+      window.localStorage.setItem(sourceStorageKey, source);
+    }
+
     const cancelIdleTask = requestWhenIdle(() => {
       void fetch('/api/analytics/visit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: pathname }),
+        body: JSON.stringify({ path: pathname, source }),
         keepalive: true,
       }).catch(() => undefined);
     });
