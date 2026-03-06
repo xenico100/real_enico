@@ -108,7 +108,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[70] bg-black/95 p-2 md:p-5"
+        className="fixed inset-0 z-[70] flex items-center justify-center overflow-hidden bg-black/95 px-2 pt-[calc(env(safe-area-inset-top)+8px)] pb-[calc(env(safe-area-inset-bottom)+8px)] md:p-5"
         data-lenis-prevent
         onClick={onClose}
       >
@@ -117,7 +117,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 40, opacity: 0 }}
           transition={{ duration: 0.28, ease: 'easeOut' }}
-          className="relative mx-auto flex h-[min(940px,96vh)] w-[min(1480px,98vw)] flex-col overflow-hidden rounded-[28px] border border-[#17332f] bg-[#07110f] text-[#d9fff7] shadow-[0_40px_120px_rgba(0,0,0,0.75)]"
+          className="relative flex h-full w-full max-w-[1480px] flex-col overflow-hidden rounded-[22px] border border-[#17332f] bg-[#07110f] text-[#d9fff7] shadow-[0_40px_120px_rgba(0,0,0,0.75)] md:h-[min(940px,calc(100dvh-2.5rem))] md:w-[min(1480px,calc(100vw-2.5rem))] md:rounded-[28px]"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="pointer-events-none absolute inset-0 opacity-[0.08] bg-[linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:18px_18px]" />
