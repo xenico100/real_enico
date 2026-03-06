@@ -75,6 +75,7 @@ type OrderRecord = {
   channel: string;
   paymentMethod: string;
   paymentStatus: string;
+  paymentReceiptUrl: string;
   currency: string;
   amountSubtotal: number;
   amountShipping: number;
@@ -818,6 +819,31 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                   <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송 메모</p>
                   <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
                 </div>
+
+                {order.paymentReceiptUrl ? (
+                  <div className="border border-[#333] bg-[#0d0d0d] p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                        이체확인 사진
+                      </p>
+                      <a
+                        href={order.paymentReceiptUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
+                      >
+                        새 탭에서 보기
+                      </a>
+                    </div>
+                    <div className="relative aspect-[4/5] overflow-hidden border border-[#333] bg-black">
+                      <img
+                        src={order.paymentReceiptUrl}
+                        alt="이체확인 사진"
+                        className="h-full w-full object-contain bg-black"
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
@@ -1137,6 +1163,31 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                       <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
                       <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
                     </div>
+
+                    {order.paymentReceiptUrl ? (
+                      <div className="border border-[#333] bg-[#0d0d0d] p-3">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                            이체확인 사진
+                          </p>
+                          <a
+                            href={order.paymentReceiptUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
+                          >
+                            새 탭에서 보기
+                          </a>
+                        </div>
+                        <div className="relative aspect-[4/5] overflow-hidden border border-[#333] bg-black">
+                          <img
+                            src={order.paymentReceiptUrl}
+                            alt="이체확인 사진"
+                            className="h-full w-full object-contain bg-black"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
 
                     <div className="border border-[#333] bg-black p-3 space-y-2">
                       <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">배송정보 입력</p>

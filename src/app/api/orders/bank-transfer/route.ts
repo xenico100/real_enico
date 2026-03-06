@@ -4,6 +4,7 @@ import {
   generateGuestOrderNumber,
   hashGuestLookupPassword,
 } from '@/lib/orders/guestLookup';
+import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -24,6 +25,7 @@ type BankTransferOrderPayload = {
   transactionId: string;
   channel: OrderChannel;
   guestLookupPassword: string | null;
+  paymentReceiptUrl?: string | null;
   customer: {
     name: string;
     email: string;
@@ -173,6 +175,10 @@ function validatePayload(body: unknown): BankTransferOrderPayload | null {
     transactionId: payload.transactionId.trim(),
     channel: payload.channel,
     guestLookupPassword: normalizedGuestLookupPassword,
+    paymentReceiptUrl:
+      typeof payload.paymentReceiptUrl === 'string' && payload.paymentReceiptUrl.trim()
+        ? payload.paymentReceiptUrl.trim()
+        : null,
     customer: {
       name: customer.name.trim(),
       email: customer.email.trim(),
@@ -200,10 +206,14 @@ function validatePayload(body: unknown): BankTransferOrderPayload | null {
 }
 
 function buildRawPayload(payload: BankTransferOrderPayload) {
-  return {
+  const basePayload = {
     ...payload,
     guestLookupPassword: payload.channel === 'guest' ? '[REDACTED]' : null,
   };
+
+  const rawPayload = parseOrderRawPayload(basePayload) || {};
+  rawPayload.paymentReceiptUrl = payload.paymentReceiptUrl || null;
+  return rawPayload;
 }
 
 function buildEmailText(payload: BankTransferOrderPayload, guestOrderNumber: string | null) {
@@ -230,6 +240,7 @@ function buildEmailText(payload: BankTransferOrderPayload, guestOrderNumber: str
     ...(payload.bankAccount.accountHolder
       ? [`예금주: ${payload.bankAccount.accountHolder}`]
       : []),
+    ...(payload.paymentReceiptUrl ? [`이체확인 이미지: ${payload.paymentReceiptUrl}`] : []),
     '',
     '[결제 금액]',
     `상품합계: ${formatKrw(payload.pricing.subtotal)}`,

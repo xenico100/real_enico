@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { X, Trash2, CreditCard, ShieldCheck, Truck } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
@@ -127,6 +127,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const checkoutScrollRef = useRef<HTMLDivElement | null>(null);
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
+  const paymentReceiptInputRef = useRef<HTMLInputElement | null>(null);
   const checkoutEmailInputRef = useRef<HTMLInputElement | null>(null);
   const checkoutPhoneInputRef = useRef<HTMLInputElement | null>(null);
   const checkoutNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -147,6 +148,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [paypalRetryNonce, setPaypalRetryNonce] = useState(0);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [paymentReceiptUrl, setPaymentReceiptUrl] = useState('');
+  const [paymentReceiptPreviewUrl, setPaymentReceiptPreviewUrl] = useState('');
+  const [paymentReceiptFileName, setPaymentReceiptFileName] = useState('');
+  const [isUploadingPaymentReceipt, setIsUploadingPaymentReceipt] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -156,7 +161,19 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     setCheckoutMessage(null);
     setCheckoutError(null);
     setGuestLookupPassword('');
+    setPaymentReceiptUrl('');
+    setPaymentReceiptPreviewUrl('');
+    setPaymentReceiptFileName('');
+    setIsUploadingPaymentReceipt(false);
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (paymentReceiptPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(paymentReceiptPreviewUrl);
+      }
+    };
+  }, [paymentReceiptPreviewUrl]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.email) return;
@@ -355,6 +372,75 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     checkoutPhone,
   ]);
 
+  const resetPaymentReceiptState = useCallback(() => {
+    setPaymentReceiptUrl('');
+    setPaymentReceiptFileName('');
+    setPaymentReceiptPreviewUrl((previous) => {
+      if (previous.startsWith('blob:')) {
+        URL.revokeObjectURL(previous);
+      }
+      return '';
+    });
+    if (paymentReceiptInputRef.current) {
+      paymentReceiptInputRef.current.value = '';
+    }
+  }, []);
+
+  const handlePaymentReceiptUpload = useCallback(
+    async (file: File) => {
+      setCheckoutError(null);
+      setIsUploadingPaymentReceipt(true);
+
+      const previewUrl = URL.createObjectURL(file);
+      setPaymentReceiptPreviewUrl((previous) => {
+        if (previous.startsWith('blob:')) {
+          URL.revokeObjectURL(previous);
+        }
+        return previewUrl;
+      });
+      setPaymentReceiptFileName(file.name);
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('transactionId', transactionId);
+
+        const response = await fetch('/api/orders/receipt-upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const payload = (await response.json()) as {
+          message?: string;
+          receiptUrl?: string;
+        };
+
+        if (!response.ok || !payload.receiptUrl) {
+          throw new Error(payload.message || '이체확인 이미지 업로드에 실패했습니다.');
+        }
+
+        setPaymentReceiptUrl(payload.receiptUrl);
+      } catch (error) {
+        resetPaymentReceiptState();
+        setCheckoutError(
+          error instanceof Error ? error.message : '이체확인 이미지 업로드에 실패했습니다.',
+        );
+      } finally {
+        setIsUploadingPaymentReceipt(false);
+      }
+    },
+    [resetPaymentReceiptState, transactionId],
+  );
+
+  const handlePaymentReceiptChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      await handlePaymentReceiptUpload(file);
+    },
+    [handlePaymentReceiptUpload],
+  );
+
   const submitBankTransferOrder = async (channel: OrderChannel) => {
     const normalizedName = checkoutName.trim();
     const normalizedAddress = checkoutAddress.trim();
@@ -365,6 +451,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     setCheckoutError(null);
 
     if (!validateCheckoutFields(normalizedEmail)) return;
+
+    if (isUploadingPaymentReceipt) {
+      announceCheckoutError('이체확인 이미지 업로드가 끝난 뒤 다시 시도해 주세요.');
+      return;
+    }
 
     if (channel === 'member' && !isAuthenticated) {
       announceCheckoutError('회원 구매는 로그인 상태에서만 가능합니다.');
@@ -400,6 +491,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             accountNumber: BANK_ACCOUNT_NUMBER,
             accountHolder: BANK_ACCOUNT_HOLDER,
           },
+          paymentReceiptUrl: paymentReceiptUrl || undefined,
           pricing: {
             subtotal,
             shipping,
@@ -444,6 +536,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       setCheckoutAddress('');
       setCheckoutPhone('');
       setGuestLookupPassword('');
+      resetPaymentReceiptState();
       setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : '주문 전송에 실패했습니다.');
@@ -627,6 +720,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     user?.email,
     announceCheckoutError,
     validateCheckoutFields,
+    paymentReceiptUrl,
+    isUploadingPaymentReceipt,
+    resetPaymentReceiptState,
   ]);
 
   return (
@@ -915,6 +1011,78 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </button>
                 ) : (
                   <div className="space-y-2">
+                    <input
+                      ref={paymentReceiptInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                      className="hidden"
+                      onChange={(event) => void handlePaymentReceiptChange(event)}
+                    />
+
+                    <div className="mb-3 border border-[#333] bg-[#101010] px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
+                            이체확인 사진
+                          </p>
+                          <p className="mt-2 text-[10px] leading-relaxed text-[#8a8a8a]">
+                            송금 완료 화면을 올리면 관리자 주문목록에서 바로 확인할 수 있습니다.
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-[#8fd6c8]">
+                          {isUploadingPaymentReceipt
+                            ? '업로드중'
+                            : paymentReceiptUrl
+                              ? '업로드완료'
+                              : '선택안됨'}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => paymentReceiptInputRef.current?.click()}
+                          disabled={isUploadingPaymentReceipt}
+                          className="border border-[#00ffd1]/45 bg-[#081a17] px-3 py-3 text-xs uppercase tracking-[0.16em] text-[#bafff0] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] disabled:opacity-50"
+                        >
+                          {isUploadingPaymentReceipt
+                            ? '업로드중...'
+                            : paymentReceiptUrl
+                              ? '사진 다시 올리기'
+                              : '사진 선택'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetPaymentReceiptState}
+                          disabled={isUploadingPaymentReceipt && !paymentReceiptUrl}
+                          className="border border-[#333] bg-black px-3 py-3 text-xs uppercase tracking-[0.16em] text-[#aaa] transition-colors hover:border-[#e5e5e5] hover:text-[#e5e5e5] disabled:opacity-50"
+                        >
+                          삭제
+                        </button>
+                      </div>
+
+                      <p className="mt-2 text-[10px] text-[#717171]">
+                        JPG / PNG / WEBP / HEIC, 최대 8MB
+                      </p>
+
+                      {(paymentReceiptPreviewUrl || paymentReceiptUrl) ? (
+                        <div className="mt-3 overflow-hidden border border-[#333] bg-black">
+                          <div className="relative aspect-[4/5] w-full">
+                            <img
+                              src={paymentReceiptPreviewUrl || paymentReceiptUrl}
+                              alt="이체확인 업로드 미리보기"
+                              className="h-full w-full object-contain bg-black"
+                            />
+                          </div>
+                          <div className="border-t border-[#333] px-3 py-2">
+                            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-[#8fd6c8]">
+                              {paymentReceiptFileName || '업로드된 이체확인 이미지'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
                     {!isAuthenticated && (
                       <div className="mb-3 border border-[#333] bg-[#101010] px-4 py-3">
                         <label className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
@@ -938,7 +1106,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
-                        disabled={isSubmittingOrder}
+                        disabled={isSubmittingOrder || isUploadingPaymentReceipt}
                         className={`group relative overflow-hidden px-3 py-3 text-left uppercase tracking-[0.1em] shadow-[0_0_0_1px_rgba(0,255,209,0.12)] transition-all duration-200 md:px-4 md:py-4 ${
                           isAuthenticated
                             ? 'border border-[#00ffd1] bg-[#00ffd1] text-black hover:bg-[#b7fff2]'
@@ -976,7 +1144,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('guest')}
-                        disabled={isSubmittingOrder}
+                        disabled={isSubmittingOrder || isUploadingPaymentReceipt}
                         className="min-h-[68px] bg-[#00ffd1] px-3 py-3 text-center font-heading text-[0.95rem] uppercase tracking-[0.08em] text-black transition-colors hover:bg-white disabled:opacity-50 md:px-4 md:py-4 md:text-lg md:tracking-[0.16em]"
                       >
                         {isSubmittingOrder ? '처리중...' : '비회원 구매'}

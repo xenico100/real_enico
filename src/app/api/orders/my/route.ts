@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
 type OrderRow = {
   id: string;
@@ -19,6 +20,7 @@ type OrderRow = {
   customer_country: string | null;
   customer_address: string | null;
   items: unknown;
+  raw_payload: unknown;
   shipping_status: string | null;
   shipping_company: string | null;
   tracking_number: string | null;
@@ -109,7 +111,7 @@ export async function GET(request: Request) {
   const { data, error } = await serviceClient
     .from('orders')
     .select(
-      'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, items, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at',
+      'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, items, raw_payload, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at',
     )
     .ilike('customer_email', targetEmail)
     .order('created_at', { ascending: false })
@@ -151,6 +153,7 @@ export async function GET(request: Request) {
     customerPhone: normalizeText(row.customer_phone),
     customerCountry: normalizeText(row.customer_country),
     customerAddress: normalizeText(row.customer_address),
+    paymentReceiptUrl: extractPaymentReceiptUrl(row.raw_payload),
     items: normalizeItems(row.items),
     shippingStatus: normalizeText(row.shipping_status || 'preparing'),
     shippingCompany: normalizeText(row.shipping_company),
