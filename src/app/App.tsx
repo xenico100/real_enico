@@ -6,6 +6,7 @@ import { SubcultureHeader } from '@/app/components/subculture/SubcultureHeader';
 import { HeroSection } from '@/app/components/subculture/HeroSection';
 import { ProductShowcase } from '@/app/components/subculture/ProductShowcase';
 import { CollectionSection } from '@/app/components/subculture/CollectionSection';
+import { CollectionDetailPopup } from '@/app/components/subculture/CollectionDetailPopup';
 import { FashionCartProvider } from '@/app/context/FashionCartContext';
 import type { Collection } from '@/lib/storefront/collectionCatalog';
 import type { Product } from '@/lib/storefront/productCatalog';
@@ -21,13 +22,6 @@ const InfoPopup = dynamic(
 const ProductDetailPopup = dynamic(
   () =>
     import('@/app/components/subculture/ProductDetailPopup').then((mod) => mod.ProductDetailPopup),
-  { loading: () => null },
-);
-const CollectionDetailPopup = dynamic(
-  () =>
-    import('@/app/components/subculture/CollectionDetailPopup').then(
-      (mod) => mod.CollectionDetailPopup,
-    ),
   { loading: () => null },
 );
 const RandomChatModal = dynamic(
