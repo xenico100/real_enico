@@ -232,9 +232,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     };
     const timeoutId = window.setTimeout(() => {
       if (!window.paypal) {
-        setPaypalError('PayPal 버튼 로드가 지연되고 있습니다. 다시 시도해 주세요.');
+        setPaypalError('PayPal 버튼 로딩이 평소보다 느립니다. 잠시 후 다시 시도해 주세요.');
       }
-    }, 6000);
+    }, 15000);
 
     if (existingScript) {
       if (existingScript.src !== scriptUrl) {
@@ -269,20 +269,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       script.removeEventListener('error', handleError);
     };
   }, [isOpen, mode, paypalRetryNonce]);
-
-  useEffect(() => {
-    if (!isOpen || mode !== 'checkout') return;
-    if (!PAYPAL_CLIENT_ID) return;
-    if (!paypalError) return;
-
-    const retryTimer = window.setTimeout(() => {
-      if (!window.paypal) {
-        setPaypalRetryNonce((value) => value + 1);
-      }
-    }, 800);
-
-    return () => window.clearTimeout(retryTimer);
-  }, [isOpen, mode, paypalError]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const canCheckout = cart.length > 0;
