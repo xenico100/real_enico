@@ -82,7 +82,8 @@ export async function POST(request: Request) {
       return Boolean(user.email) && metaName === fullName && metaPhone === phone;
     })
     .map((user) => maskEmail(user.email || ''))
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 1);
 
   if (matches.length === 0) {
     return NextResponse.json(
@@ -93,6 +94,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     message: '일치하는 계정을 찾았습니다.',
-    emails: Array.from(new Set(matches)).slice(0, 5),
+    emails: Array.from(new Set(matches)),
   });
 }

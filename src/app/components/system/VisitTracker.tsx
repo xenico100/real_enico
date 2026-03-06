@@ -14,6 +14,25 @@ function toSeoulDateKey(date: Date) {
   }).format(date);
 }
 
+function requestWhenIdle(callback: () => void) {
+  if (typeof window === 'undefined') {
+    return () => undefined;
+  }
+
+  const browserWindow = globalThis as typeof globalThis & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+  if (typeof browserWindow.requestIdleCallback === 'function') {
+    const idleId = browserWindow.requestIdleCallback(() => callback(), { timeout: 1500 });
+    return () => browserWindow.cancelIdleCallback?.(idleId);
+  }
+
+  const timeoutId = globalThis.setTimeout(callback, 350);
+  return () => globalThis.clearTimeout(timeoutId);
+}
+
 export function VisitTracker() {
   const pathname = usePathname();
 
@@ -31,12 +50,16 @@ export function VisitTracker() {
       window.sessionStorage.setItem(storageKey, '1');
     }
 
-    void fetch('/api/analytics/visit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: pathname }),
-      keepalive: true,
-    }).catch(() => undefined);
+    const cancelIdleTask = requestWhenIdle(() => {
+      void fetch('/api/analytics/visit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: pathname }),
+        keepalive: true,
+      }).catch(() => undefined);
+    });
+
+    return cancelIdleTask;
   }, [pathname]);
 
   return null;

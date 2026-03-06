@@ -2,8 +2,6 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
-import { motion } from 'motion/react';
 import {
   DEFAULT_PRODUCT_CATEGORY,
   PRODUCT_CATEGORIES,
@@ -11,6 +9,8 @@ import {
   type ProductCategory,
 } from '@/app/constants/productCategories';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { shouldBypassImageOptimization } from '@/lib/images';
+import type { StorefrontProductRow } from '@/lib/storefront/shared';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 
 export interface Product {
@@ -117,22 +117,6 @@ const fallbackProducts: Product[] = productsSeed.map((product, index) => {
     images: Array.from(new Set([product.image, ...extraImages])),
   };
 });
-
-type ProductDbRow = {
-  id: string;
-  title?: string | null;
-  category?: string | null;
-  description?: string | null;
-  specs?: string | null;
-  price?: number | string | null;
-  thumbnail_url?: string | null;
-  images?: unknown;
-  detail_html?: string | null;
-  raw?: unknown;
-  is_published?: boolean | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
 
 const FALLBACK_IMAGE_URL = 'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
 
@@ -509,7 +493,7 @@ function inferCategoryFromUploadHints(title: string | null | undefined): Product
   return null;
 }
 
-function inferCategoryFromImagePath(row: ProductDbRow): ProductCategory | null {
+function inferCategoryFromImagePath(row: StorefrontProductRow): ProductCategory | null {
   const imageCandidates = normalizeImagesForProduct(row.images, row.thumbnail_url ?? null, row.raw)
     .map((item) => item.toLowerCase());
 
@@ -524,7 +508,7 @@ function inferCategoryFromImagePath(row: ProductDbRow): ProductCategory | null {
   return null;
 }
 
-function resolveCategory(row: ProductDbRow) {
+function resolveCategory(row: StorefrontProductRow) {
   if (row.category && isProductCategory(row.category)) {
     return row.category;
   }
@@ -556,7 +540,7 @@ function resolveCategory(row: ProductDbRow) {
   return inferCategory(`${explicit} ${row.title || ''}`);
 }
 
-function mapDbRowToProduct(row: ProductDbRow): Product | null {
+function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
   const images = normalizeImagesForProduct(
     row.images,
     row.thumbnail_url ?? null,
@@ -627,24 +611,39 @@ function sortProductsByCsvLatest(products: Product[]) {
 }
 
 interface ProductShowcaseProps {
+  initialProducts?: StorefrontProductRow[];
   onProductClick: (product: Product) => void;
 }
 
-export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
+function mapProductRows(rows: StorefrontProductRow[]) {
+  return sortProductsByCsvLatest(
+    rows
+      .map(mapDbRowToProduct)
+      .filter((item): item is Product => Boolean(item)),
+  );
+}
+
+export function ProductShowcase({
+  initialProducts = [],
+  onProductClick,
+}: ProductShowcaseProps) {
   const { cart, addToCart } = useFashionCart();
+  const hasInitialProducts = initialProducts.length > 0;
   const [activeCategory, setActiveCategory] = useState('전체');
-  const [isHydrated, setIsHydrated] = useState(false);
-  const [dbProducts, setDbProducts] = useState<Product[] | null>(null);
-  const [isUsingFallbackCatalog, setIsUsingFallbackCatalog] = useState(false);
+  const [dbProducts, setDbProducts] = useState<Product[] | null>(() => {
+    const serverProducts = mapProductRows(initialProducts);
+    return serverProducts.length > 0 ? serverProducts : null;
+  });
+  const [isUsingFallbackCatalog, setIsUsingFallbackCatalog] = useState(() => !hasInitialProducts);
   const [isLoadingDbProducts, setIsLoadingDbProducts] = useState(false);
   const [dbLoadError, setDbLoadError] = useState<string | null>(null);
   const categories = ['전체', ...PRODUCT_CATEGORIES];
 
   useEffect(() => {
-    setIsHydrated(true);
-  }, []);
+    if (hasInitialProducts) {
+      return;
+    }
 
-  useEffect(() => {
     let active = true;
 
     const loadProducts = async () => {
@@ -696,11 +695,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
         if (error) throw error;
         if (!active) return;
 
-        const normalized = ((data ?? []) as Array<Record<string, unknown>>)
-          .map((row) => row as ProductDbRow)
-          .map(mapDbRowToProduct)
-          .filter((item): item is Product => Boolean(item));
-        const sortedByCsvLatest = sortProductsByCsvLatest(normalized);
+        const sortedByCsvLatest = mapProductRows((data ?? []) as StorefrontProductRow[]);
 
         if (sortedByCsvLatest.length === 0) {
           setDbProducts(fallbackProducts);
@@ -725,7 +720,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [hasInitialProducts]);
 
   const catalogProducts = dbProducts ?? fallbackProducts;
 
@@ -746,14 +741,11 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
   const productCards = filteredProducts.map((product) => {
     const isInCart = cartProductIds.has(product.id);
     const isSoldOut = Boolean(product.isSoldOut);
+    const shouldUseDirectImage = shouldBypassImageOptimization(product.image);
 
     return (
-      <motion.div
+      <div
         key={product.id}
-        initial={{ opacity: 0, y: 50 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5 }}
         onClick={() => onProductClick(product)}
         className="group cursor-pointer relative bg-[#111] border border-[#333] hover:border-[#00ffd1] transition-colors duration-300"
       >
@@ -766,7 +758,8 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
           src={product.image}
           alt={product.name}
           fill
-          sizes="(max-width: 900px) 33vw, 25vw"
+          unoptimized={shouldUseDirectImage}
+          sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
           className="object-contain object-center bg-black"
         />
         
@@ -828,7 +821,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
          </div>
       </div>
 
-      </motion.div>
+      </div>
     );
   });
 
@@ -891,11 +884,9 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
                     const isActive = activeCategory === cat;
 
                     return (
-                      <motion.button
+                      <button
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
-                        whileHover={{ y: -2, rotate: isActive ? -1.2 : -0.6 }}
-                        whileTap={{ scale: 0.98, y: 0 }}
                         className={`group relative overflow-hidden border-2 px-3 py-3 text-left transition-all duration-200 ${
                           isActive
                             ? 'border-black bg-[#111] text-[#fff6e8] shadow-[4px_4px_0_0_#c93b31] -rotate-[1deg]'
@@ -926,7 +917,7 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
                         <span className="mt-2 block font-mono text-[10px] uppercase tracking-[0.18em] text-current/60">
                           {isActive ? 'selected now' : 'open filter'}
                         </span>
-                      </motion.button>
+                      </button>
                     );
                   })}
                 </div>
@@ -953,16 +944,9 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
           </div>
         )}
 
-        {/* Grid */}
-        {isHydrated ? (
-          <ResponsiveMasonry columnsCountBreakPoints={{ 0: 3, 900: 4 }}>
-            <Masonry gutter="0.65rem">{productCards}</Masonry>
-          </ResponsiveMasonry>
-        ) : (
-          <div className="grid grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
-            {productCards}
-          </div>
-        )}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
+          {productCards}
+        </div>
 
       </div>
     </section>

@@ -1,3 +1,5 @@
+import 'server-only';
+
 import crypto from 'crypto';
 
 const R2_BUCKET = 'product-images';

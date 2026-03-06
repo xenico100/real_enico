@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
+import { shouldBypassImageOptimization } from '@/lib/images';
 import { useMemo, useRef, useState, type TouchEventHandler } from 'react';
 import type { Product } from '@/app/components/subculture/ProductShowcase';
 
@@ -57,6 +58,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   const detailImages = productImages
     .map((image, index) => ({ image, index }))
     .filter(({ index }) => index > 0);
+  const shouldUseDirectActiveImage = shouldBypassImageOptimization(activeImage);
 
 
   const moveImage = (direction: 'next' | 'prev') => {
@@ -146,7 +148,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
-              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay z-10" />
+              <div className="absolute inset-0 z-10 opacity-15 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.16)_1px,transparent_0)] bg-[size:14px_14px]" />
               {activeImage ? (
                 <Image
                   key={activeImage}
@@ -154,6 +156,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                   alt={`${product.name} 상세 이미지 ${activeImageIndex + 1}`}
                   fill
                   priority
+                  unoptimized={shouldUseDirectActiveImage}
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-contain bg-black"
                 />
@@ -206,6 +209,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                           src={image}
                           alt={`${product.name} 썸네일 ${index + 1}`}
                           fill
+                          unoptimized={shouldBypassImageOptimization(image)}
                           sizes="(max-width: 768px) 25vw, 12vw"
                           className="object-contain bg-black"
                         />
@@ -376,6 +380,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                               src={image}
                               alt={`${product.name} 상세보기 ${index + 1}`}
                               fill
+                              unoptimized={shouldBypassImageOptimization(image)}
                               sizes="(max-width: 768px) 100vw, 50vw"
                               className="object-contain bg-black"
                             />

@@ -1,10 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Trash2, CreditCard, ShieldCheck, Truck } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
+import { shouldBypassImageOptimization } from '@/lib/images';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface CartOverlayProps {
@@ -247,7 +248,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       ? Math.max(1, Math.round(total)).toString()
       : Math.max(1, Math.round((total / 1350) * 100) / 100).toFixed(2);
 
-  const validateCheckoutFields = (emailOverride?: string) => {
+  const validateCheckoutFields = useCallback((emailOverride?: string) => {
     const normalizedName = checkoutName.trim();
     const normalizedAddress = checkoutAddress.trim();
     const normalizedPhone = checkoutPhone.trim();
@@ -264,7 +265,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     }
 
     return true;
-  };
+  }, [canCheckout, checkoutAddress, checkoutEmail, checkoutName, checkoutPhone]);
 
   const submitBankTransferOrder = async (channel: OrderChannel) => {
     const normalizedName = checkoutName.trim();
@@ -538,6 +539,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     total,
     transactionId,
     user?.email,
+    validateCheckoutFields,
   ]);
 
   return (
@@ -559,7 +561,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             transition={{ type: 'tween', ease: 'circOut', duration: 0.45 }}
             className="fixed top-0 right-0 h-full w-full md:w-[560px] bg-[#0a0a0a] border-l border-[#333] z-[90] flex flex-col font-mono text-[#e5e5e5]"
           >
-            <div className="p-6 md:p-7 border-b border-[#333] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
+            <div className="border-b border-[#333] p-6 md:p-7 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:14px_14px]">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] text-[#00ffd1] uppercase tracking-[0.2em]">결제 콘솔</p>
@@ -668,6 +670,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                                 src={item.image}
                                 alt=""
                                 fill
+                                unoptimized={shouldBypassImageOptimization(item.image)}
                                 sizes="80px"
                                 className="object-contain bg-black grayscale contrast-125"
                               />

@@ -1,29 +1,55 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { ReactLenis, type LenisRef } from 'lenis/react';
+import dynamic from 'next/dynamic';
+import { useEffect, useState } from 'react';
 import { SubcultureHeader } from '@/app/components/subculture/SubcultureHeader';
 import { HeroSection } from '@/app/components/subculture/HeroSection';
 import { ProductShowcase } from '@/app/components/subculture/ProductShowcase';
 import { CollectionSection } from '@/app/components/subculture/CollectionSection';
-import { CartOverlay } from '@/app/components/subculture/CartOverlay';
-import { InfoPopup } from '@/app/components/subculture/InfoPopup';
-import { ProductDetailPopup } from '@/app/components/subculture/ProductDetailPopup';
-import { CollectionDetailPopup } from '@/app/components/subculture/CollectionDetailPopup';
 import { FashionCartProvider } from '@/app/context/FashionCartContext';
-import { RandomChatModal } from '@/features/randomChat/RandomChatModal';
 import type { Collection } from '@/app/components/subculture/CollectionSection';
 import type { Product } from '@/app/components/subculture/ProductShowcase';
+import type {
+  StorefrontCollectionRow,
+  StorefrontProductRow,
+} from '@/lib/storefront/shared';
 
-export default function App() {
+const CartOverlay = dynamic(
+  () => import('@/app/components/subculture/CartOverlay').then((mod) => mod.CartOverlay),
+  { loading: () => null },
+);
+const InfoPopup = dynamic(
+  () => import('@/app/components/subculture/InfoPopup').then((mod) => mod.InfoPopup),
+  { loading: () => null },
+);
+const ProductDetailPopup = dynamic(
+  () =>
+    import('@/app/components/subculture/ProductDetailPopup').then((mod) => mod.ProductDetailPopup),
+  { loading: () => null },
+);
+const CollectionDetailPopup = dynamic(
+  () =>
+    import('@/app/components/subculture/CollectionDetailPopup').then(
+      (mod) => mod.CollectionDetailPopup,
+    ),
+  { loading: () => null },
+);
+const RandomChatModal = dynamic(
+  () => import('@/features/randomChat/RandomChatModal').then((mod) => mod.RandomChatModal),
+  { loading: () => null },
+);
+
+interface AppProps {
+  initialProductRows?: StorefrontProductRow[];
+  initialCollectionRows?: StorefrontCollectionRow[];
+}
+
+export default function App({ initialProductRows, initialCollectionRows }: AppProps) {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'mypage' | null>(null);
   const [isRandomChatOpen, setIsRandomChatOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-  const [isGlitching, setIsGlitching] = useState(false);
-  const [isBootFxActive, setIsBootFxActive] = useState(true);
-  const lenisRef = useRef<LenisRef | null>(null);
   const isOverlayOpen =
     isCartOpen ||
     isRandomChatOpen ||
@@ -32,79 +58,26 @@ export default function App() {
     Boolean(selectedCollection);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setIsBootFxActive(false);
-      setIsGlitching(false);
-    }, 7000);
-
-    return () => clearTimeout(timeout);
-  }, []);
-
-  // Random glitch trigger
-  useEffect(() => {
-    if (!isBootFxActive) return;
-
-    const interval = setInterval(() => {
-      if (Math.random() > 0.95) {
-        setIsGlitching(true);
-        setTimeout(() => setIsGlitching(false), 150);
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [isBootFxActive]);
-
-  useEffect(() => {
     if (typeof window === 'undefined') return;
-    const html = document.documentElement;
     const body = document.body;
-    const lenis = lenisRef.current?.lenis;
     const previousBodyOverflow = body.style.overflow;
 
     if (isOverlayOpen) {
-      lenis?.stop();
-      html.classList.add('lenis-stopped');
       body.style.overflow = 'hidden';
     } else {
-      lenis?.start();
-      html.classList.remove('lenis-stopped');
       body.style.overflow = '';
     }
 
     return () => {
-      lenis?.start();
-      html.classList.remove('lenis-stopped');
       body.style.overflow = previousBodyOverflow;
     };
   }, [isOverlayOpen]);
 
   return (
     <FashionCartProvider>
-      <ReactLenis ref={lenisRef} root options={{
-        duration: 1.2,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-        orientation: 'vertical',
-        gestureOrientation: 'vertical',
-        smoothWheel: true,
-        wheelMultiplier: 1,
-        touchMultiplier: 2,
-      }}>
-      <div className={`w-full min-h-screen bg-[#050505] text-[#e5e5e5] overflow-x-hidden relative font-mono selection:bg-[#00ffd1] selection:text-black ${isBootFxActive && isGlitching ? 'invert hue-rotate-90' : ''}`}>
-        
-        {/* NOISE OVERLAY */}
-        <div className="fixed inset-0 pointer-events-none z-[100] opacity-[0.15] mix-blend-overlay">
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-150 contrast-150" />
-        </div>
-
-        {/* SCANLINES */}
-        <div className="fixed inset-0 pointer-events-none z-[90] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none opacity-20" />
-
-        {/* VIGNETTE */}
-        <div className="fixed inset-0 pointer-events-none z-[80] bg-[radial-gradient(circle_at_center,transparent_50%,rgba(0,0,0,0.8)_100%)]" />
-
-        {/* FLICKER EFFECT (intro only) */}
-        {isBootFxActive && (
-          <div className="fixed inset-0 pointer-events-none z-[110] bg-black opacity-[0.02] animate-pulse" />
-        )}
+      <div className="relative min-h-screen w-full overflow-x-hidden bg-[#050505] font-mono text-[#e5e5e5] selection:bg-[#00ffd1] selection:text-black">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_22%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.14] bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:28px_28px]" />
 
         <SubcultureHeader 
           onCartClick={() => setIsCartOpen(true)}
@@ -114,14 +87,19 @@ export default function App() {
         
         <main className="relative z-10">
           <HeroSection />
-          <ProductShowcase onProductClick={setSelectedProduct} />
-          <CollectionSection onCollectionClick={setSelectedCollection} />
+          <ProductShowcase
+            initialProducts={initialProductRows}
+            onProductClick={setSelectedProduct}
+          />
+          <CollectionSection
+            initialCollections={initialCollectionRows}
+            onCollectionClick={setSelectedCollection}
+          />
         </main>
         
-        <CartOverlay 
-          isOpen={isCartOpen} 
-          onClose={() => setIsCartOpen(false)} 
-        />
+        {isCartOpen ? (
+          <CartOverlay isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+        ) : null}
         
         {activePopup && (
           <InfoPopup 
@@ -144,12 +122,13 @@ export default function App() {
           />
         )}
 
-        <RandomChatModal
-          open={isRandomChatOpen}
-          onClose={() => setIsRandomChatOpen(false)}
-        />
+        {isRandomChatOpen ? (
+          <RandomChatModal
+            open={isRandomChatOpen}
+            onClose={() => setIsRandomChatOpen(false)}
+          />
+        ) : null}
       </div>
-      </ReactLenis>
     </FashionCartProvider>
   );
 }

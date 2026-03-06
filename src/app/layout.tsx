@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "../styles/index.css";
 import { AuthProvider } from "@/app/context/AuthContext";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { VisitTracker } from "@/app/components/system/VisitTracker";
 
 export const metadata: Metadata = {
@@ -26,7 +25,6 @@ export default function RootLayout({
         <AuthProvider>
           <VisitTracker />
           {children}
-          <SpeedInsights />
         </AuthProvider>
       </body>
     </html>

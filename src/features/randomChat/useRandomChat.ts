@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import { getSupabaseClient } from '@/lib/supabaseClient';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export type RandomChatMessage = {
   id: string;
@@ -120,7 +120,12 @@ export function useRandomChat(enabled: boolean) {
 
   const getClient = useCallback(() => {
     if (clientRef.current) return clientRef.current;
-    const client = getSupabaseClient();
+    const client = getSupabaseBrowserClient();
+    if (!client) {
+      throw new Error(
+        'Supabase env가 없어 단체랜덤채팅을 사용할 수 없습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 확인하세요.',
+      );
+    }
     clientRef.current = client;
     return client;
   }, []);

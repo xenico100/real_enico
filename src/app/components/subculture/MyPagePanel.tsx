@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
+import { shouldBypassImageOptimization } from '@/lib/images';
 import { AccountAuthPanel } from './AccountAuthPanel';
 
 type MyPageTab =
@@ -874,7 +875,14 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             {cart.map((item) => (
               <div key={`${item.id}-${item.selectedSize ?? ''}`} className="border border-[#333] bg-[#0f0f0f] p-3 flex items-center gap-3">
                 <div className="w-12 aspect-[4/5] border border-[#333] bg-black overflow-hidden shrink-0 relative">
-                  <Image src={item.image} alt="" fill sizes="48px" className="object-contain bg-black" />
+                  <Image
+                    src={item.image}
+                    alt=""
+                    fill
+                    unoptimized={shouldBypassImageOptimization(item.image)}
+                    sizes="48px"
+                    className="object-contain bg-black"
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-[#e5e5e5] truncate">{item.name}</p>

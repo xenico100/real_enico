@@ -2,8 +2,9 @@
 
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'motion/react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { shouldBypassImageOptimization } from '@/lib/images';
+import type { StorefrontCollectionRow } from '@/lib/storefront/shared';
 
 export interface Collection {
   id: string;
@@ -16,21 +17,6 @@ export interface Collection {
   releaseDate: string;
   fullDescription: string;
 }
-
-type CollectionRow = {
-  id: string;
-  title: string | null;
-  season: string | null;
-  description: string | null;
-  full_description: string | null;
-  release_date: string | null;
-  items: number | string | null;
-  image: string | null;
-  images: unknown;
-  is_published?: boolean | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
 
 const fallbackCollections: Collection[] = [
   {
@@ -110,7 +96,7 @@ function normalizeCollectionImages(value: unknown, primaryImage?: string | null)
   return Array.from(new Set(parsed.map((item) => item.trim()).filter(Boolean)));
 }
 
-function mapCollectionRow(row: CollectionRow): Collection {
+function mapCollectionRow(row: StorefrontCollectionRow): Collection {
   const images = normalizeCollectionImages(row.images, row.image);
   const numericItems = Number(row.items);
 
@@ -133,16 +119,32 @@ function isOtakuCollection(collection: Collection) {
 }
 
 interface CollectionSectionProps {
+  initialCollections?: StorefrontCollectionRow[];
   onCollectionClick: (collection: Collection) => void;
 }
 
-export function CollectionSection({ onCollectionClick }: CollectionSectionProps) {
+function mapCollectionRows(rows: StorefrontCollectionRow[]) {
+  return rows.map(mapCollectionRow);
+}
+
+export function CollectionSection({
+  initialCollections = [],
+  onCollectionClick,
+}: CollectionSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [collections, setCollections] = useState<Collection[] | null>(null);
+  const hasInitialCollections = initialCollections.length > 0;
+  const [collections, setCollections] = useState<Collection[] | null>(() => {
+    const serverCollections = mapCollectionRows(initialCollections);
+    return serverCollections.length > 0 ? serverCollections : null;
+  });
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
   const [collectionLoadError, setCollectionLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (hasInitialCollections) {
+      return;
+    }
+
     let active = true;
 
     const loadCollections = async () => {
@@ -171,9 +173,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
         if (error) throw error;
         if (!active) return;
 
-        const mapped = ((data ?? []) as Array<Record<string, unknown>>)
-          .map((row) => row as CollectionRow)
-          .map(mapCollectionRow);
+        const mapped = mapCollectionRows((data ?? []) as StorefrontCollectionRow[]);
         const ordered = [...mapped].sort((a, b) => {
           const aOtaku = isOtakuCollection(a) ? 1 : 0;
           const bOtaku = isOtakuCollection(b) ? 1 : 0;
@@ -195,15 +195,14 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
     return () => {
       active = false;
     };
-  }, []);
+  }, [hasInitialCollections]);
 
   const visibleCollections = collections ?? fallbackCollections;
 
   return (
     <section id="collection-section" className="py-20 bg-[#e5e5e5] text-black relative overflow-hidden scroll-mt-24" ref={containerRef}>
       
-      {/* Tape/Paper Background Effect */}
-      <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/crumpled-paper.png')]" />
+      <div className="absolute inset-0 opacity-20 bg-[linear-gradient(rgba(0,0,0,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[size:18px_18px]" />
 
       <div className="px-6 md:px-12 relative z-10">
         <div className="flex flex-col md:flex-row justify-between items-end mb-20 border-b-4 border-black pb-4">
@@ -232,14 +231,10 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
             </p>
           </div>
         ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-          {visibleCollections.map((collection, index) => (
-            <motion.div
+        <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3">
+          {visibleCollections.map((collection) => (
+            <div
               key={collection.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              viewport={{ once: true }}
               onClick={() => onCollectionClick(collection)}
               className="group cursor-pointer relative"
             >
@@ -257,6 +252,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
                        src={collection.image} 
                        alt={collection.title}
                        fill
+                       unoptimized={shouldBypassImageOptimization(collection.image)}
                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                        className="object-contain bg-white"
                      />
@@ -302,7 +298,7 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
                 {/* Tape Effect */}
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-8 bg-[#e5e5e5] opacity-80 rotate-[-2deg] shadow-sm z-30" />
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
         )}

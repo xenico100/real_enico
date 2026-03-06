@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRef, useState, type TouchEventHandler } from 'react';
+import { shouldBypassImageOptimization } from '@/lib/images';
 import type { Collection } from './CollectionSection';
 
 interface CollectionDetailPopupProps {
@@ -111,7 +112,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEnd}
                 >
-                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none z-10" />
+                  <div className="absolute inset-0 z-10 opacity-15 pointer-events-none bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.16)_1px,transparent_0)] bg-[size:14px_14px]" />
 
                   {hasImages ? (
                     <Image
@@ -120,6 +121,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                       alt="컬렉션 이미지"
                       fill
                       priority
+                      unoptimized={shouldBypassImageOptimization(imageList[safeImageIndex] || '')}
                       sizes="(max-width: 1024px) 100vw, 62vw"
                       className="object-contain bg-black"
                     />
@@ -187,6 +189,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                              src={image}
                              alt={`상세 이미지 ${index + 1}`}
                              fill
+                             unoptimized={shouldBypassImageOptimization(image)}
                              sizes="(max-width: 1024px) 33vw, 14vw"
                              className="object-contain bg-black"
                            />
