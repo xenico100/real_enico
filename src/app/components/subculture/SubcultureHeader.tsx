@@ -83,7 +83,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
           </motion.div>
 
           {/* Desktop Nav */}
-          <nav className="pointer-events-auto relative right-6 z-[51] hidden md:flex flex-col items-end gap-2 font-mono text-sm lg:right-10 xl:right-12">
+          <nav className="pointer-events-auto relative z-[51] hidden md:flex flex-col items-end gap-2 font-mono text-sm">
             {navItems.map((item, i) => (
               (() => {
                 const isFunctional = item.key === 'mypage' || item.key === 'randomChat';
@@ -114,7 +114,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
             
             <button
               onClick={onCartClick}
-              className="mt-4 group relative w-full min-w-[220px] overflow-hidden border border-[#333] bg-black/60 px-3 py-3 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:border-[#00ffd1] hover:shadow-[0_0_30px_rgba(0,255,209,0.24)]"
+              className="mt-4 group relative w-full min-w-[220px] overflow-visible border border-[#333] bg-black/60 px-3 py-3 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:border-[#00ffd1] hover:shadow-[0_0_30px_rgba(0,255,209,0.24)]"
             >
               <span className="pointer-events-none absolute inset-y-2 left-4 right-4 rounded-full bg-[#00ffd1]/0 blur-xl transition-all duration-200 group-hover:bg-[#00ffd1]/18" />
               <div className="flex items-center justify-between gap-3">
