@@ -138,10 +138,17 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           className="relative w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] bg-[#0a0a0a] border border-[#333] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#00ffd1]/10"
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            onClick={onClose}
+            className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[120] inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#333] bg-black text-white shadow-[0_0_18px_rgba(0,0,0,0.45)] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] md:hidden"
+            aria-label="상품 닫기"
+          >
+            <X size={18} />
+          </button>
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-50 text-[#e5e5e5] hover:text-[#00ffd1] bg-black p-2 border border-[#333] hover:border-[#00ffd1] transition-all"
+            className="absolute top-4 right-4 z-50 hidden bg-black p-2 text-[#e5e5e5] transition-all hover:border-[#00ffd1] hover:text-[#00ffd1] md:block md:border md:border-[#333]"
           >
             <X size={24} />
           </button>

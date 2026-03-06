@@ -404,7 +404,7 @@ export function AccountAuthPanel() {
 
   return (
     <div className="space-y-4 font-mono">
-      <div className="grid grid-cols-1 gap-1 rounded-2xl border border-white/10 bg-[#0b0b0b] p-1 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2 sm:grid-cols-3 sm:gap-1 sm:p-1">
         <button
           type="button"
           onClick={() => {
@@ -412,7 +412,7 @@ export function AccountAuthPanel() {
             clearMessages();
             setSignupError(null);
           }}
-          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
+          className={`rounded-xl border px-3 py-3 text-center text-[11px] leading-tight uppercase tracking-[0.16em] transition-colors ${
             activeTab === 'signup'
               ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
               : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
@@ -426,7 +426,7 @@ export function AccountAuthPanel() {
             setActiveTab('recover');
             clearMessages();
           }}
-          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
+          className={`rounded-xl border px-3 py-3 text-center text-[11px] leading-tight uppercase tracking-[0.16em] transition-colors ${
             activeTab === 'recover'
               ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
               : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
@@ -440,7 +440,7 @@ export function AccountAuthPanel() {
             setActiveTab('guestOrder');
             clearMessages();
           }}
-          className={`rounded-xl border px-3 py-3 text-xs uppercase tracking-widest transition-colors ${
+          className={`rounded-xl border px-3 py-3 text-center text-[11px] leading-tight uppercase tracking-[0.16em] transition-colors ${
             activeTab === 'guestOrder'
               ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
               : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'

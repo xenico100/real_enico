@@ -72,11 +72,10 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
         <button
           type="button"
           onClick={onClose}
-          className="fixed md:hidden right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[120] inline-flex items-center gap-1 rounded-full border border-[#00ffd1] bg-black/95 px-3 py-2 text-[11px] font-mono uppercase tracking-widest text-[#00ffd1] shadow-[0_0_18px_rgba(0,255,209,0.35)]"
+          className="fixed md:hidden right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[120] inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#333] bg-black text-white shadow-[0_0_18px_rgba(0,0,0,0.45)] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1]"
           aria-label="컬렉션 닫기"
         >
-          <span>닫기</span>
-          <X size={16} />
+          <X size={18} />
         </button>
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#00ffd1] to-transparent z-50" />
         

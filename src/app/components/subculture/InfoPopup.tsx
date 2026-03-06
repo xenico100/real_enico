@@ -240,18 +240,18 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="h-16 border-b border-[#333] flex items-center justify-between px-6 bg-[#0a0a0a]">
-             <div className="flex items-center gap-3 min-w-0">
+          <div className="relative min-h-[76px] border-b border-[#333] bg-[#0a0a0a] px-4 py-3 md:h-16 md:px-6 md:py-0">
+             <div className="flex min-w-0 flex-col gap-2 pr-14 md:h-full md:flex-row md:items-center md:gap-3">
                {type === 'mypage' && (
                  <button
                    onClick={onClose}
-                   className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-[#333] bg-[#111] text-[#ddd] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors rounded-lg"
+                   className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-[#333] bg-black px-2.5 py-1.5 text-xs text-[#ddd] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1]"
                  >
                    <ChevronLeft size={14} />
                    뒤로가기
                  </button>
                )}
-               <span className="font-heading text-2xl uppercase tracking-tighter text-[#e5e5e5] truncate">
+               <span className="font-heading text-xl uppercase tracking-tighter text-[#e5e5e5] md:text-2xl truncate">
                  {type === 'about'
                    ? 'ENICO VECK'
                      : type === 'contact'
@@ -259,13 +259,16 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
                        : myPageTitle}
                </span>
              </div>
-             <button onClick={onClose} className="text-[#666] hover:text-[#00ffd1] transition-colors">
+             <button
+               onClick={onClose}
+               className="absolute right-4 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#333] bg-black text-white transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] md:top-1/2 md:right-6 md:-translate-y-1/2"
+             >
                <X size={24} />
              </button>
           </div>
 
           {/* Content Body */}
-          <div className={`${type === 'mypage' ? 'p-3 md:p-5 max-h-[82vh]' : 'p-8 max-h-[70vh]'} overflow-y-auto`}>
+          <div className={`${type === 'mypage' ? 'p-3 md:p-5 max-h-[82vh]' : 'p-4 md:p-8 max-h-[70vh]'} overflow-y-auto`}>
             {content[type]}
           </div>
 
