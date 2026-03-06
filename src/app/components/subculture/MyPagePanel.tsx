@@ -1402,6 +1402,17 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
 
   return (
     <div className="font-mono h-full min-h-0">
+      {onBack && !adminComposer ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[165] inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black text-white shadow-[0_0_18px_rgba(0,0,0,0.45)] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] md:hidden"
+          aria-label="마이페이지 닫기"
+        >
+          ×
+        </button>
+      ) : null}
+
       <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col rounded-[28px] border border-white/10 bg-[#0d0d0d] p-3 md:p-4">
         <div className="rounded-[24px] border border-white/10 bg-[#121212] p-4 md:p-5">
           <div className="flex flex-col gap-4 text-center md:text-left">
@@ -1522,6 +1533,15 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
 
       {adminComposer && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center p-2 md:p-4">
+          <button
+            type="button"
+            onClick={() => setAdminComposer(null)}
+            className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[180] inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black text-white shadow-[0_0_18px_rgba(0,0,0,0.45)] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] md:hidden"
+            aria-label="관리자 페이지 닫기"
+          >
+            ×
+          </button>
+
           <button
             type="button"
             aria-label="close admin composer"
