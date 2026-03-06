@@ -22,6 +22,7 @@ const BANK_ACCOUNT_HOLDER = '백형석';
 const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpperCase();
+const CHECKOUT_REGIONS = ['서울', '구역_1 (미국)', '구역_2 (영국)', '구역_3 (아시아)'] as const;
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -125,10 +126,16 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const { isAuthenticated, user, profile } = useAuth();
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
+  const checkoutEmailInputRef = useRef<HTMLInputElement | null>(null);
+  const checkoutPhoneInputRef = useRef<HTMLInputElement | null>(null);
+  const checkoutNameInputRef = useRef<HTMLInputElement | null>(null);
+  const checkoutRegionSelectRef = useRef<HTMLSelectElement | null>(null);
+  const checkoutAddressInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const guestPasswordInputRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<CheckoutMode>('cart');
   const [transactionId, setTransactionId] = useState('');
   const [checkoutEmail, setCheckoutEmail] = useState('');
-  const [checkoutCountry, setCheckoutCountry] = useState('구역_1 (미국)');
+  const [checkoutCountry, setCheckoutCountry] = useState<string>(CHECKOUT_REGIONS[0]);
   const [checkoutName, setCheckoutName] = useState('');
   const [checkoutAddress, setCheckoutAddress] = useState('');
   const [checkoutPhone, setCheckoutPhone] = useState('');
@@ -248,24 +255,78 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       ? Math.max(1, Math.round(total)).toString()
       : Math.max(1, Math.round((total / 1350) * 100) / 100).toFixed(2);
 
+  const announceCheckoutError = useCallback(
+    (
+      message: string,
+      target?:
+        | HTMLInputElement
+        | HTMLTextAreaElement
+        | HTMLSelectElement
+        | null,
+    ) => {
+      setCheckoutError(message);
+      if (typeof window !== 'undefined') {
+        window.alert(message);
+      }
+      if (target) {
+        requestAnimationFrame(() => {
+          target.focus();
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
+    },
+    [],
+  );
+
   const validateCheckoutFields = useCallback((emailOverride?: string) => {
     const normalizedName = checkoutName.trim();
     const normalizedAddress = checkoutAddress.trim();
     const normalizedPhone = checkoutPhone.trim();
     const normalizedEmail = (emailOverride ?? checkoutEmail).trim();
 
-    if (!normalizedName || !normalizedAddress || !normalizedPhone || !normalizedEmail) {
-      setCheckoutError('이름, 주소, 핸드폰 번호, 이메일을 모두 입력하세요.');
+    if (!normalizedEmail) {
+      announceCheckoutError('주문정보를 입력하세요. 이메일이 비어 있습니다.', checkoutEmailInputRef.current);
+      return false;
+    }
+
+    if (!normalizedPhone) {
+      announceCheckoutError(
+        '주문정보를 입력하세요. 핸드폰 번호가 비어 있습니다.',
+        checkoutPhoneInputRef.current,
+      );
+      return false;
+    }
+
+    if (!normalizedName) {
+      announceCheckoutError('주문정보를 입력하세요. 수령인 이름이 비어 있습니다.', checkoutNameInputRef.current);
+      return false;
+    }
+
+    if (!checkoutCountry.trim()) {
+      announceCheckoutError('주문정보를 입력하세요. 구역을 선택해 주세요.', checkoutRegionSelectRef.current);
+      return false;
+    }
+
+    if (!normalizedAddress) {
+      announceCheckoutError('주문정보를 입력하세요. 주소가 비어 있습니다.', checkoutAddressInputRef.current);
       return false;
     }
 
     if (!canCheckout) {
-      setCheckoutError('장바구니가 비어 있습니다.');
+      announceCheckoutError('장바구니가 비어 있습니다.');
       return false;
     }
 
     return true;
-  }, [canCheckout, checkoutAddress, checkoutEmail, checkoutName, checkoutPhone]);
+  }, [
+    announceCheckoutError,
+    canCheckout,
+    checkoutAddress,
+    checkoutCountry,
+    checkoutEmail,
+    checkoutName,
+    checkoutPhone,
+  ]);
 
   const submitBankTransferOrder = async (channel: OrderChannel) => {
     const normalizedName = checkoutName.trim();
@@ -279,13 +340,16 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     if (!validateCheckoutFields(normalizedEmail)) return;
 
     if (channel === 'member' && !isAuthenticated) {
-      setCheckoutError('회원 구매는 로그인 상태에서만 가능합니다.');
+      announceCheckoutError('회원 구매는 로그인 상태에서만 가능합니다.');
       return;
     }
 
     const normalizedGuestLookupPassword = guestLookupPassword.trim();
     if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
-      setCheckoutError('비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.');
+      announceCheckoutError(
+        '비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.',
+        guestPasswordInputRef.current,
+      );
       return;
     }
 
@@ -390,7 +454,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
         }
 
         if (!isAuthenticated && guestLookupPassword.trim().length < 4) {
-          setCheckoutError('비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.');
+          announceCheckoutError(
+            '비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.',
+            guestPasswordInputRef.current,
+          );
           await actions.reject();
           return;
         }
@@ -539,6 +606,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     total,
     transactionId,
     user?.email,
+    announceCheckoutError,
     validateCheckoutFields,
   ]);
 
@@ -568,9 +636,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   <h2 className="text-3xl md:text-4xl font-heading font-black uppercase tracking-tighter leading-none mt-2">
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
-                  <p className="text-[10px] text-[#666] uppercase tracking-widest mt-2">
-                    거래번호: {transactionId || '생성중'}
-                  </p>
                 </div>
                 <button
                   onClick={onClose}
@@ -590,7 +655,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       : 'border-[#333] bg-[#111] text-[#888] hover:border-[#00ffd1]'
                   }`}
                 >
-                  <p className="text-[10px] uppercase tracking-widest text-[#666]">단계 01</p>
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-xs uppercase tracking-widest">상품</span>
                     <span className="text-[10px] text-[#00ffd1]">{itemCount}</span>
@@ -606,7 +670,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       : 'border-[#333] bg-[#111] text-[#888] hover:border-[#00ffd1]'
                   } disabled:opacity-50 disabled:hover:border-[#333]`}
                 >
-                  <p className="text-[10px] uppercase tracking-widest text-[#666]">단계 02</p>
                   <div className="mt-2">
                     <span className="text-xs uppercase tracking-widest">결제</span>
                   </div>
@@ -724,6 +787,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           이메일
                         </label>
                         <input
+                          ref={checkoutEmailInputRef}
                           type="email"
                           value={checkoutEmail}
                           onChange={(e) => setCheckoutEmail(e.target.value)}
@@ -736,6 +800,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           핸드폰 번호
                         </label>
                         <input
+                          ref={checkoutPhoneInputRef}
                           type="tel"
                           value={checkoutPhone}
                           onChange={(e) => setCheckoutPhone(e.target.value)}
@@ -748,6 +813,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           수령인 이름
                         </label>
                         <input
+                          ref={checkoutNameInputRef}
                           type="text"
                           value={checkoutName}
                           onChange={(e) => setCheckoutName(e.target.value)}
@@ -764,13 +830,16 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <div>
                         <label className="block text-[10px] text-[#666] mb-2 uppercase">구역 (국가)</label>
                         <select
+                          ref={checkoutRegionSelectRef}
                           value={checkoutCountry}
                           onChange={(e) => setCheckoutCountry(e.target.value)}
                           className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
                         >
-                          <option>구역_1 (미국)</option>
-                          <option>구역_2 (영국)</option>
-                          <option>구역_3 (아시아)</option>
+                          {CHECKOUT_REGIONS.map((region) => (
+                            <option key={region} value={region}>
+                              {region}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -778,6 +847,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           주소
                         </label>
                         <textarea
+                          ref={checkoutAddressInputRef}
                           value={checkoutAddress}
                           onChange={(e) => setCheckoutAddress(e.target.value)}
                           rows={3}
@@ -791,6 +861,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             비회원 주문조회 비밀번호 (4자 이상)
                           </label>
                           <input
+                            ref={guestPasswordInputRef}
                             type="password"
                             value={guestLookupPassword}
                             onChange={(e) => setGuestLookupPassword(e.target.value)}
