@@ -30,7 +30,7 @@ export type StorefrontCollectionRow = {
 };
 
 export const STOREFRONT_PRODUCT_SELECT =
-  'id, title, category, description, specs, price, thumbnail_url, images, detail_html, raw, is_published, created_at, updated_at';
+  '*';
 
 export const STOREFRONT_COLLECTION_SELECT =
   'id, title, season, description, full_description, release_date, items, image, images, is_published, created_at, updated_at';
