@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -252,10 +253,12 @@ export function CollectionSection({ onCollectionClick }: CollectionSectionProps)
                 <div className="relative aspect-[4/5] overflow-hidden border border-black mb-6">
                    <div className="absolute inset-0 bg-[#00ffd1] mix-blend-multiply opacity-0 group-hover:opacity-40 transition-opacity duration-300 z-10" />
                    {collection.image ? (
-                     <img 
+                     <Image
                        src={collection.image} 
                        alt={collection.title}
-                       className="w-full h-full object-contain bg-white"
+                       fill
+                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                       className="object-contain bg-white"
                      />
                    ) : (
                      <div className="w-full h-full bg-white flex items-center justify-center font-mono text-xs text-black/50">

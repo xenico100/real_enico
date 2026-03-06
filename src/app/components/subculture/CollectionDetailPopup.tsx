@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRef, useState, type TouchEventHandler } from 'react';
@@ -113,11 +114,14 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                   <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none z-10" />
 
                   {hasImages ? (
-                    <img
-                      key={safeImageIndex}
+                    <Image
+                      key={imageList[safeImageIndex]}
                       src={imageList[safeImageIndex]}
                       alt="컬렉션 이미지"
-                      className="max-w-full max-h-full w-auto h-auto object-contain bg-black"
+                      fill
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 62vw"
+                      className="object-contain bg-black"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center font-mono text-xs text-[#666]">
@@ -179,10 +183,12 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                                : 'border-[#333] hover:border-[#00ffd1]/70'
                            }`}
                          >
-                           <img
+                           <Image
                              src={image}
                              alt={`상세 이미지 ${index + 1}`}
-                             className="w-full h-full object-contain bg-black"
+                             fill
+                             sizes="(max-width: 1024px) 33vw, 14vw"
+                             className="object-contain bg-black"
                            />
                          </button>
                        ))}

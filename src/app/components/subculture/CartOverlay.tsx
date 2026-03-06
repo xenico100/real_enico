@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { X, Trash2, CreditCard, ShieldCheck, Truck } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
@@ -663,7 +664,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         <div key={`${item.id}-${item.selectedSize ?? 'na'}`} className="border border-[#333] bg-[#0f0f0f] p-4">
                           <div className="flex gap-4">
                             <div className="w-20 aspect-[4/5] bg-[#111] border border-[#333] shrink-0 relative overflow-hidden">
-                              <img src={item.image} alt="" className="w-full h-full object-contain bg-black grayscale contrast-125" />
+                              <Image
+                                src={item.image}
+                                alt=""
+                                fill
+                                sizes="80px"
+                                className="object-contain bg-black grayscale contrast-125"
+                              />
                               <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 hover:opacity-20 transition-opacity" />
                             </div>
 

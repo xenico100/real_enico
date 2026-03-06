@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { motion, useScroll, useTransform } from 'motion/react';
 import { useState, useEffect } from 'react';
 
@@ -41,10 +42,13 @@ export function HeroSection() {
       
       {/* Background Video/Image Placeholder - Gritty Industrial */}
       <div className="absolute inset-0 z-0 opacity-40 mix-blend-hard-light grayscale contrast-125">
-        <img 
+        <Image
           src="https://images.unsplash.com/photo-1691922475317-5e2ce2bcd3c9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwaW5kdXN0cmlhbCUyMGJhc2VtZW50JTIwZ3J1bmdlJTIwdGV4dHVyZWQlMjBibGFjayUyMGFuZCUyMHdoaXRlfGVufDF8fHx8MTc3MTgyMDMxMHww&ixlib=rb-4.1.0&q=80&w=1080"
-          className="w-full h-full object-cover"
           alt="background"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
         />
       </div>
 
@@ -60,10 +64,13 @@ export function HeroSection() {
 
       <motion.div style={{ y: y2 }} className="absolute bottom-1/3 right-10 z-10 hidden md:block">
         <div className="bg-[#00ffd1] p-1 rotate-[3deg]">
-          <img 
+          <Image
             src="https://images.unsplash.com/photo-1653372512929-5ac36eb22a73?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzb2FwJTIwYmFyJTIwcGluayUyMG1pbmltYWxpc3R8ZW58MXx8fHwxNzcxODIwMzEwfDA&ixlib=rb-4.1.0&q=80&w=1080"
-            className="w-32 h-32 object-cover grayscale hover:grayscale-0 transition-all duration-300 mix-blend-multiply"
             alt="soap"
+            width={128}
+            height={128}
+            sizes="128px"
+            className="w-32 h-32 object-cover grayscale hover:grayscale-0 transition-all duration-300 mix-blend-multiply"
           />
           <div className="bg-black text-white text-[10px] font-mono p-1 text-center mt-1">
             99.44% 순도

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
@@ -147,10 +148,14 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
             >
               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay z-10" />
               {activeImage ? (
-                <img
+                <Image
+                  key={activeImage}
                   src={activeImage}
                   alt={`${product.name} 상세 이미지 ${activeImageIndex + 1}`}
-                  className="w-full h-full object-contain bg-black"
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-contain bg-black"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-[#111] text-[#666] font-mono text-xs">
@@ -197,10 +202,12 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                       } transition-colors`}
                     >
                       {image ? (
-                        <img
+                        <Image
                           src={image}
                           alt={`${product.name} 썸네일 ${index + 1}`}
-                          className="w-full h-full object-contain bg-black"
+                          fill
+                          sizes="(max-width: 768px) 25vw, 12vw"
+                          className="object-contain bg-black"
                         />
                       ) : (
                         <div className="w-full h-full bg-[#111] flex items-center justify-center text-[10px] text-[#555] font-mono">
@@ -364,11 +371,13 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                               : 'border-[#333] bg-[#101010] hover:border-[#00ffd1]/70'
                           }`}
                         >
-                          <div className="border border-[#222] bg-black">
-                            <img
+                          <div className="relative border border-[#222] bg-black aspect-[1080/1350]">
+                            <Image
                               src={image}
                               alt={`${product.name} 상세보기 ${index + 1}`}
-                              className="block w-full h-auto object-contain bg-black"
+                              fill
+                              sizes="(max-width: 768px) 100vw, 50vw"
+                              className="object-contain bg-black"
                             />
                           </div>
                           <p className="mt-2 font-mono text-[10px] text-[#7e7e7e]">

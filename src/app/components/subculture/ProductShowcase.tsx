@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import Masonry, { ResponsiveMasonry } from 'react-responsive-masonry';
 import { motion } from 'motion/react';
@@ -757,14 +758,16 @@ export function ProductShowcase({ onProductClick }: ProductShowcaseProps) {
         className="group cursor-pointer relative bg-[#111] border border-[#333] hover:border-[#00ffd1] transition-colors duration-300"
       >
       {/* Image Container */}
-      <div className="relative overflow-hidden bg-black md:aspect-[1080/1350]">
+      <div className="relative overflow-hidden bg-black aspect-[1080/1350]">
         <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 group-hover:opacity-20 z-10 transition-opacity duration-300" />
         
         {/* Image */}
-        <img
+        <Image
           src={product.image}
           alt={product.name}
-          className="w-full h-auto md:h-full object-contain object-center bg-black"
+          fill
+          sizes="(max-width: 900px) 33vw, 25vw"
+          className="object-contain object-center bg-black"
         />
         
         {/* Glitch Overlay Elements on Hover */}

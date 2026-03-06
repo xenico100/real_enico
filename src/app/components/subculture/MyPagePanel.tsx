@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
@@ -872,9 +873,8 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           <div className="space-y-2">
             {cart.map((item) => (
               <div key={`${item.id}-${item.selectedSize ?? ''}`} className="border border-[#333] bg-[#0f0f0f] p-3 flex items-center gap-3">
-                <div className="w-12 aspect-[4/5] border border-[#333] bg-black overflow-hidden shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.image} alt="" className="w-full h-full object-contain bg-black" />
+                <div className="w-12 aspect-[4/5] border border-[#333] bg-black overflow-hidden shrink-0 relative">
+                  <Image src={item.image} alt="" fill sizes="48px" className="object-contain bg-black" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-[#e5e5e5] truncate">{item.name}</p>

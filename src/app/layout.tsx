@@ -16,6 +16,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        <link rel="preconnect" href="https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev" crossOrigin="" />
+        <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev" />
+        <link rel="dns-prefetch" href="https://images.unsplash.com" />
+      </head>
       <body>
         <AuthProvider>
           <VisitTracker />
