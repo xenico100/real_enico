@@ -87,7 +87,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           
           <h3 className="text-[#00ffd1] text-xl font-bold mb-4 uppercase">브랜드 소개</h3>
           <p className="text-sm leading-relaxed mb-4">
-            저같은 사람도 옷을 만듭니다. 응원해주세요.
+            저같은 사람도 옷을 만듭니다. 몰입하세요.
           </p>
           <p className="text-sm leading-relaxed mb-4">
             enico veck은 서브컬처를 좋아하는 사람들,
