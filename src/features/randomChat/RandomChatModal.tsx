@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ArrowLeft, Send, Wifi, WifiOff } from 'lucide-react';
+import { ArrowLeft, Send, Wifi, WifiOff, X } from 'lucide-react';
 import { useRandomChat } from '@/features/randomChat/useRandomChat';
 
 type RandomChatModalProps = {
@@ -134,15 +134,14 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
 
   return (
     <div
-      className="fixed inset-x-0 z-[220] flex items-center justify-center overflow-hidden bg-[#020409]/96 px-3 py-[calc(env(safe-area-inset-top)+14px)] md:bg-black/80 md:px-6 md:py-6 md:backdrop-blur-sm"
+      className="pointer-events-none fixed inset-x-0 z-[220] flex items-center justify-center overflow-hidden px-3 py-[calc(env(safe-area-inset-top)+14px)] md:px-6 md:py-6"
       style={viewportStyle || { top: 0, bottom: 0 }}
-      onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="단체랜덤채팅"
     >
       <div
-        className="flex h-full max-h-full w-full max-w-[860px] flex-col overflow-hidden rounded-[24px] border border-[#232734] bg-[#050912] text-[#f3f6ff] shadow-[0_28px_120px_rgba(0,0,0,0.55)] md:h-auto md:max-h-[88vh]"
+        className="pointer-events-auto flex h-[min(72vh,760px)] w-full max-w-[min(560px,92vw)] flex-col overflow-hidden rounded-[24px] border border-[#232734] bg-[#050912] text-[#f3f6ff] shadow-[0_28px_120px_rgba(0,0,0,0.62)]"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="shrink-0 border-b border-[#1a2233] px-3 py-2.5 md:px-5 md:py-4 bg-[#070d1a]">
@@ -171,9 +170,19 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-1 text-[11px] text-[#9aa7bf]">
-              {realtimeConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
-              <span>{realtimeConnected ? '실시간' : '동기화'}</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-[11px] text-[#9aa7bf]">
+                {realtimeConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+                <span>{realtimeConnected ? '실시간' : '동기화'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#283245] bg-[#111827] text-[#dbe3f4] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1]"
+                aria-label="채팅 팝업 닫기"
+              >
+                <X size={17} />
+              </button>
             </div>
           </div>
         </header>

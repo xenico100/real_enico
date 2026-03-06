@@ -47,9 +47,8 @@ export default function App({
   const [isRandomChatOpen, setIsRandomChatOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-  const isOverlayOpen =
+  const shouldLockBodyScroll =
     isCartOpen ||
-    isRandomChatOpen ||
     Boolean(activePopup) ||
     Boolean(selectedProduct) ||
     Boolean(selectedCollection);
@@ -59,7 +58,7 @@ export default function App({
     const body = document.body;
     const previousBodyOverflow = body.style.overflow;
 
-    if (isOverlayOpen) {
+    if (shouldLockBodyScroll) {
       body.style.overflow = 'hidden';
     } else {
       body.style.overflow = '';
@@ -68,7 +67,7 @@ export default function App({
     return () => {
       body.style.overflow = previousBodyOverflow;
     };
-  }, [isOverlayOpen]);
+  }, [shouldLockBodyScroll]);
 
   return (
     <FashionCartProvider>
