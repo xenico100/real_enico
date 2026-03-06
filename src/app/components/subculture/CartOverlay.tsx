@@ -124,6 +124,7 @@ function formatKrw(value: number) {
 export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const { cart, removeFromCart, clearCart } = useFashionCart();
   const { isAuthenticated, user, profile } = useAuth();
+  const checkoutScrollRef = useRef<HTMLDivElement | null>(null);
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
   const checkoutEmailInputRef = useRef<HTMLInputElement | null>(null);
@@ -144,6 +145,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [paypalSdkReady, setPaypalSdkReady] = useState(false);
   const [paypalError, setPaypalError] = useState<string | null>(null);
   const [paypalRetryNonce, setPaypalRetryNonce] = useState(0);
+  const [showCheckoutScrollCue, setShowCheckoutScrollCue] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -161,6 +163,17 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     if (!isAuthenticated || !user?.email) return;
     setCheckoutEmail((previous) => previous || user.email || '');
   }, [isAuthenticated, user?.email]);
+
+  const updateCheckoutScrollCue = useCallback(() => {
+    const element = checkoutScrollRef.current;
+    if (!element || mode !== 'checkout') {
+      setShowCheckoutScrollCue(false);
+      return;
+    }
+
+    const remaining = element.scrollHeight - element.clientHeight - element.scrollTop;
+    setShowCheckoutScrollCue(remaining > 160);
+  }, [mode]);
 
   useEffect(() => {
     if (!isOpen || !isAuthenticated) return;
@@ -269,6 +282,19 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       script.removeEventListener('error', handleError);
     };
   }, [isOpen, mode, paypalRetryNonce]);
+
+  useEffect(() => {
+    if (!isOpen || mode !== 'checkout') {
+      setShowCheckoutScrollCue(false);
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      updateCheckoutScrollCue();
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [cart.length, isAuthenticated, isOpen, mode, updateCheckoutScrollCue]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const canCheckout = cart.length > 0;
@@ -653,13 +679,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'tween', ease: 'circOut', duration: 0.45 }}
-            className="fixed top-0 right-0 h-full w-full md:w-[560px] bg-[#0a0a0a] border-l border-[#333] z-[90] flex flex-col font-mono text-[#e5e5e5]"
+            className="fixed inset-x-2 top-2 bottom-2 z-[90] flex h-auto flex-col overflow-hidden rounded-2xl border border-[#333] bg-[#0a0a0a] font-mono text-[#e5e5e5] shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:w-[560px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
           >
-            <div className="border-b border-[#333] p-6 md:p-7 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:14px_14px]">
+            <div className="border-b border-[#333] bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:14px_14px] p-4 md:p-7">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] text-[#00ffd1] uppercase tracking-[0.2em]">결제 콘솔</p>
-                  <h2 className="text-3xl md:text-4xl font-heading font-black uppercase tracking-tighter leading-none mt-2">
+                  <h2 className="mt-2 text-[1.9rem] md:text-4xl font-heading font-black uppercase tracking-tighter leading-none">
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
                 </div>
@@ -671,7 +697,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 </button>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setMode('cart')}
@@ -703,7 +729,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto p-6 md:p-7 space-y-5">
+            <div
+              ref={checkoutScrollRef}
+              onScroll={mode === 'checkout' ? updateCheckoutScrollCue : undefined}
+              className="flex-1 min-h-0 overflow-y-auto p-4 pb-36 md:p-7 md:pb-7 space-y-4 md:space-y-5"
+            >
               <div className="sticky top-0 z-10 border border-[#333] bg-[#0b0b0b]/95 backdrop-blur-md p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -805,6 +835,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 </>
               ) : (
                 <div className="space-y-4">
+                  <div className="border border-[#00ffd1]/35 bg-[#00ffd1]/8 px-4 py-3 text-center">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-[#88ffe8]">
+                      아래로 스크롤해 계좌이체 정보 확인
+                    </p>
+                    <p className="mt-2 text-[11px] text-[#c8fff4]">계좌번호와 결제 안내가 아래에 있습니다.</p>
+                  </div>
+
                   <div className="border border-[#333] bg-[#111] p-4">
                     <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-3">연락처</p>
                     <div className="space-y-3">
@@ -881,24 +918,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5] resize-none"
                         />
                       </div>
-                      {!isAuthenticated && (
-                        <div>
-                          <label className="block text-[10px] text-[#666] mb-2 uppercase">
-                            비회원 주문조회 비밀번호 (4자 이상)
-                          </label>
-                          <input
-                            ref={guestPasswordInputRef}
-                            type="password"
-                            value={guestLookupPassword}
-                            onChange={(e) => setGuestLookupPassword(e.target.value)}
-                            placeholder="비회원 주문조회용 비밀번호 입력"
-                            className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          />
-                          <p className="text-[10px] text-[#777] mt-2">
-                            비회원 주문 완료 후 발급되는 주문번호 + 이 비밀번호로 배송조회가 가능합니다.
-                          </p>
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -946,9 +965,18 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               )}
             </div>
 
+            {mode === 'checkout' && showCheckoutScrollCue ? (
+              <div className="pointer-events-none absolute inset-x-4 bottom-[132px] z-30 md:hidden">
+                <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-[#00ffd1]/45 bg-black/90 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-[#9fffee] shadow-[0_10px_24px_rgba(0,0,0,0.35)]">
+                  <span className="animate-bounce">↓</span>
+                  <span>아래로 내려 계좌이체 확인</span>
+                </div>
+              </div>
+            ) : null}
+
             {canCheckout && (
-              <div className="border-t border-[#333] bg-[#050505] p-6 md:p-7">
-                <div className="mb-4 border border-[#333] bg-[#0d0d0d] p-3">
+              <div className="sticky bottom-0 z-20 border-t border-[#333] bg-[#050505]/96 p-4 pb-[calc(env(safe-area-inset-bottom)+16px)] backdrop-blur-md md:static md:bg-[#050505] md:p-7 md:pb-7">
+                <div className="mb-3 border border-[#333] bg-[#0d0d0d] p-3 md:mb-4">
                   <div className="flex items-center justify-between gap-3 text-xs text-[#888]">
                     <p className="uppercase tracking-widest text-[#666]">상품 금액</p>
                     <p className="text-[#e5e5e5]">{formatKrw(subtotal)}</p>
@@ -962,7 +990,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     <p className="text-lg text-[#00ffd1] mt-1 font-bold">{formatKrw(total)}</p>
                   </div>
                 </div>
-                <div className="inline-flex items-center gap-2 border border-[#333] bg-[#111] px-3 py-2 text-[10px] uppercase tracking-widest">
+                <div className="mb-3 inline-flex items-center gap-2 border border-[#333] bg-[#111] px-3 py-2 text-[10px] uppercase tracking-widest md:mb-4">
                     <CreditCard size={12} className="text-[#00ffd1]" />
                     <span className="text-[#aaa]">계좌이체 주문</span>
                 </div>
@@ -970,12 +998,31 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 {mode === 'cart' ? (
                   <button
                     onClick={() => setMode('checkout')}
-                    className="w-full py-4 bg-[#e5e5e5] text-black font-heading uppercase text-xl hover:bg-[#00ffd1] transition-colors tracking-widest"
+                    className="w-full py-4 bg-[#e5e5e5] text-black font-heading uppercase text-lg md:text-xl hover:bg-[#00ffd1] transition-colors tracking-[0.2em] md:tracking-widest"
                   >
                     결제로 이동
                   </button>
                 ) : (
                   <div className="space-y-2">
+                    {!isAuthenticated && (
+                      <div className="mb-3 border border-[#333] bg-[#101010] p-3">
+                        <label className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
+                          비회원 주문조회 비밀번호
+                        </label>
+                        <input
+                          ref={guestPasswordInputRef}
+                          type="password"
+                          value={guestLookupPassword}
+                          onChange={(e) => setGuestLookupPassword(e.target.value)}
+                          placeholder="4자 이상 입력"
+                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                        />
+                        <p className="mt-2 text-[10px] text-[#8a8a8a]">
+                          비회원 구매 후 주문번호와 이 비밀번호로 배송조회합니다.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <button
                         type="button"
