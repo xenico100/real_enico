@@ -1402,45 +1402,50 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
 
   return (
     <div className="font-mono h-full min-h-0">
-      <div className="rounded-[28px] border border-white/10 bg-[#0d0d0d] p-3 md:p-4 h-full min-h-0">
-        <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-4 md:gap-5 h-full min-h-0">
-          <aside className="rounded-2xl border border-white/10 bg-[#121212] p-3 md:p-4 space-y-3 md:max-h-[calc(82vh-56px)] overflow-y-auto overscroll-contain">
-            <button
-              type="button"
-              onClick={() => {
-                if (onBack) {
-                  onBack();
-                  return;
-                }
-                if (typeof window !== 'undefined' && window.history.length > 1) {
-                  window.history.back();
-                }
-              }}
-              className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-2.5 text-xs text-[#e6e6e6] hover:bg-[#262626] transition-colors"
-            >
-              <ChevronLeft size={14} />
-              뒤로가기
-            </button>
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col rounded-[28px] border border-white/10 bg-[#0d0d0d] p-3 md:p-4">
+        <div className="rounded-[24px] border border-white/10 bg-[#121212] p-4 md:p-5">
+          <div className="flex flex-col gap-4 text-center md:text-left">
+            <div className="flex flex-col items-center gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-2">
+                <p className="text-[11px] uppercase tracking-[0.28em] text-[#8e8e8e]">My Page</p>
+                <div>
+                  <h3 className="text-2xl font-semibold text-[#f5f5f5]">{userDisplayName}</h3>
+                  <p className="mt-1 text-xs text-[#a5a5a5] break-all">{user.email}</p>
+                </div>
+                <p className="text-[11px] text-[#8a8a8a]">
+                  장바구니 {cart.length}개 / {cartSubtotal.toLocaleString('ko-KR')}원
+                </p>
+              </div>
 
-            <div className="rounded-2xl border border-white/10 bg-[#171717] p-3">
-              <p className="text-[11px] text-[#8e8e8e] tracking-wide">마이페이지</p>
-              <h3 className="text-xl font-semibold text-[#f5f5f5] mt-1">{userDisplayName}</h3>
-              <p className="text-xs text-[#a5a5a5] mt-1 break-all">{user.email}</p>
-              <p className="text-[11px] text-[#8a8a8a] mt-3">
-                장바구니 {cart.length}개 / {cartSubtotal.toLocaleString('ko-KR')}원
-              </p>
+              <div className="grid w-full max-w-sm grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto md:min-w-[240px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onBack) {
+                      onBack();
+                      return;
+                    }
+                    if (typeof window !== 'undefined' && window.history.length > 1) {
+                      window.history.back();
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-3 text-sm text-[#e6e6e6] hover:bg-[#262626] transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                  뒤로가기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  disabled={isBusy}
+                  className="inline-flex items-center justify-center rounded-xl border border-red-500/50 bg-red-500/10 px-3 py-3 text-sm text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                >
+                  {isBusy ? '처리중...' : '로그아웃'}
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              disabled={isBusy}
-              className="w-full inline-flex items-center justify-center rounded-xl border border-red-500/50 bg-red-500/10 px-3 py-2.5 text-xs text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-            >
-              {isBusy ? '처리중...' : '로그아웃'}
-            </button>
-
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
               {tabs.map((tab) => {
                 const active = activeTab === tab.id;
                 return (
@@ -1448,72 +1453,71 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                    className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-2xl border px-3 py-3 text-center transition-all ${
                       active
-                        ? 'border-[#7bb8ff]/60 bg-[#7bb8ff]/15 text-[#e8f3ff]'
-                        : 'border-white/15 bg-[#161616] text-[#c8c8c8] hover:bg-[#1f1f1f]'
+                        ? 'border-[#7bb8ff]/70 bg-[#7bb8ff]/15 text-[#eef6ff] shadow-[0_0_0_1px_rgba(123,184,255,0.2)]'
+                        : 'border-white/15 bg-[#171717] text-[#d3d3d3] hover:border-white/30 hover:bg-[#1d1d1d]'
                     }`}
                   >
-                    <span>{tab.label}</span>
-                    {typeof tab.count === 'number' && (
-                      <span className="text-[11px] text-[#9fb8d1]">{tab.count}</span>
-                    )}
+                    <span className="text-sm font-semibold">{tab.label}</span>
+                    <span className={`text-[11px] ${active ? 'text-[#bdd8ff]' : 'text-[#868686]'}`}>
+                      {typeof tab.count === 'number' ? `${tab.count}건` : '메뉴'}
+                    </span>
                   </button>
                 );
               })}
             </div>
 
             {isPrimaryAdmin && (
-              <div className="rounded-xl border border-white/10 bg-[#161616] p-3 space-y-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[#8ea8c7]">게시물 편집 허브</p>
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => openAdminComposer('products')}
-                    className="w-full rounded-lg border border-[#7bb8ff]/40 bg-[#7bb8ff]/10 px-3 py-2.5 text-left text-xs text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
-                  >
-                    <p className="font-semibold">의류 게시물 수정</p>
-                    <p className="text-[10px] text-[#a9c7e7] mt-1">의류 게시글 작성/수정/삭제 화면 열기</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAdminComposer('collections')}
-                    className="w-full rounded-lg border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-2.5 text-left text-xs text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
-                  >
-                    <p className="font-semibold">컬렉션 게시물 수정</p>
-                    <p className="text-[10px] text-[#9fe6d7] mt-1">컬렉션 게시글 작성/수정/삭제 화면 열기</p>
-                  </button>
+              <div className="rounded-2xl border border-white/10 bg-[#161616] p-3 md:p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#8ea8c7]">관리자 빠른 메뉴</p>
+                    <p className="mt-1 text-xs text-[#979797]">게시물 수정이나 배송관리로 바로 이동합니다.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:min-w-[520px]">
+                    <button
+                      type="button"
+                      onClick={() => openAdminComposer('products')}
+                      className="rounded-xl border border-[#7bb8ff]/40 bg-[#7bb8ff]/10 px-3 py-3 text-center text-sm text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
+                    >
+                      의류 게시물 수정
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAdminComposer('collections')}
+                      className="rounded-xl border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-3 text-center text-sm text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
+                    >
+                      컬렉션 게시물 수정
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('adminOrders')}
+                      className="rounded-xl border border-white/15 bg-[#1c1c1c] px-3 py-3 text-center text-sm text-[#ededed] hover:bg-[#232323] transition-colors"
+                    >
+                      배송관리 열기
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('adminOrders')}
-                  className="w-full rounded-lg border border-[#7bb8ff]/50 bg-[#7bb8ff]/10 px-3 py-2 text-xs text-[#dcecff] hover:bg-[#7bb8ff]/20 transition-colors"
-                >
-                  배송관리 열기
-                </button>
               </div>
             )}
-          </aside>
-
-          <section className="rounded-2xl border border-white/10 bg-[#101010] p-4 md:p-6 min-h-0 flex flex-col">
-            <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#171717] px-3 py-2.5">
-              <p className="text-xs text-[#a8a8a8]">
-                현재 탭: <span className="text-[#f5f5f5]">{tabs.find((tab) => tab.id === activeTab)?.label || '계정'}</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => void signOut()}
-                disabled={isBusy}
-                className="inline-flex items-center justify-center rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-1.5 text-[11px] text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-              >
-                {isBusy ? '처리중...' : '로그아웃'}
-              </button>
-            </div>
-            <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
-              {tabContent[activeTab]}
-            </div>
-          </section>
+          </div>
         </div>
+
+        <section className="mt-4 min-h-0 flex flex-1 flex-col rounded-[24px] border border-white/10 bg-[#101010] p-4 md:p-6">
+          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-white/10 bg-[#171717] px-4 py-3 text-center md:flex-row md:items-center md:justify-between md:text-left">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#7f7f7f]">Current Tab</p>
+              <p className="mt-1 text-sm text-[#f5f5f5]">
+                {tabs.find((tab) => tab.id === activeTab)?.label || '계정'}
+              </p>
+            </div>
+            <p className="text-xs text-[#969696]">버튼은 위에서 바로 선택할 수 있습니다.</p>
+          </div>
+          <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
+            {tabContent[activeTab]}
+          </div>
+        </section>
       </div>
 
       {adminComposer && (

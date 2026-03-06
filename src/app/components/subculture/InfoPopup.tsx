@@ -233,8 +233,8 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           className={`relative w-full ${
             type === 'mypage'
               ? isAuthenticated
-                ? 'max-w-[min(1280px,96vw)]'
-                : 'max-w-[min(1120px,94vw)]'
+                ? 'max-w-[min(1080px,92vw)]'
+                : 'max-w-[min(940px,92vw)]'
               : 'max-w-2xl'
           } bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
@@ -265,7 +265,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           </div>
 
           {/* Content Body */}
-          <div className={`${type === 'mypage' ? 'p-4 md:p-5 max-h-[82vh]' : 'p-8 max-h-[70vh]'} overflow-y-auto`}>
+          <div className={`${type === 'mypage' ? 'p-3 md:p-5 max-h-[82vh]' : 'p-8 max-h-[70vh]'} overflow-y-auto`}>
             {content[type]}
           </div>
 
