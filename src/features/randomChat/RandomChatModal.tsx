@@ -134,7 +134,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-[220] flex items-center justify-center overflow-hidden px-3 py-[calc(env(safe-area-inset-top)+14px)] md:px-6 md:py-6"
+      className="pointer-events-none fixed inset-x-0 z-[220] flex items-center justify-center overflow-hidden px-3 py-[calc(env(safe-area-inset-top)+14px)] md:items-end md:justify-end md:px-6 md:py-6"
       style={viewportStyle || { top: 0, bottom: 0 }}
       role="dialog"
       aria-modal="true"
