@@ -8,6 +8,34 @@ import {
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
+const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const PAGE_SIZE = 5_000;
+
+type DailyRow = {
+  dateKst: string;
+  visitorCount: number;
+  pageHitCount: number;
+  sourceVisitors: ReturnType<typeof createEmptyVisitSourceBreakdown>;
+  createdRoomCount: number;
+  messageCount: number;
+};
+
+type VisitorPageRow = {
+  visit_date?: string | null;
+  visitor_id?: string | null;
+  hit_count?: number | null;
+  last_path?: string | null;
+};
+
+type CreatedAtPageRow = {
+  id?: number | string | null;
+  created_at?: string | null;
+};
 
 function getServerConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,14 +50,7 @@ function getServerConfig() {
 }
 
 function toDateKst(value: Date) {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-
-  return formatter.format(value);
+  return KST_DATE_FORMATTER.format(value);
 }
 
 function getUtcRangeForKstDate(dateKst: string) {
@@ -60,6 +81,31 @@ function appendSourceCount(
   amount: number,
 ) {
   bucket[source] += amount;
+}
+
+async function fetchAllRows<T>(
+  fetchPage: (
+    from: number,
+    to: number,
+  ) => Promise<{ data: T[] | null; error: { message: string; code?: string } | null }>,
+) {
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await fetchPage(from, to);
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    const page = data || [];
+    rows.push(...page);
+
+    if (page.length < PAGE_SIZE) {
+      return { data: rows, error: null };
+    }
+  }
 }
 
 export async function GET(request: Request) {
@@ -99,87 +145,115 @@ export async function GET(request: Request) {
   const days = Math.min(31, Math.max(1, Math.trunc(rawDays || 7)));
 
   const todayKst = toDateKst(new Date());
-  const rows: Array<{
-    dateKst: string;
-    visitorCount: number;
-    pageHitCount: number;
-    sourceVisitors: ReturnType<typeof createEmptyVisitSourceBreakdown>;
-    createdRoomCount: number;
-    messageCount: number;
-  }> = [];
-
-  for (let offset = 0; offset < days; offset += 1) {
+  const dateKstList = Array.from({ length: days }, (_, offset) => {
     const cursor = new Date(`${todayKst}T00:00:00+09:00`);
     cursor.setDate(cursor.getDate() - offset);
-    const dateKst = toDateKst(cursor);
-    const range = getUtcRangeForKstDate(dateKst);
-    if (!range) continue;
+    return toDateKst(cursor);
+  });
 
-    let visitorCount = 0;
-    let pageHitCount = 0;
-    const sourceVisitors = createEmptyVisitSourceBreakdown();
+  const oldestDateKst = dateKstList[dateKstList.length - 1];
+  const oldestRange = getUtcRangeForKstDate(oldestDateKst);
+  const latestRange = getUtcRangeForKstDate(todayKst);
 
-    const { data: visitorRows, error: visitorsError } = await serviceClient
-      .from('site_daily_visitors')
-      .select('hit_count,last_path')
-      .eq('visit_date', dateKst)
-      .limit(50000);
-
-    if (visitorsError && visitorsError.code !== '42P01') {
-      return NextResponse.json(
-        { message: `방문자 집계 조회 실패(${dateKst}): ${visitorsError.message}` },
-        { status: 500 },
-      );
-    }
-
-    if (!visitorsError) {
-      visitorCount = (visitorRows || []).length;
-      pageHitCount = (visitorRows || []).reduce(
-        (sum: number, row: { hit_count?: number; last_path?: string | null }) => {
-          const source = parseVisitMeta(row.last_path).source;
-          appendSourceCount(sourceVisitors, source, 1);
-          const hitCount = Number(row.hit_count || 0);
-          return sum + (Number.isFinite(hitCount) ? hitCount : 0);
-        },
-        0,
-      );
-    }
-
-    const { count: createdRoomCountValue, error: roomError } = await serviceClient
-      .from('chat_rooms')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', range.startUtc.toISOString())
-      .lt('created_at', range.endUtc.toISOString());
-
-    if (roomError) {
-      return NextResponse.json(
-        { message: `채팅방 집계 조회 실패(${dateKst}): ${roomError.message}` },
-        { status: 500 },
-      );
-    }
-
-    const { count: messageCountValue, error: messageError } = await serviceClient
-      .from('chat_room_messages')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', range.startUtc.toISOString())
-      .lt('created_at', range.endUtc.toISOString());
-
-    if (messageError) {
-      return NextResponse.json(
-        { message: `메시지 집계 조회 실패(${dateKst}): ${messageError.message}` },
-        { status: 500 },
-      );
-    }
-
-    rows.push({
-      dateKst,
-      visitorCount,
-      pageHitCount,
-      sourceVisitors,
-      createdRoomCount: createdRoomCountValue || 0,
-      messageCount: messageCountValue || 0,
-    });
+  if (!oldestRange || !latestRange) {
+    return NextResponse.json({ message: '날짜 범위를 계산하지 못했습니다.' }, { status: 500 });
   }
+
+  const rowByDate = new Map<string, DailyRow>(
+    dateKstList.map((dateKst) => [
+      dateKst,
+      {
+        dateKst,
+        visitorCount: 0,
+        pageHitCount: 0,
+        sourceVisitors: createEmptyVisitSourceBreakdown(),
+        createdRoomCount: 0,
+        messageCount: 0,
+      },
+    ]),
+  );
+
+  const [visitorResult, roomResult, messageResult] = await Promise.all([
+    fetchAllRows<VisitorPageRow>(async (from, to) =>
+      await serviceClient
+        .from('site_daily_visitors')
+        .select('visit_date,visitor_id,hit_count,last_path')
+        .gte('visit_date', oldestDateKst)
+        .lte('visit_date', todayKst)
+        .order('visit_date', { ascending: false })
+        .order('visitor_id', { ascending: true })
+        .range(from, to),
+    ),
+    fetchAllRows<CreatedAtPageRow>(async (from, to) =>
+      await serviceClient
+        .from('chat_rooms')
+        .select('id,created_at')
+        .gte('created_at', oldestRange.startUtc.toISOString())
+        .lt('created_at', latestRange.endUtc.toISOString())
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
+    fetchAllRows<CreatedAtPageRow>(async (from, to) =>
+      await serviceClient
+        .from('chat_room_messages')
+        .select('id,created_at')
+        .gte('created_at', oldestRange.startUtc.toISOString())
+        .lt('created_at', latestRange.endUtc.toISOString())
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to),
+    ),
+  ]);
+
+  if (visitorResult.error && visitorResult.error.code !== '42P01') {
+    return NextResponse.json(
+      { message: `방문자 집계 조회 실패: ${visitorResult.error.message}` },
+      { status: 500 },
+    );
+  }
+
+  if (roomResult.error) {
+    return NextResponse.json(
+      { message: `채팅방 집계 조회 실패: ${roomResult.error.message}` },
+      { status: 500 },
+    );
+  }
+
+  if (messageResult.error) {
+    return NextResponse.json(
+      { message: `메시지 집계 조회 실패: ${messageResult.error.message}` },
+      { status: 500 },
+    );
+  }
+
+  for (const row of visitorResult.data || []) {
+    const dateKst = row.visit_date || '';
+    const bucket = rowByDate.get(dateKst);
+    if (!bucket) continue;
+
+    bucket.visitorCount += 1;
+    bucket.pageHitCount += Number.isFinite(Number(row.hit_count || 0))
+      ? Number(row.hit_count || 0)
+      : 0;
+    appendSourceCount(bucket.sourceVisitors, parseVisitMeta(row.last_path).source, 1);
+  }
+
+  for (const row of roomResult.data || []) {
+    if (!row.created_at) continue;
+    const bucket = rowByDate.get(toDateKst(new Date(row.created_at)));
+    if (!bucket) continue;
+    bucket.createdRoomCount += 1;
+  }
+
+  for (const row of messageResult.data || []) {
+    if (!row.created_at) continue;
+    const bucket = rowByDate.get(toDateKst(new Date(row.created_at)));
+    if (!bucket) continue;
+    bucket.messageCount += 1;
+  }
+
+  const rows = Array.from(rowByDate.values());
 
   const orderedRows = rows.sort((a, b) => (a.dateKst > b.dateKst ? -1 : 1));
 
