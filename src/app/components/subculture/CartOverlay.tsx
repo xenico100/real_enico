@@ -646,13 +646,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'tween', ease: 'circOut', duration: 0.45 }}
-            className="fixed left-2 right-2 top-[calc(env(safe-area-inset-top)+8px)] bottom-[calc(env(safe-area-inset-bottom)+8px)] z-[90] flex h-auto flex-col overflow-hidden rounded-[22px] border border-[#333] bg-[#0a0a0a] font-mono text-[#e5e5e5] shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:left-auto md:right-0 md:top-0 md:bottom-0 md:w-[560px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
+            className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+18px)] bottom-[calc(env(safe-area-inset-bottom)+14px)] z-[90] flex h-auto flex-col overflow-hidden rounded-[22px] border border-[#333] bg-[#0a0a0a] font-mono text-[#e5e5e5] shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:left-auto md:right-0 md:top-0 md:bottom-0 md:w-[560px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
           >
-            <div className="border-b border-[#333] bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:14px_14px] px-5 pb-4 pt-[calc(env(safe-area-inset-top)+14px)] md:p-7">
+            <div className="border-b border-[#333] bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:14px_14px] px-4 pb-4 pt-5 md:p-7">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] text-[#00ffd1] uppercase tracking-[0.2em]">결제 콘솔</p>
-                  <h2 className="mt-2 text-[1.85rem] font-heading font-black uppercase tracking-tighter leading-[0.94] md:text-4xl">
+                  <h2 className="mt-2 text-[1.55rem] font-heading font-black uppercase tracking-tighter leading-none md:text-4xl">
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
                 </div>
