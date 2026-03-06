@@ -1,8 +1,17 @@
 'use client';
 
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import { shouldBypassImageOptimization } from '@/lib/images';
-import type { Collection } from '@/lib/storefront/collectionCatalog';
+import {
+  buildCollectionCatalog,
+  type Collection,
+} from '@/lib/storefront/collectionCatalog';
+import {
+  STOREFRONT_COLLECTION_SELECT,
+  type StorefrontCollectionRow,
+} from '@/lib/storefront/shared';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface CollectionSectionProps {
   initialCollections?: Collection[];
@@ -17,6 +26,62 @@ export function CollectionSection({
   usingFallbackCatalog = false,
   onCollectionClick,
 }: CollectionSectionProps) {
+  const [collections, setCollections] = useState<Collection[]>(initialCollections);
+  const [isRecoveringCollections, setIsRecoveringCollections] = useState(false);
+
+  useEffect(() => {
+    setCollections(initialCollections);
+  }, [initialCollections]);
+
+  useEffect(() => {
+    if (!usingFallbackCatalog) return;
+
+    let active = true;
+
+    const recoverCollections = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+
+      setIsRecoveringCollections(true);
+
+      try {
+        let { data, error } = await supabase
+          .from('collections')
+          .select(STOREFRONT_COLLECTION_SELECT)
+          .eq('is_published', true)
+          .order('created_at', { ascending: false });
+
+        if (error?.message?.toLowerCase().includes('is_published')) {
+          const fallback = await supabase
+            .from('collections')
+            .select(STOREFRONT_COLLECTION_SELECT)
+            .order('created_at', { ascending: false });
+          data = fallback.data;
+          error = fallback.error;
+        }
+
+        if (error || !active) return;
+
+        const recoveredCollections = buildCollectionCatalog(
+          (data ?? []) as StorefrontCollectionRow[],
+        );
+        if (recoveredCollections.length > 0) {
+          setCollections(recoveredCollections);
+        }
+      } finally {
+        if (active) {
+          setIsRecoveringCollections(false);
+        }
+      }
+    };
+
+    void recoverCollections();
+
+    return () => {
+      active = false;
+    };
+  }, [usingFallbackCatalog]);
+
   return (
     <section
       id="collection-section"
@@ -35,11 +100,13 @@ export function CollectionSection({
 
         {usingFallbackCatalog ? (
           <div className="mb-6 border border-black/20 bg-white/80 px-4 py-3 font-mono text-[11px] text-black/60">
-            컬렉션 DB를 바로 쓰지 못해 기본 게시물을 표시 중입니다.
+            {isRecoveringCollections
+              ? '실제 컬렉션 게시물을 다시 불러오는 중입니다...'
+              : '컬렉션 DB를 바로 쓰지 못해 기본 게시물을 표시 중입니다.'}
           </div>
         ) : null}
 
-        {initialCollections.length === 0 ? (
+        {collections.length === 0 ? (
           <div className="border-2 border-black bg-white p-10 text-center">
             <p className="font-heading text-4xl uppercase leading-none">컬렉션 없음</p>
             <p className="font-mono text-xs text-black/60 mt-4">
@@ -48,7 +115,7 @@ export function CollectionSection({
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3">
-            {initialCollections.map((collection) => (
+            {collections.map((collection) => (
               <div
                 key={collection.id}
                 onClick={() => onCollectionClick(collection)}

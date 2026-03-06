@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   PRODUCT_CATEGORIES,
   type ProductCategory,
@@ -11,7 +11,12 @@ import {
   useFashionCart,
 } from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
-import type { Product } from '@/lib/storefront/productCatalog';
+import {
+  buildProductCatalog,
+  type Product,
+} from '@/lib/storefront/productCatalog';
+import { STOREFRONT_PRODUCT_SELECT, type StorefrontProductRow } from '@/lib/storefront/shared';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface ProductShowcaseProps {
   initialProducts?: Product[];
@@ -28,8 +33,9 @@ export function ProductShowcase({
 }: ProductShowcaseProps) {
   const { cart, addToCart } = useFashionCart();
   const [activeCategory, setActiveCategory] = useState<'전체' | ProductCategory>('전체');
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(initialProducts);
+  const [isRecoveringProducts, setIsRecoveringProducts] = useState(false);
   const categories = ['전체', ...PRODUCT_CATEGORIES] as const;
-  const catalogProducts = initialProducts;
   const filteredProducts =
     activeCategory === '전체'
       ? catalogProducts
@@ -44,6 +50,76 @@ export function ProductShowcase({
   const cartProductKeys = new Set(
     cart.map((item) => getFashionCartItemKey(item.id, item.selectedSize)),
   );
+
+  useEffect(() => {
+    setCatalogProducts(initialProducts);
+  }, [initialProducts]);
+
+  useEffect(() => {
+    if (!usingFallbackCatalog) return;
+
+    let active = true;
+
+    const recoverProducts = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+
+      setIsRecoveringProducts(true);
+
+      try {
+        let { data, error } = await supabase
+          .from('products')
+          .select(STOREFRONT_PRODUCT_SELECT)
+          .eq('is_published', true)
+          .order('updated_at', { ascending: false });
+
+        if (error?.message?.toLowerCase().includes('updated_at')) {
+          const createdAtFallback = await supabase
+            .from('products')
+            .select(STOREFRONT_PRODUCT_SELECT)
+            .eq('is_published', true)
+            .order('created_at', { ascending: false });
+          data = createdAtFallback.data;
+          error = createdAtFallback.error;
+        }
+
+        if (error?.message?.toLowerCase().includes('is_published')) {
+          const fallbackQuery = await supabase
+            .from('products')
+            .select(STOREFRONT_PRODUCT_SELECT)
+            .order('updated_at', { ascending: false });
+          data = fallbackQuery.data;
+          error = fallbackQuery.error;
+
+          if (error?.message?.toLowerCase().includes('updated_at')) {
+            const createdAtFallback = await supabase
+              .from('products')
+              .select(STOREFRONT_PRODUCT_SELECT)
+              .order('created_at', { ascending: false });
+            data = createdAtFallback.data;
+            error = createdAtFallback.error;
+          }
+        }
+
+        if (error || !active) return;
+
+        const recoveredProducts = buildProductCatalog((data ?? []) as StorefrontProductRow[]);
+        if (recoveredProducts.length > 0) {
+          setCatalogProducts(recoveredProducts);
+        }
+      } finally {
+        if (active) {
+          setIsRecoveringProducts(false);
+        }
+      }
+    };
+
+    void recoverProducts();
+
+    return () => {
+      active = false;
+    };
+  }, [usingFallbackCatalog]);
 
   const productCards = filteredProducts.map((product) => {
     const isInCart = cartProductKeys.has(getFashionCartItemKey(product.id, null));
@@ -212,8 +288,9 @@ export function ProductShowcase({
 
         {usingFallbackCatalog ? (
           <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] text-[#9a9a9a]">
-            등록된 게시글이 없어 임의 게시글을 표시합니다. `/admin`에서 게시글을 업로드해
-            주세요.
+            {isRecoveringProducts
+              ? '실제 의류 게시물을 다시 불러오는 중입니다...'
+              : '등록된 게시글이 없어 임의 게시글을 표시합니다. `/admin`에서 게시글을 업로드해 주세요.'}
           </div>
         ) : null}
 
