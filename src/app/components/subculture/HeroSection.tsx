@@ -73,7 +73,7 @@ export function HeroSection() {
           <div className="bg-[#00ffd1] text-black px-4 py-1 font-heading text-xl uppercase tracking-widest -rotate-2">
             경고: 고자극 콘텐츠
           </div>
-          <p className="font-mono text-xs md:text-sm max-w-md text-[#888] leading-relaxed">
+          <p className="max-w-md font-mono text-xs leading-relaxed text-[#888] md:text-sm">
             반지하 원룸에서 옷만드는 유튜버 옷 보기
           </p>
         </div>
