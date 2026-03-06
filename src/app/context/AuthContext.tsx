@@ -58,6 +58,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function isAnonymousAuthUser(user: User | null | undefined) {
+  if (!user) return false;
+  if (user.is_anonymous) return true;
+
+  const provider =
+    typeof user.app_metadata?.provider === 'string'
+      ? user.app_metadata.provider.toLowerCase()
+      : '';
+
+  return provider === 'anonymous';
+}
+
 function getFriendlyErrorMessage(error: unknown) {
   if (typeof error === 'string') {
     return error;
@@ -148,9 +160,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const syncSession = async (nextSession: Session | null) => {
+    const nextUser = nextSession?.user ?? null;
     setSafeState(setSession, nextSession);
-    setSafeState(setUser, nextSession?.user ?? null);
-    await fetchProfile(nextSession?.user ?? null);
+    setSafeState(setUser, nextUser);
+    await fetchProfile(isAnonymousAuthUser(nextUser) ? null : nextUser);
     setSafeState(setIsAuthReady, true);
   };
 
@@ -327,7 +340,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user,
         profile,
-        isAuthenticated: Boolean(user || session?.user),
+        // Anonymous auth is used for random chat only and should not unlock member UI.
+        isAuthenticated: Boolean(user && !isAnonymousAuthUser(user)),
         isAuthReady,
         isConfigured,
         isBusy,
