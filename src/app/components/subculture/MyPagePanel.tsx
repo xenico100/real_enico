@@ -764,7 +764,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
             주문 내역이 없습니다.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {memberOrders.map((order) => (
               <article key={order.id} className="border border-[#333] bg-[#111] p-4 space-y-3">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

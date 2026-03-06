@@ -679,7 +679,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'tween', ease: 'circOut', duration: 0.45 }}
-            className="fixed inset-x-2 top-2 bottom-2 z-[90] flex h-auto flex-col overflow-hidden rounded-2xl border border-[#333] bg-[#0a0a0a] font-mono text-[#e5e5e5] shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:w-[560px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
+            className="fixed inset-x-3 top-3 bottom-6 z-[90] flex h-auto flex-col overflow-hidden rounded-2xl border border-[#333] bg-[#0a0a0a] font-mono text-[#e5e5e5] shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:inset-x-auto md:top-0 md:right-0 md:bottom-0 md:w-[560px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
           >
             <div className="border-b border-[#333] bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:14px_14px] p-4 md:p-7">
               <div className="flex items-start justify-between gap-3">
@@ -732,7 +732,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             <div
               ref={checkoutScrollRef}
               onScroll={mode === 'checkout' ? updateCheckoutScrollCue : undefined}
-              className="flex-1 min-h-0 overflow-y-auto p-4 pb-36 md:p-7 md:pb-7 space-y-4 md:space-y-5"
+              className="flex-1 min-h-0 overflow-y-auto p-4 pb-32 md:p-7 md:pb-7 space-y-4 md:space-y-5"
             >
               <div className="sticky top-0 z-10 border border-[#333] bg-[#0b0b0b]/95 backdrop-blur-md p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -966,7 +966,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             </div>
 
             {mode === 'checkout' && showCheckoutScrollCue ? (
-              <div className="pointer-events-none absolute inset-x-4 bottom-[132px] z-30 md:hidden">
+              <div className="pointer-events-none absolute inset-x-4 bottom-[140px] z-30 md:hidden">
                 <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-[#00ffd1]/45 bg-black/90 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-[#9fffee] shadow-[0_10px_24px_rgba(0,0,0,0.35)]">
                   <span className="animate-bounce">↓</span>
                   <span>아래로 내려 계좌이체 확인</span>
@@ -975,7 +975,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             ) : null}
 
             {canCheckout && (
-              <div className="sticky bottom-0 z-20 border-t border-[#333] bg-[#050505]/96 p-4 pb-[calc(env(safe-area-inset-bottom)+16px)] backdrop-blur-md md:static md:bg-[#050505] md:p-7 md:pb-7">
+              <div className="sticky bottom-0 z-20 border-t border-[#333] bg-[#050505]/96 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+12px)] backdrop-blur-md md:static md:bg-[#050505] md:p-7 md:pb-7">
                 <div className="mb-3 border border-[#333] bg-[#0d0d0d] p-3 md:mb-4">
                   <div className="flex items-center justify-between gap-3 text-xs text-[#888]">
                     <p className="uppercase tracking-widest text-[#666]">상품 금액</p>
@@ -1028,24 +1028,21 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
                         disabled={isSubmittingOrder || !isAuthenticated}
-                        className="group relative overflow-hidden border border-[#00ffd1] px-4 py-4 text-left uppercase tracking-widest text-[#00ffd1] transition-all duration-200 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[#00ffd1]"
+                        className="group relative overflow-hidden border border-[#00ffd1] bg-[#00ffd1] px-4 py-4 text-left uppercase tracking-[0.18em] text-black shadow-[0_0_0_1px_rgba(0,255,209,0.12)] transition-all duration-200 hover:bg-[#b7fff2] disabled:border-[#2f6f64] disabled:bg-[#0c2a25] disabled:text-[#6bcfbe]"
                       >
-                        {!isSubmittingOrder && isAuthenticated ? (
-                          <>
-                            <span className="absolute left-0 top-0 h-full w-[3px] bg-[#00ffd1] transition-all duration-200 group-hover:w-full group-hover:opacity-100" />
-                            <span className="absolute inset-0 bg-[#00ffd1] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                          </>
+                        {isAuthenticated && !isSubmittingOrder ? (
+                          <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_55%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                         ) : null}
                         <span className="relative z-10 flex items-center justify-between gap-3">
                           <span className="flex flex-col gap-1">
-                            <span className="font-mono text-[10px] tracking-[0.2em] text-[#00ffd1]/70 transition-colors duration-200 group-hover:text-black/60">
-                              01
+                            <span className="font-mono text-[10px] tracking-[0.24em] text-black/55">
+                              MEMBER
                             </span>
-                            <span className="text-xs text-[#00ffd1] transition-colors duration-200 group-hover:text-black">
+                            <span className="text-sm font-bold text-black md:text-base">
                               {isSubmittingOrder ? '처리중...' : '회원 계좌이체 구매'}
                             </span>
                           </span>
-                          <span className="text-sm text-[#00ffd1] transition-colors duration-200 group-hover:text-black">
+                          <span className="text-base font-bold text-black">
                             →
                           </span>
                         </span>
