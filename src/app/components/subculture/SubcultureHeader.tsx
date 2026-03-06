@@ -97,13 +97,16 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                   }
                   onInfoClick(item.key);
                 }}
-                className={`w-full text-right px-2 py-1.5 transition-colors duration-0 uppercase tracking-widest border ${
+                className={`group relative w-full overflow-hidden text-right px-2 py-1.5 uppercase tracking-widest border transition-[color,background-color,border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:shadow-[0_0_26px_rgba(0,255,209,0.24)] ${
                   isFunctional
-                    ? 'border-[#00ffd1]/40 bg-[#00ffd1]/5 hover:bg-[#00ffd1] hover:text-black'
-                    : 'border-transparent hover:bg-[#00ffd1] hover:text-black'
+                    ? 'border-[#00ffd1]/40 bg-[#00ffd1]/5 hover:border-[#9affef] hover:bg-[#00ffd1] hover:text-black'
+                    : 'border-transparent hover:border-[#00ffd1]/35 hover:bg-[#00ffd1] hover:text-black'
                 }`}
               >
-                {`0${i+1} /// ${item.label}`}
+                <span className="pointer-events-none absolute inset-y-1 left-3 right-3 rounded-full bg-[#00ffd1]/0 blur-xl transition-all duration-200 group-hover:bg-[#00ffd1]/22" />
+                <span className="relative z-[1] transition-[text-shadow] duration-200 group-hover:[text-shadow:0_0_14px_rgba(255,255,255,0.5)]">
+                  {`0${i+1} /// ${item.label}`}
+                </span>
               </button>
                 );
               })()
@@ -111,18 +114,19 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
             
             <button
               onClick={onCartClick}
-              className="mt-4 group w-full min-w-[220px] border border-[#333] bg-black/60 px-3 py-3 text-left hover:border-[#00ffd1] transition-colors"
+              className="mt-4 group relative w-full min-w-[220px] overflow-hidden border border-[#333] bg-black/60 px-3 py-3 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:border-[#00ffd1] hover:shadow-[0_0_30px_rgba(0,255,209,0.24)]"
             >
+              <span className="pointer-events-none absolute inset-y-2 left-4 right-4 rounded-full bg-[#00ffd1]/0 blur-xl transition-all duration-200 group-hover:bg-[#00ffd1]/18" />
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="relative z-[1]">
                   <p className="font-mono text-[10px] tracking-[0.18em] text-[#666] group-hover:text-[#00ffd1]/70 transition-colors">
                     장바구니
                   </p>
-                  <p className="font-mono text-xs mt-1 text-white group-hover:text-[#00ffd1] transition-colors">
+                  <p className="font-mono text-xs mt-1 text-white group-hover:text-[#00ffd1] transition-colors group-hover:[text-shadow:0_0_12px_rgba(0,255,209,0.38)]">
                     결제 창 열기
                   </p>
                 </div>
-                <div className="relative shrink-0 border border-[#333] bg-[#111] p-2 group-hover:border-[#00ffd1] transition-colors">
+                <div className="relative z-[1] shrink-0 border border-[#333] bg-[#111] p-2 group-hover:border-[#00ffd1] transition-colors">
                   <ShoppingBag size={18} strokeWidth={1.5} />
                   <span className="absolute -top-2 -right-2 bg-[#00ffd1] text-black text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center">
                     {cartCount}
