@@ -670,34 +670,24 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               className="flex-1 min-h-0 overflow-y-auto px-5 py-5 pb-32 md:p-7 md:pb-7 space-y-5"
             >
               <div className="sticky top-0 z-10 border border-[#333] bg-[#0b0b0b]/95 px-4 py-4 backdrop-blur-md">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">주문 요약</p>
-                    <p className="text-xs text-[#9a9a9a] mt-2">
-                      {itemCount}개 상품
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] uppercase text-[#666]">주문 합계</p>
-                    <p className="text-xl font-bold text-[#00ffd1]">{formatKrw(total)}</p>
-                  </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">주문 요약</p>
+                  <p className="mt-2 text-xs text-[#9a9a9a]">{itemCount}개 상품</p>
                 </div>
 
                 <div className="mt-3 border border-[#222] bg-[#111] px-4 py-3 space-y-2">
                   {canCheckout ? (
                     cart.map((item) => {
                       const quantity = item.quantity || 1;
-                      const lineTotal = item.price * quantity;
                       return (
                         <div
                           key={`summary-${item.id}-${item.selectedSize ?? 'na'}`}
-                          className="flex items-start justify-between gap-3 text-[11px]"
+                          className="text-[11px]"
                         >
-                          <p className="line-clamp-2 pr-2 leading-snug text-[#d5d5d5]">
+                          <p className="line-clamp-2 leading-snug text-[#d5d5d5]">
                             {item.name}
                             {quantity > 1 ? ` x${quantity}` : ''}
                           </p>
-                          <p className="text-[#e5e5e5] shrink-0">{formatKrw(lineTotal)}</p>
                         </div>
                       );
                     })
