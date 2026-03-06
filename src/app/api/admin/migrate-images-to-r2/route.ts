@@ -98,6 +98,8 @@ export async function POST(request: Request) {
   const auth = await authenticateAdmin(request);
   if ('error' in auth) return auth.error;
 
+  const pageSize = 500;
+
   const stats = {
     productsScanned: 0,
     productsUpdated: 0,
@@ -108,108 +110,152 @@ export async function POST(request: Request) {
     failures: [] as string[],
   };
 
-  const productRows = await auth.serviceClient.from('products').select('id, images').limit(5000);
-  if (productRows.error) {
-    return NextResponse.json({ message: `products 조회 실패: ${productRows.error.message}` }, { status: 500 });
-  }
-
-  for (const row of (productRows.data || []) as ProductRow[]) {
-    stats.productsScanned += 1;
-    const images = normalizeImages(row.images);
-    let changed = false;
-    const nextImages: string[] = [];
-
-    for (const imageUrl of images) {
-      if (!isSupabaseStorageUrl(imageUrl)) {
-        nextImages.push(imageUrl);
-        continue;
-      }
-
-      try {
-        const migrated = await migrateUrl(imageUrl, 'products');
-        nextImages.push(migrated);
-        stats.migratedImages += 1;
-        changed = true;
-      } catch (error) {
-        nextImages.push(imageUrl);
-        stats.failedImages += 1;
-        stats.failures.push(`products/${row.id}: ${error instanceof Error ? error.message : 'unknown error'}`);
-      }
-    }
-
-    if (!changed) continue;
-
-    const update = await auth.serviceClient
+  let productOffset = 0;
+  while (true) {
+    const productRows = await auth.serviceClient
       .from('products')
-      .update({ images: nextImages, updated_at: new Date().toISOString() })
-      .eq('id', row.id);
+      .select('id, images')
+      .order('id', { ascending: true })
+      .range(productOffset, productOffset + pageSize - 1);
 
-    if (update.error) {
-      stats.failures.push(`products/${row.id}: update failed (${update.error.message})`);
-    } else {
-      stats.productsUpdated += 1;
+    if (productRows.error) {
+      return NextResponse.json({ message: `products 조회 실패: ${productRows.error.message}` }, { status: 500 });
     }
-  }
 
-  const collectionRows = await auth.serviceClient
-    .from('collections')
-    .select('id, image, images')
-    .limit(5000);
+    const rows = (productRows.data || []) as ProductRow[];
+    if (rows.length === 0) break;
 
-  if (collectionRows.error) {
-    return NextResponse.json(
-      {
-        message: `collections 조회 실패: ${collectionRows.error.message}`,
-        ...stats,
-      },
-      { status: 500 },
-    );
-  }
+    for (const row of rows) {
+      stats.productsScanned += 1;
+      const images = normalizeImages(row.images);
+      let changed = false;
+      const nextImages: string[] = [];
 
-  for (const row of (collectionRows.data || []) as CollectionRow[]) {
-    stats.collectionsScanned += 1;
+      for (const imageUrl of images) {
+        if (!isSupabaseStorageUrl(imageUrl)) {
+          nextImages.push(imageUrl);
+          continue;
+        }
 
-    const originalImages = normalizeImages(row.images);
-    const mergedImages =
-      originalImages.length > 0 ? originalImages : row.image && row.image.trim() ? [row.image.trim()] : [];
-
-    let changed = false;
-    const nextImages: string[] = [];
-
-    for (const imageUrl of mergedImages) {
-      if (!isSupabaseStorageUrl(imageUrl)) {
-        nextImages.push(imageUrl);
-        continue;
+        try {
+          const migrated = await migrateUrl(imageUrl, 'products');
+          nextImages.push(migrated);
+          stats.migratedImages += 1;
+          changed = true;
+        } catch (error) {
+          nextImages.push(imageUrl);
+          stats.failedImages += 1;
+          stats.failures.push(`products/${row.id}: ${error instanceof Error ? error.message : 'unknown error'}`);
+        }
       }
 
-      try {
-        const migrated = await migrateUrl(imageUrl, 'collections');
-        nextImages.push(migrated);
-        stats.migratedImages += 1;
-        changed = true;
-      } catch (error) {
-        nextImages.push(imageUrl);
-        stats.failedImages += 1;
-        stats.failures.push(`collections/${row.id}: ${error instanceof Error ? error.message : 'unknown error'}`);
+      if (!changed) continue;
+
+      const update = await auth.serviceClient
+        .from('products')
+        .update({ images: nextImages, updated_at: new Date().toISOString() })
+        .eq('id', row.id);
+
+      if (update.error) {
+        stats.failures.push(`products/${row.id}: update failed (${update.error.message})`);
+      } else {
+        stats.productsUpdated += 1;
       }
     }
 
-    if (!changed) continue;
+    if (rows.length < pageSize) break;
+    productOffset += pageSize;
+  }
 
-    const update = await auth.serviceClient
+  let collectionOffset = 0;
+  while (true) {
+    const collectionRows = await auth.serviceClient
       .from('collections')
-      .update({
-        image: nextImages[0] || null,
-        images: nextImages,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', row.id);
+      .select('id, image, images')
+      .order('id', { ascending: true })
+      .range(collectionOffset, collectionOffset + pageSize - 1);
 
-    if (update.error) {
-      stats.failures.push(`collections/${row.id}: update failed (${update.error.message})`);
-    } else {
-      stats.collectionsUpdated += 1;
+    if (collectionRows.error) {
+      return NextResponse.json(
+        {
+          message: `collections 조회 실패: ${collectionRows.error.message}`,
+          ...stats,
+        },
+        { status: 500 },
+      );
     }
+
+    const rows = (collectionRows.data || []) as CollectionRow[];
+    if (rows.length === 0) break;
+
+    for (const row of rows) {
+      stats.collectionsScanned += 1;
+
+      const originalImages = normalizeImages(row.images);
+      const nextImages: string[] = [];
+      const migratedByUrl = new Map<string, string>();
+      let changed = false;
+
+      for (const imageUrl of originalImages) {
+        if (!isSupabaseStorageUrl(imageUrl)) {
+          nextImages.push(imageUrl);
+          continue;
+        }
+
+        try {
+          const migrated = await migrateUrl(imageUrl, 'collections');
+          nextImages.push(migrated);
+          migratedByUrl.set(imageUrl, migrated);
+          stats.migratedImages += 1;
+          changed = true;
+        } catch (error) {
+          nextImages.push(imageUrl);
+          stats.failedImages += 1;
+          stats.failures.push(`collections/${row.id}: ${error instanceof Error ? error.message : 'unknown error'}`);
+        }
+      }
+
+      const originalImage = typeof row.image === 'string' ? row.image.trim() : '';
+      let nextImage: string | null = originalImage || null;
+
+      if (originalImage && isSupabaseStorageUrl(originalImage)) {
+        const alreadyMigrated = migratedByUrl.get(originalImage);
+        if (alreadyMigrated) {
+          nextImage = alreadyMigrated;
+          changed = true;
+        } else {
+          try {
+            nextImage = await migrateUrl(originalImage, 'collections');
+            stats.migratedImages += 1;
+            changed = true;
+          } catch (error) {
+            nextImage = originalImage;
+            stats.failedImages += 1;
+            stats.failures.push(`collections/${row.id}: ${error instanceof Error ? error.message : 'unknown error'}`);
+          }
+        }
+      }
+
+      if (!changed) continue;
+
+      const update = await auth.serviceClient
+        .from('collections')
+        .update({
+          image: nextImage,
+          images: nextImages,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id);
+
+      if (update.error) {
+        stats.failures.push(`collections/${row.id}: update failed (${update.error.message})`);
+      } else {
+        stats.collectionsUpdated += 1;
+      }
+    }
+
+    if (rows.length < pageSize) break;
+    collectionOffset += pageSize;
   }
 
   return NextResponse.json({ ok: true, ...stats });
