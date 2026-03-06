@@ -13,6 +13,14 @@ function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, '');
 }
 
+function isS3ApiUrl(value: string) {
+  try {
+    return new URL(value).host.endsWith('.r2.cloudflarestorage.com');
+  } catch {
+    return false;
+  }
+}
+
 export function getR2Config(): R2Config | null {
   const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim() || '';
   const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim() || '';
@@ -21,6 +29,12 @@ export function getR2Config(): R2Config | null {
 
   if (!accountId || !accessKeyId || !secretAccessKey || !publicBaseUrl) {
     return null;
+  }
+
+  if (isS3ApiUrl(publicBaseUrl)) {
+    throw new Error(
+      'CLOUDFLARE_R2_PUBLIC_BASE_URL must be a public domain or r2.dev URL, not the S3 API endpoint.',
+    );
   }
 
   return {

@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const SUPABASE_STORAGE_MARKERS = ['supabase.co/storage/v1/object/public', 'supabase.in/storage/v1/object/public'];
 
-type ProductRow = { id: string; images: unknown; thumbnail_url: string | null };
+type ProductRow = { id: string; images: unknown; thumbnail_url?: string | null };
 type CollectionRow = { id: string; image: string | null; images: unknown };
 
 function getServerConfig() {
@@ -41,6 +41,11 @@ function normalizeImages(value: unknown) {
 
 function isSupabaseStorageUrl(url: string) {
   return SUPABASE_STORAGE_MARKERS.some((marker) => url.includes(marker));
+}
+
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, table: string, column: string) {
+  if (!error) return false;
+  return error.code === '42703' || error.message?.includes(`column ${table}.${column} does not exist`) === true;
 }
 
 async function authenticateAdmin(request: Request) {
@@ -110,11 +115,12 @@ export async function POST(request: Request) {
     failures: [] as string[],
   };
 
+  let productsHaveThumbnailColumn = true;
   let lastProductId: string | null = null;
   while (true) {
     let productQuery = auth.serviceClient
       .from('products')
-      .select('id, images, thumbnail_url')
+      .select(productsHaveThumbnailColumn ? 'id, images, thumbnail_url' : 'id, images')
       .order('id', { ascending: true })
       .limit(pageSize);
 
@@ -125,10 +131,15 @@ export async function POST(request: Request) {
     const productRows = await productQuery;
 
     if (productRows.error) {
+      if (productsHaveThumbnailColumn && isMissingColumnError(productRows.error, 'products', 'thumbnail_url')) {
+        productsHaveThumbnailColumn = false;
+        continue;
+      }
+
       return NextResponse.json({ message: `products 조회 실패: ${productRows.error.message}` }, { status: 500 });
     }
 
-    const rows = (productRows.data || []) as ProductRow[];
+    const rows = (productRows.data || []) as unknown as ProductRow[];
     if (rows.length === 0) break;
 
     for (const row of rows) {
@@ -157,7 +168,9 @@ export async function POST(request: Request) {
         }
       }
 
-      const originalThumbnail = typeof row.thumbnail_url === 'string' ? row.thumbnail_url.trim() : '';
+      const originalThumbnail = productsHaveThumbnailColumn && typeof row.thumbnail_url === 'string'
+        ? row.thumbnail_url.trim()
+        : '';
       let nextThumbnail: string | null = originalThumbnail || null;
 
       if (originalThumbnail && isSupabaseStorageUrl(originalThumbnail)) {
@@ -180,9 +193,22 @@ export async function POST(request: Request) {
 
       if (!changed) continue;
 
+      const productUpdate = {
+        images: nextImages,
+        updated_at: new Date().toISOString(),
+      } as {
+        images: string[];
+        updated_at: string;
+        thumbnail_url?: string | null;
+      };
+
+      if (productsHaveThumbnailColumn) {
+        productUpdate.thumbnail_url = nextThumbnail;
+      }
+
       const update = await auth.serviceClient
         .from('products')
-        .update({ images: nextImages, thumbnail_url: nextThumbnail, updated_at: new Date().toISOString() })
+        .update(productUpdate)
         .eq('id', row.id);
 
       if (update.error) {
