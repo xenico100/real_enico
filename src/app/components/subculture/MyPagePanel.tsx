@@ -1484,7 +1484,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-[#8ea8c7]">관리자 빠른 메뉴</p>
-                    <p className="mt-1 text-xs text-[#979797]">게시물 수정이나 배송관리로 바로 이동합니다.</p>
+                    <p className="mt-1 text-xs text-[#979797]">게시물 목록과 배송관리를 바로 열 수 있습니다.</p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:min-w-[520px]">
                     <button
@@ -1492,14 +1492,14 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                       onClick={() => openAdminComposer('products')}
                       className="rounded-xl border border-[#7bb8ff]/40 bg-[#7bb8ff]/10 px-3 py-3 text-center text-sm text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
                     >
-                      의류 게시물 수정
+                      의류 게시물 목록
                     </button>
                     <button
                       type="button"
                       onClick={() => openAdminComposer('collections')}
                       className="rounded-xl border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-3 text-center text-sm text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
                     >
-                      컬렉션 게시물 수정
+                      컬렉션 게시물 목록
                     </button>
                     <button
                       type="button"
@@ -1561,7 +1561,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                       : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
                   }`}
                 >
-                  의류 게시물
+                  의류 게시물 목록
                 </button>
                 <button
                   type="button"
@@ -1572,10 +1572,10 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                       : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
                   }`}
                 >
-                  컬렉션 게시물
+                  컬렉션 게시물 목록
                 </button>
                 <p className="hidden md:block text-[11px] text-[#8a8a8a] ml-2">
-                  현재 편집: {adminComposer === 'products' ? '의류 게시물' : '컬렉션 게시물'}
+                  현재 보기: {adminComposer === 'products' ? '의류 게시물 목록' : '컬렉션 게시물 목록'}
                 </p>
               </div>
 

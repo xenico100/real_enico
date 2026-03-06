@@ -120,7 +120,7 @@ function AdminCollectionsConsoleInner() {
   const [manualImageUrl, setManualImageUrl] = useState('');
   const [pageMessage, setPageMessage] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
-  const [workspaceView, setWorkspaceView] = useState<'editor' | 'list'>('editor');
+  const [workspaceView, setWorkspaceView] = useState<'editor' | 'list'>('list');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canManageCollections = isAuthenticated && isAdmin;
@@ -492,45 +492,47 @@ function AdminCollectionsConsoleInner() {
 
   return (
     <div className={`${isEmbedded ? '' : 'min-h-screen'} bg-[#050505] text-[#e5e5e5]`}>
-      <div className={`mx-auto max-w-7xl px-4 md:px-8 ${isEmbedded ? 'py-4 md:py-6' : 'py-8 md:py-12'}`}>
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between border-b border-[#333] pb-6 mb-8">
+      <div className={`mx-auto max-w-[1720px] px-3 md:px-6 lg:px-8 ${isEmbedded ? 'py-4 md:py-6' : 'py-6 md:py-10'}`}>
+        <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-[#111] px-4 py-5 md:mb-8 md:px-6 md:py-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="font-mono text-[11px] tracking-[0.18em] text-[#00ffd1] uppercase">
               Admin Console
             </p>
-            <h1 className="font-heading text-5xl md:text-7xl uppercase tracking-tight leading-[0.9]">
-              Collections
+            <h1 className="font-heading text-4xl md:text-6xl xl:text-7xl uppercase tracking-tight leading-[0.92]">
+              컬렉션 게시물 목록
             </h1>
-            <p className="font-mono text-xs text-[#b8b8b8] mt-2">
-              컬렉션 게시물 작성/수정/삭제 + 다중 이미지 배열 유지 (상세 슬라이드용)
+            <p className="mt-2 font-mono text-sm leading-relaxed text-[#b8b8b8]">
+              컬렉션 목록 먼저 보고, 수정 버튼 누르면 바로 편집 화면으로 넘어갑니다.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 md:min-w-[520px] md:grid-cols-3">
             <button
               type="button"
               onClick={() => void loadCollections()}
               disabled={isLoadingCollections || !isConfigured}
-              className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors disabled:opacity-50"
+              className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-white/15 bg-[#171717] px-3 py-3 font-mono text-sm text-[#ededed] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] disabled:opacity-50"
             >
               <RefreshCcw size={14} className={isLoadingCollections ? 'animate-spin' : ''} />
-              Refresh
+              새로고침
             </button>
             <Link
               href="/admin"
-              className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+              className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-[#7bb8ff]/35 bg-[#7bb8ff]/10 px-3 py-3 font-mono text-sm text-[#e8f3ff] transition-colors hover:bg-[#7bb8ff]/20"
             >
-              Products Admin
+              의류 목록
             </Link>
             {!isEmbedded && (
               <Link
                 href="/"
-                className="inline-flex items-center gap-2 px-3 py-2 border border-[#333] bg-[#111] font-mono text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+                className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-white/15 bg-[#171717] px-3 py-3 font-mono text-sm text-[#ededed] transition-colors hover:bg-[#232323]"
               >
-                Back Home
+                홈으로
               </Link>
             )}
           </div>
+        </div>
         </div>
 
         {!isConfigured && (
@@ -544,39 +546,39 @@ function AdminCollectionsConsoleInner() {
 
         {isConfigured && (
           <div className="space-y-4">
-            <div className="border border-[#333] bg-[#0a0a0a] p-3">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-2">
-                작업 화면 분리
+            <div className="rounded-[24px] border border-white/10 bg-[#111] p-4 md:p-5">
+              <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">
+                작업 화면
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('editor')}
-                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                  className={`rounded-2xl px-4 py-4 text-sm font-mono transition-colors ${
                     workspaceView === 'editor'
-                      ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
-                      : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
+                      ? 'border border-[#7bb8ff]/60 bg-[#7bb8ff]/15 text-[#eef6ff] shadow-[0_0_0_1px_rgba(123,184,255,0.2)]'
+                      : 'border border-white/15 bg-[#171717] text-[#c8c8c8] hover:border-[#7bb8ff]/40 hover:text-[#eef6ff]'
                   }`}
                 >
-                  수정/작성 페이지
+                  수정 화면
                 </button>
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('list')}
-                  className={`px-3 py-2 text-xs font-mono border transition-colors ${
+                  className={`rounded-2xl px-4 py-4 text-sm font-mono transition-colors ${
                     workspaceView === 'list'
-                      ? 'border-[#00ffd1] bg-[#00ffd1] text-black font-semibold'
-                      : 'border-[#333] bg-[#111] text-[#c8c8c8] hover:border-[#00ffd1] hover:text-[#00ffd1]'
+                      ? 'border border-[#00ffd1]/60 bg-[#00ffd1]/15 text-[#ecfffa] shadow-[0_0_0_1px_rgba(0,255,209,0.18)]'
+                      : 'border border-white/15 bg-[#171717] text-[#c8c8c8] hover:border-[#00ffd1]/40 hover:text-[#ecfffa]'
                   }`}
                 >
-                  현재 게시물 목록
+                  게시물 목록
                 </button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-            <div className={`space-y-6 ${workspaceView === 'list' ? 'hidden' : ''}`}>
-              <div className="border border-[#333] bg-[#0a0a0a] p-5">
+            <div className={`mx-auto w-full max-w-4xl space-y-6 ${workspaceView === 'list' ? 'hidden' : ''}`}>
+              <div className="rounded-[24px] border border-white/10 bg-[#111] p-5 md:p-6">
                 <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-3">
                   Access Status
                 </p>
@@ -611,16 +613,16 @@ function AdminCollectionsConsoleInner() {
               </div>
 
               {canManageCollections ? (
-                <form onSubmit={handleSaveCollection} className="border border-[#333] bg-[#0a0a0a] p-5 space-y-4">
+                <form onSubmit={handleSaveCollection} className="rounded-[28px] border border-white/10 bg-[#111] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.24)] space-y-5 md:p-6">
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="font-heading text-3xl uppercase tracking-tight">
-                      {editingCollectionId ? '컬렉션 게시물 수정' : '컬렉션 게시물 새 작성'}
+                    <h2 className="font-heading text-2xl uppercase tracking-tight md:text-4xl">
+                      {editingCollectionId ? '컬렉션 게시물 수정' : '컬렉션 게시물 작성'}
                     </h2>
                     {editingCollectionId && (
                       <button
                         type="button"
                         onClick={resetForm}
-                        className="font-mono text-[11px] px-2 py-1 border border-[#333] hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors uppercase"
+                        className="rounded-xl border border-white/15 px-3 py-2 font-mono text-xs text-[#d9d9d9] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] uppercase"
                       >
                         Reset
                       </button>
@@ -846,18 +848,18 @@ function AdminCollectionsConsoleInner() {
                 </div>
               )}
 
-              <div className="border border-[#333] bg-[#0a0a0a] p-4 flex items-center justify-between">
+              <div className="rounded-[24px] border border-white/10 bg-[#111] p-4 md:p-5">
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b]">
+                  <p className="font-mono text-[11px] uppercase tracking-widest text-[#9b9b9b]">
                     컬렉션 게시물 목록
                   </p>
-                  <p className="font-mono text-xs text-[#d0d0d0] mt-1">
+                  <p className="font-mono text-sm text-[#d0d0d0] mt-2">
                     {canManageCollections
                       ? '전체 컬렉션 (published / draft 포함)'
                       : 'published 컬렉션만 표시'}
                   </p>
                 </div>
-                <div className="font-mono text-xs text-[#00ffd1]">
+                <div className="mt-4 font-mono text-sm text-[#00ffd1]">
                   {isLoadingCollections ? 'Loading...' : `${sortedCollections.length} items`}
                 </div>
               </div>
@@ -872,7 +874,7 @@ function AdminCollectionsConsoleInner() {
                   표시할 컬렉션 게시물이 없습니다.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
                   {sortedCollections.map((collection) => {
                     const baseImageList = normalizeImages(collection.images);
                     const previewImage = collection.image || baseImageList[0] || '';
@@ -880,9 +882,9 @@ function AdminCollectionsConsoleInner() {
                     return (
                       <article
                         key={collection.id}
-                        className="border border-[#333] bg-[#0a0a0a] overflow-hidden"
+                        className="overflow-hidden rounded-[24px] border border-white/10 bg-[#121212] shadow-[0_18px_40px_rgba(0,0,0,0.22)]"
                       >
-                        <div className="aspect-[4/5] bg-black border-b border-[#222] relative">
+                        <div className="relative aspect-[3/4] border-b border-white/10 bg-black">
                           {previewImage ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -895,7 +897,7 @@ function AdminCollectionsConsoleInner() {
                               NO IMAGE
                             </div>
                           )}
-                          <div className="absolute top-2 left-2 px-2 py-1 text-[10px] font-mono border border-[#333] bg-black/80">
+                          <div className="absolute left-2 top-2 rounded-full border border-white/15 bg-black/80 px-2.5 py-1 text-[10px] font-mono">
                             {collection.is_published ? (
                               <span className="text-[#00ffd1]">PUBLISHED</span>
                             ) : (
@@ -904,67 +906,67 @@ function AdminCollectionsConsoleInner() {
                           </div>
                         </div>
 
-                        <div className="p-4 space-y-3">
-                          <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-3 p-3 md:p-4">
+                          <div>
                             <div className="min-w-0">
-                              <h3 className="font-heading text-2xl uppercase tracking-tight leading-none break-words">
+                              <h3 className="line-clamp-2 text-base font-heading uppercase tracking-tight leading-tight break-words sm:text-xl">
                                 {collection.title || '(untitled)'}
                               </h3>
-                              <p className="font-mono text-[10px] text-[#9b9b9b] mt-2 break-all">
+                              <p className="mt-2 font-mono text-[10px] text-[#9b9b9b] break-all">
                                 {collection.id}
                               </p>
                             </div>
                             {canManageCollections && (
-                              <div className="flex flex-col gap-1 shrink-0">
+                              <div className="mt-3 grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
                                   onClick={() => startEditCollection(collection)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#00ffd1]/50 bg-[#00ffd1]/12 text-[#d8fff6] hover:bg-[#00ffd1]/20 transition-colors text-[11px] font-mono"
+                                  className="inline-flex min-h-[42px] items-center justify-center gap-1 rounded-xl border border-[#00ffd1]/50 bg-[#00ffd1]/12 px-2 py-2 text-[11px] font-mono text-[#d8fff6] transition-colors hover:bg-[#00ffd1]/20"
                                   aria-label="Edit collection"
                                 >
                                   <Pencil size={12} />
-                                  컬렉션 수정
+                                  수정
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => void handleDeleteCollection(collection.id)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-[11px] font-mono"
+                                  className="inline-flex min-h-[42px] items-center justify-center gap-1 rounded-xl border border-red-500/50 bg-red-500/10 px-2 py-2 text-[11px] font-mono text-red-300 transition-colors hover:bg-red-500/20"
                                   aria-label="Delete collection"
                                 >
                                   <Trash2 size={12} />
-                                  컬렉션 삭제
+                                  삭제
                                 </button>
                               </div>
                             )}
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                            <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#9b9b9b] mb-1">Season</p>
+                          <div className="grid grid-cols-1 gap-2 text-xs font-mono sm:grid-cols-2">
+                            <div className="rounded-xl border border-white/10 bg-[#181818] p-3">
+                              <p className="mb-1 text-[#9b9b9b]">시즌</p>
                               <p className="text-[#e5e5e5] break-words">{collection.season || '-'}</p>
                             </div>
-                            <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#9b9b9b] mb-1">Items</p>
+                            <div className="rounded-xl border border-white/10 bg-[#181818] p-3">
+                              <p className="mb-1 text-[#9b9b9b]">구성 수</p>
                               <p className="text-[#e5e5e5]">{formatItems(collection.items)}</p>
                             </div>
-                            <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#9b9b9b] mb-1">Release</p>
+                            <div className="rounded-xl border border-white/10 bg-[#181818] p-3">
+                              <p className="mb-1 text-[#9b9b9b]">발매일</p>
                               <p className="text-[#e5e5e5]">{collection.release_date || '-'}</p>
                             </div>
-                            <div className="border border-[#222] bg-[#111] p-2">
-                              <p className="text-[#9b9b9b] mb-1">Images</p>
+                            <div className="rounded-xl border border-white/10 bg-[#181818] p-3">
+                              <p className="mb-1 text-[#9b9b9b]">이미지</p>
                               <p className="text-[#e5e5e5]">{imageList.length} files</p>
                             </div>
                           </div>
 
-                          <p className="font-mono text-xs text-[#9a9a9a] leading-relaxed line-clamp-3">
+                          <p className="font-mono text-xs leading-relaxed text-[#b2b2b2] line-clamp-3">
                             {collection.description || '설명이 없습니다.'}
                           </p>
-                          <p className="font-mono text-xs text-[#b8b8b8] leading-relaxed line-clamp-4 min-h-16 border-t border-[#222] pt-3">
+                          <p className="min-h-[72px] border-t border-white/10 pt-3 font-mono text-xs leading-relaxed text-[#d4d4d4] line-clamp-4">
                             {collection.full_description || '상세 설명이 없습니다.'}
                           </p>
 
-                          <div className="border-t border-[#222] pt-3 grid grid-cols-2 gap-2 text-[10px] font-mono text-[#9b9b9b]">
+                          <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-3 text-[10px] font-mono text-[#9b9b9b]">
                             <div>
                               <p className="mb-1">Created</p>
                               <p className="text-[#c6c6c6]">{formatDate(collection.created_at)}</p>

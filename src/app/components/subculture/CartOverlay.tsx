@@ -938,22 +938,37 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
-                        disabled={isSubmittingOrder || !isAuthenticated}
-                        className="group relative overflow-hidden border border-[#00ffd1] bg-[#00ffd1] px-3 py-3 text-left uppercase tracking-[0.1em] text-black shadow-[0_0_0_1px_rgba(0,255,209,0.12)] transition-all duration-200 hover:bg-[#b7fff2] disabled:border-[#2f6f64] disabled:bg-[#0c2a25] disabled:text-[#6bcfbe] md:px-4 md:py-4"
+                        disabled={isSubmittingOrder}
+                        className={`group relative overflow-hidden px-3 py-3 text-left uppercase tracking-[0.1em] shadow-[0_0_0_1px_rgba(0,255,209,0.12)] transition-all duration-200 md:px-4 md:py-4 ${
+                          isAuthenticated
+                            ? 'border border-[#00ffd1] bg-[#00ffd1] text-black hover:bg-[#b7fff2]'
+                            : 'border border-[#00ffd1]/55 bg-[#0c2a25] text-[#b9fff2] hover:border-[#00ffd1] hover:bg-[#12352f]'
+                        } disabled:opacity-50`}
                       >
                         {isAuthenticated && !isSubmittingOrder ? (
                           <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_55%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                         ) : null}
                         <span className="relative z-10 flex items-center justify-between gap-2">
                           <span className="flex flex-col gap-1">
-                            <span className="font-mono text-[9px] tracking-[0.18em] text-black/55 md:text-[10px] md:tracking-[0.24em]">
-                              MEMBER
+                            <span className={`font-mono text-[9px] tracking-[0.18em] md:text-[10px] md:tracking-[0.24em] ${
+                              isAuthenticated ? 'text-black/55' : 'text-[#87dccc]'
+                            }`}>
+                              {isAuthenticated ? 'MEMBER' : 'LOGIN'}
                             </span>
-                            <span className="text-[11px] font-bold leading-snug text-black md:text-base">
-                              {isSubmittingOrder ? '처리중...' : '회원 계좌이체'}
+                            <span className={`text-[11px] font-bold leading-snug md:text-base ${
+                              isAuthenticated ? 'text-black' : 'text-[#e7fff9]'
+                            }`}>
+                              {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                             </span>
+                            {!isAuthenticated ? (
+                              <span className="font-mono text-[9px] leading-snug text-[#8fd6c8]">
+                                로그인 필요
+                              </span>
+                            ) : null}
                           </span>
-                          <span className="text-sm font-bold text-black md:text-base">
+                          <span className={`text-sm font-bold md:text-base ${
+                            isAuthenticated ? 'text-black' : 'text-[#d9fff7]'
+                          }`}>
                             →
                           </span>
                         </span>
