@@ -2,7 +2,7 @@
 
 import { ShoppingBag, Menu, X } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/app/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -25,6 +25,9 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
   const [hasRuntimeSession, setHasRuntimeSession] = useState(false);
+  const [cartDelta, setCartDelta] = useState(0);
+  const [cartPulse, setCartPulse] = useState(false);
+  const prevCartCountRef = useRef(cartCount);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -48,6 +51,27 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const previousCount = prevCartCountRef.current;
+    const diff = cartCount - previousCount;
+
+    if (diff > 0) {
+      setCartDelta(diff);
+      setCartPulse(true);
+
+      const deltaTimer = window.setTimeout(() => setCartDelta(0), 1100);
+      const pulseTimer = window.setTimeout(() => setCartPulse(false), 420);
+
+      prevCartCountRef.current = cartCount;
+      return () => {
+        window.clearTimeout(deltaTimer);
+        window.clearTimeout(pulseTimer);
+      };
+    }
+
+    prevCartCountRef.current = cartCount;
+  }, [cartCount]);
 
   const isSignedIn =
     isAuthenticated ||
@@ -122,11 +146,29 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                     결제 창 열기
                   </p>
                 </div>
-                <div className="relative shrink-0 border border-[#333] bg-[#111] p-2 group-hover:border-[#00ffd1] transition-colors">
+                <div
+                  className={`relative shrink-0 border bg-[#111] p-2 transition-colors ${
+                    cartPulse ? 'border-[#00ffd1] shadow-[0_0_0_2px_rgba(0,255,209,0.25)]' : 'border-[#333] group-hover:border-[#00ffd1]'
+                  }`}
+                >
                   <ShoppingBag size={18} strokeWidth={1.5} />
                   <span className="absolute -top-2 -right-2 bg-[#00ffd1] text-black text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center">
                     {cartCount}
                   </span>
+                  <AnimatePresence>
+                    {cartDelta > 0 && (
+                      <motion.span
+                        key={`delta-${cartDelta}`}
+                        initial={{ opacity: 0, y: 8, scale: 0.8 }}
+                        animate={{ opacity: 1, y: -2, scale: 1 }}
+                        exit={{ opacity: 0, y: -14, scale: 0.9 }}
+                        transition={{ duration: 0.35, ease: 'easeOut' }}
+                        className="absolute -bottom-2 -right-3 rounded-full border border-[#00ffd1] bg-black px-1.5 py-[1px] text-[9px] font-bold text-[#00ffd1]"
+                      >
+                        +{cartDelta}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </button>
@@ -177,6 +219,18 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                 className="flex items-center gap-4 hover:line-through decoration-4 decoration-white"
               >
                 장바구니 ({cartCount})
+                <AnimatePresence>
+                  {cartDelta > 0 && (
+                    <motion.span
+                      initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.9 }}
+                      className="inline-flex rounded-full border border-black bg-white/80 px-2 py-0.5 text-base font-black"
+                    >
+                      +{cartDelta}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </button>
             </nav>
           </motion.div>

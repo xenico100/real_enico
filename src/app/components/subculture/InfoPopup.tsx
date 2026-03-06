@@ -233,14 +233,14 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           className={`relative w-full ${
             type === 'mypage'
               ? isAuthenticated
-                ? 'max-w-[min(1280px,96vw)]'
-                : 'max-w-[min(1120px,94vw)]'
+                ? 'max-w-[min(1100px,94vw)]'
+                : 'max-w-[min(560px,94vw)]'
               : 'max-w-2xl'
-          } bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
+          } bg-[#050505] border border-[#333] rounded-2xl shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="h-16 border-b border-[#333] flex items-center justify-between px-6 bg-[#0a0a0a]">
+          <div className="h-16 border-b border-[#333] flex items-center justify-between px-3 md:px-6 bg-[#0a0a0a]">
              <div className="flex items-center gap-3 min-w-0">
                {type === 'mypage' && (
                  <button
@@ -251,7 +251,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
                    뒤로가기
                  </button>
                )}
-               <span className="font-heading text-2xl uppercase tracking-tighter text-[#e5e5e5] truncate">
+               <span className="font-heading text-xl md:text-2xl uppercase tracking-tighter text-[#e5e5e5] truncate">
                  {type === 'about'
                    ? 'ENICO VECK'
                      : type === 'contact'
@@ -265,7 +265,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
           </div>
 
           {/* Content Body */}
-          <div className={`${type === 'mypage' ? 'p-4 md:p-5 max-h-[82vh]' : 'p-8 max-h-[70vh]'} overflow-y-auto`}>
+          <div className={`${type === 'mypage' ? 'p-3 md:p-5 max-h-[84vh]' : 'p-5 md:p-8 max-h-[70vh]'} overflow-y-auto`}>
             {content[type]}
           </div>
 
