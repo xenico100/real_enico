@@ -192,6 +192,25 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
   return status || '-';
 }
 
+function getPaymentMethodLabel(method: string) {
+  const normalizedMethod = (method || '').toLowerCase();
+  if (normalizedMethod === 'bank_transfer') return '계좌이체';
+  if (normalizedMethod === 'paypal') return 'PayPal';
+  return method || '-';
+}
+
+function getChannelLabel(channel: string) {
+  const normalizedChannel = (channel || '').toLowerCase();
+  if (normalizedChannel === 'member') return '회원';
+  if (normalizedChannel === 'guest') return '비회원';
+  return channel || '-';
+}
+
+function formatKrw(value: number | string | null | undefined) {
+  const amount = typeof value === 'number' ? value : Number(value || 0);
+  return `${(Number.isFinite(amount) ? amount : 0).toLocaleString('ko-KR')}원`;
+}
+
 function buildVisitSourceChartStyle(breakdown: VisitSourceBreakdown): CSSProperties {
   const total =
     breakdown.instagram +
@@ -335,6 +354,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   const [isLoadingAdminOrders, setIsLoadingAdminOrders] = useState(false);
   const [adminOrderMessage, setAdminOrderMessage] = useState<string | null>(null);
   const [adminOrderError, setAdminOrderError] = useState<string | null>(null);
+  const [deletingAdminOrderId, setDeletingAdminOrderId] = useState<string | null>(null);
   const [dailyStatsRows, setDailyStatsRows] = useState<DailyStatsRow[]>([]);
   const [dailyStatsSummary, setDailyStatsSummary] = useState<DailyStatsSummary | null>(null);
   const [dailyStatsLoaded, setDailyStatsLoaded] = useState(false);
@@ -358,6 +378,35 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   }, [profile?.full_name, user]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+  const adminOrderSummary = useMemo(() => {
+    return adminOrders.reduce(
+      (summary, order) => {
+        summary.total += 1;
+        summary.revenue += Number(order.amountTotal || 0);
+
+        if (order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'pending_transfer') {
+          summary.awaitingPayment += 1;
+        }
+
+        if (order.shippingStatus === 'shipping') {
+          summary.shipping += 1;
+        }
+
+        if (order.shippingStatus === 'delivered') {
+          summary.delivered += 1;
+        }
+
+        return summary;
+      },
+      {
+        total: 0,
+        awaitingPayment: 0,
+        shipping: 0,
+        delivered: 0,
+        revenue: 0,
+      },
+    );
+  }, [adminOrders]);
   const latestDailyStats = dailyStatsRows[0] || null;
   const dailyStatsRangeLabel = `${Math.max(dailyStatsRows.length, 0)}일`;
 
@@ -707,6 +756,55 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
       setAdminOrderMessage(payload.message || '주문 상태/배송 정보가 저장되었습니다.');
     } catch (error) {
       setAdminOrderError(error instanceof Error ? error.message : '배송 정보 저장 실패');
+    }
+  };
+
+  const handleDeleteAdminOrder = async (order: AdminOrderRecord) => {
+    if (!session?.access_token) return;
+
+    const orderIdentifier = order.orderCode || order.guestOrderNumber || order.id;
+    const confirmed =
+      typeof window === 'undefined'
+        ? true
+        : window.confirm(
+            `주문 ${orderIdentifier}를 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`,
+          );
+
+    if (!confirmed) return;
+
+    resetAdminOrderMessages();
+    setDeletingAdminOrderId(order.id);
+
+    try {
+      const response = await fetch(
+        `/api/admin/orders?id=${encodeURIComponent(order.id)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        },
+      );
+
+      const payload = (await response.json()) as {
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message || '주문 삭제 실패');
+      }
+
+      setAdminOrders((prev) => prev.filter((target) => target.id !== order.id));
+      setAdminOrderDrafts((prev) => {
+        const next = { ...prev };
+        delete next[order.id];
+        return next;
+      });
+      setAdminOrderMessage(payload.message || '주문이 삭제되었습니다.');
+    } catch (error) {
+      setAdminOrderError(error instanceof Error ? error.message : '주문 삭제 실패');
+    } finally {
+      setDeletingAdminOrderId(null);
     }
   };
 
@@ -1275,199 +1373,325 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 저장된 주문이 없습니다. 결제 완료 후 목록이 표시됩니다.
               </div>
             ) : (
-              <div className="space-y-4">
-                {adminOrders.map((order) => (
-                  <article
-                    key={order.id}
-                    className="overflow-hidden rounded-[22px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-                  >
-                    <div className="border-b border-[#1f2d2a] bg-[#101816] px-4 py-4">
-                      <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#76b7aa]">
-                        Admin Order
-                      </div>
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="text-xs text-[#e5e5e5] break-all">
-                            주문번호: {order.orderCode || order.guestOrderNumber || order.id}
-                          </p>
-                          {order.guestOrderNumber && (
-                            <p className="text-[10px] text-[#00ffd1] mt-1 break-all">
-                              비회원조회번호: {order.guestOrderNumber}
-                            </p>
-                          )}
-                          <p className="text-[10px] text-[#9b9b9b] mt-1">
-                            생성일: {formatDate(order.createdAt || undefined)}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
-                          <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
-                            {getShippingStatusLabel(order.shippingStatus)}
-                          </span>
-                          <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
-                            {order.paymentMethod || '-'}
-                          </span>
-                          <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                            {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
-                          </span>
-                          <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                            {order.channel || '-'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                  <div className="rounded-[20px] border border-[#2a4a43] bg-[#0e1615] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#7fb9ae]">전체 주문</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.total}</p>
+                    <p className="mt-2 text-sm text-[#8da39e]">총 주문금액 {formatKrw(adminOrderSummary.revenue)}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#4f3b23] bg-[#17120d] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#e8bf7a]">입금 대기</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">
+                      {adminOrderSummary.awaitingPayment}
+                    </p>
+                    <p className="mt-2 text-sm text-[#ad9c84]">계좌이체 확인이 필요한 주문</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#214960] bg-[#0c141a] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#87cfff]">배송중</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.shipping}</p>
+                    <p className="mt-2 text-sm text-[#8aa3b2]">발송 처리된 주문</p>
+                  </div>
+                  <div className="rounded-[20px] border border-[#244a35] bg-[#0d1510] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#89d7a6]">배송완료</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.delivered}</p>
+                    <p className="mt-2 text-sm text-[#8da39a]">수령 완료 처리된 주문</p>
+                  </div>
+                </div>
 
-                    <div className="space-y-3 p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                        <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                          <p className="text-[#9b9b9b] mb-1">주문자</p>
-                          <p className="text-[#e5e5e5]">{order.customerName || '-'}</p>
-                          <p className="text-[#c6c6c6] mt-1 break-all">{order.customerEmail || '-'}</p>
-                        </div>
-                        <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                          <p className="text-[#9b9b9b] mb-1">연락처</p>
-                          <p className="text-[#e5e5e5]">{order.customerPhone || '-'}</p>
-                          <p className="text-[#c6c6c6] mt-1">{order.customerCountry || '-'}</p>
-                        </div>
-                        <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                          <p className="text-[#9b9b9b] mb-1">주문 금액</p>
-                          <p className="text-[#00ffd1] font-bold">
-                            {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
-                          </p>
-                          <p className="text-[#c6c6c6] mt-1">
-                            항목 {Array.isArray(order.items) ? order.items.length : 0}개
-                          </p>
-                        </div>
-                      </div>
+                <div className="space-y-5">
+                  {adminOrders.map((order) => {
+                    const draft = adminOrderDrafts[order.id] || createAdminOrderDraft(order);
+                    const isDeleting = deletingAdminOrderId === order.id;
 
-                      <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
-                        <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
-                        <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
-                      </div>
-
-                      {order.paymentReceiptUrl ? (
-                        <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
-                              이체확인 사진
-                            </p>
-                            <a
-                              href={order.paymentReceiptUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
-                            >
-                              새 탭에서 보기
-                            </a>
-                          </div>
-                          <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-[#333] bg-black">
-                            <img
-                              src={order.paymentReceiptUrl}
-                              alt="이체확인 사진"
-                              className="h-full w-full object-contain bg-black"
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <div className="rounded-xl border border-[#2b3835] bg-[#0d1111] p-3 space-y-3">
-                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">배송정보 입력</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                          <select
-                            value={adminOrderDrafts[order.id]?.paymentStatus || 'pending_transfer'}
-                            onChange={(event) =>
-                              updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
-                            }
-                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          >
-                            <option value="pending_transfer">이체확인중</option>
-                            <option value="transfer_confirmed">이체확인</option>
-                            <option value="captured">결제완료(captured)</option>
-                            <option value="completed">결제완료(completed)</option>
-                          </select>
-                          <select
-                            value={adminOrderDrafts[order.id]?.shippingStatus || 'preparing'}
-                            onChange={(event) =>
-                              updateAdminOrderDraft(order.id, 'shippingStatus', event.target.value)
-                            }
-                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                          >
-                            <option value="preparing">배송준비중</option>
-                            <option value="shipping">배송중</option>
-                            <option value="delivered">배송완료</option>
-                          </select>
-                          <input
-                            type="text"
-                            value={adminOrderDrafts[order.id]?.shippingCompany || ''}
-                            onChange={(event) =>
-                              updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
-                            }
-                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                            placeholder="택배사"
-                          />
-                          <input
-                            type="text"
-                            value={adminOrderDrafts[order.id]?.trackingNumber || ''}
-                            onChange={(event) =>
-                              updateAdminOrderDraft(order.id, 'trackingNumber', event.target.value)
-                            }
-                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                            placeholder="운송장번호"
-                          />
-                          <input
-                            type="text"
-                            value={adminOrderDrafts[order.id]?.shippingNote || ''}
-                            onChange={(event) =>
-                              updateAdminOrderDraft(order.id, 'shippingNote', event.target.value)
-                            }
-                            className="w-full rounded-lg bg-[#050505] border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                            placeholder="배송 메모"
-                          />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                          <div className="rounded-lg border border-[#2b2b2b] bg-[#0b0b0b] p-2">
-                            <p className="text-[#9b9b9b]">발송일시</p>
-                            <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.shippedAt)}</p>
-                          </div>
-                          <div className="rounded-lg border border-[#2b2b2b] bg-[#0b0b0b] p-2">
-                            <p className="text-[#9b9b9b]">배송완료일시</p>
-                            <p className="text-[#e5e5e5] mt-1">{formatDateTime(order.deliveredAt)}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => void handleSaveOrderShipping(order.id)}
-                            className="rounded-lg py-2 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors uppercase text-xs tracking-widest"
-                          >
-                            배송정보 저장
-                          </button>
-                        </div>
-                      </div>
-
-                      {Array.isArray(order.items) && order.items.length > 0 && (
-                        <div className="rounded-xl border border-[#252525] bg-[#0b0b0b] p-3">
-                          <p className="mb-3 text-[10px] uppercase tracking-widest text-[#8ea8c7]">
-                            주문 상품 목록
-                          </p>
-                          <div className="space-y-2">
-                            {order.items.map((item, index) => (
-                              <div
-                                key={`${order.id}-${item.id}-${index}`}
-                                className="rounded-lg border border-[#2a2a2a] bg-[#111] px-3 py-2 flex items-center justify-between gap-3 text-xs"
-                              >
-                                <p className="text-[#e5e5e5] truncate">
-                                  {item.name} ({item.category || '-'})
-                                  {item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : ''}
+                    return (
+                      <article
+                        key={order.id}
+                        className="overflow-hidden rounded-[26px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                      >
+                        <div className="border-b border-[#1f2d2a] bg-[linear-gradient(135deg,#12211f_0%,#0f1515_55%,#0a0a0a_100%)] px-5 py-5">
+                          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-[11px] uppercase tracking-[0.24em] text-[#76b7aa]">
+                                Shipping Console
+                              </p>
+                              <h3 className="mt-3 break-all text-lg font-semibold text-white md:text-2xl">
+                                {order.orderCode || order.guestOrderNumber || order.id}
+                              </h3>
+                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em]">
+                                <span className="rounded-full border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-1 text-[#00ffd1]">
+                                  {getShippingStatusLabel(order.shippingStatus)}
+                                </span>
+                                <span className="rounded-full border border-[#2e4843] bg-[#0d1514] px-3 py-1 text-[#d7f8f0]">
+                                  {getPaymentMethodLabel(order.paymentMethod)}
+                                </span>
+                                <span className="rounded-full border border-[#313131] bg-black px-3 py-1 text-[#d8d8d8]">
+                                  {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
+                                </span>
+                                <span className="rounded-full border border-[#313131] bg-black px-3 py-1 text-[#d8d8d8]">
+                                  {getChannelLabel(order.channel)}
+                                </span>
+                              </div>
+                              <p className="mt-4 text-sm leading-relaxed text-[#c9d7d4]">
+                                {order.customerName || '주문자 미입력'} / {order.customerPhone || '-'} /{' '}
+                                {order.customerEmail || '-'}
+                              </p>
+                              {order.guestOrderNumber ? (
+                                <p className="mt-2 text-sm text-[#8fe7d9] break-all">
+                                  비회원 조회번호: {order.guestOrderNumber}
                                 </p>
-                                <p className="text-[#00ffd1] shrink-0">
-                                  ×{item.quantity || 1} / {Number(item.lineTotal || 0).toLocaleString('ko-KR')}원
+                              ) : null}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 xl:w-[320px]">
+                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">생성일</p>
+                                <p className="mt-2 text-sm text-white">{formatDate(order.createdAt || undefined)}</p>
+                              </div>
+                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">최근 수정</p>
+                                <p className="mt-2 text-sm text-white">{formatDateTime(order.updatedAt)}</p>
+                              </div>
+                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">주문 금액</p>
+                                <p className="mt-2 text-base font-semibold text-[#00ffd1]">{formatKrw(order.amountTotal)}</p>
+                              </div>
+                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">상품 수량</p>
+                                <p className="mt-2 text-base font-semibold text-white">
+                                  {Array.isArray(order.items) ? order.items.length : 0}개
                                 </p>
                               </div>
-                            ))}
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </article>
-                ))}
+
+                        <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                          <div className="space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">고객 정보</p>
+                                <div className="mt-4 space-y-3 text-sm">
+                                  <div>
+                                    <p className="text-[#7c7c7c]">이름</p>
+                                    <p className="mt-1 text-white">{order.customerName || '-'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[#7c7c7c]">이메일</p>
+                                    <p className="mt-1 break-all text-white">{order.customerEmail || '-'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[#7c7c7c]">연락처 / 국가</p>
+                                    <p className="mt-1 text-white">
+                                      {order.customerPhone || '-'} / {order.customerCountry || '-'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </section>
+
+                              <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">결제 요약</p>
+                                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                    <p className="text-[#7c7c7c]">상품금액</p>
+                                    <p className="mt-1 text-white">{formatKrw(order.amountSubtotal)}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                    <p className="text-[#7c7c7c]">배송비</p>
+                                    <p className="mt-1 text-white">{formatKrw(order.amountShipping)}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                    <p className="text-[#7c7c7c]">결제수단</p>
+                                    <p className="mt-1 text-white">{getPaymentMethodLabel(order.paymentMethod)}</p>
+                                  </div>
+                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                    <p className="text-[#7c7c7c]">결제상태</p>
+                                    <p className="mt-1 text-white">
+                                      {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </section>
+                            </div>
+
+                            <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">배송지</p>
+                              <p className="mt-3 whitespace-pre-line break-words text-sm leading-7 text-[#e7e7e7]">
+                                {order.customerAddress || '-'}
+                              </p>
+                            </section>
+
+                            {order.paymentReceiptUrl ? (
+                              <section className="rounded-[20px] border border-[#2a433e] bg-[#0b1211] p-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#8ff3dc]">
+                                    이체확인 사진
+                                  </p>
+                                  <a
+                                    href={order.paymentReceiptUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sm text-[#bafff0] hover:text-[#00ffd1]"
+                                  >
+                                    새 탭에서 보기
+                                  </a>
+                                </div>
+                                <div className="relative mt-4 aspect-[4/5] overflow-hidden rounded-2xl border border-[#333] bg-black">
+                                  <img
+                                    src={order.paymentReceiptUrl}
+                                    alt="이체확인 사진"
+                                    className="h-full w-full object-contain bg-black"
+                                  />
+                                </div>
+                              </section>
+                            ) : null}
+
+                            {Array.isArray(order.items) && order.items.length > 0 ? (
+                              <section className="rounded-[20px] border border-[#252525] bg-[#0b0b0b] p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8ea8c7]">
+                                  주문 상품 목록
+                                </p>
+                                <div className="mt-4 space-y-2">
+                                  {order.items.map((item, index) => (
+                                    <div
+                                      key={`${order.id}-${item.id}-${index}`}
+                                      className="rounded-2xl border border-[#2a2a2a] bg-[#111] px-4 py-3"
+                                    >
+                                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                        <p className="break-words text-sm text-[#f3f3f3]">
+                                          {item.name} ({item.category || '-'})
+                                          {item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : ''}
+                                        </p>
+                                        <p className="shrink-0 text-sm font-medium text-[#00ffd1]">
+                                          ×{item.quantity || 1} / {formatKrw(item.lineTotal)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </section>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-4">
+                            <section className="rounded-[20px] border border-[#34423d] bg-[#0d1111] p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">배송정보 편집</p>
+                                <span className="text-sm text-[#8ba49d]">
+                                  {getShippingStatusLabel(draft.shippingStatus)}
+                                </span>
+                              </div>
+
+                              <div className="mt-4 space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div>
+                                    <label className="mb-2 block text-sm text-[#8ca39e]">결제 상태</label>
+                                    <select
+                                      value={draft.paymentStatus || 'pending_transfer'}
+                                      onChange={(event) =>
+                                        updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
+                                      }
+                                      className="w-full rounded-2xl border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
+                                    >
+                                      <option value="pending_transfer">이체확인중</option>
+                                      <option value="transfer_confirmed">이체확인</option>
+                                      <option value="captured">결제완료(captured)</option>
+                                      <option value="completed">결제완료(completed)</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-sm text-[#8ca39e]">배송 상태</label>
+                                    <select
+                                      value={draft.shippingStatus || 'preparing'}
+                                      onChange={(event) =>
+                                        updateAdminOrderDraft(order.id, 'shippingStatus', event.target.value)
+                                      }
+                                      className="w-full rounded-2xl border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
+                                    >
+                                      <option value="preparing">배송준비중</option>
+                                      <option value="shipping">배송중</option>
+                                      <option value="delivered">배송완료</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-sm text-[#8ca39e]">택배사</label>
+                                    <input
+                                      type="text"
+                                      value={draft.shippingCompany || ''}
+                                      onChange={(event) =>
+                                        updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
+                                      }
+                                      className="w-full rounded-2xl border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
+                                      placeholder="예: 우체국, CJ대한통운"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-sm text-[#8ca39e]">운송장번호</label>
+                                    <input
+                                      type="text"
+                                      value={draft.trackingNumber || ''}
+                                      onChange={(event) =>
+                                        updateAdminOrderDraft(order.id, 'trackingNumber', event.target.value)
+                                      }
+                                      className="w-full rounded-2xl border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
+                                      placeholder="운송장번호 입력"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="mb-2 block text-sm text-[#8ca39e]">배송 메모</label>
+                                  <textarea
+                                    value={draft.shippingNote || ''}
+                                    onChange={(event) =>
+                                      updateAdminOrderDraft(order.id, 'shippingNote', event.target.value)
+                                    }
+                                    rows={4}
+                                    className="w-full rounded-2xl border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
+                                    placeholder="송장 분실, 보류 사유, 연락 필요 내용 등을 기록"
+                                  />
+                                </div>
+                              </div>
+                            </section>
+
+                            <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">배송 타임라인</p>
+                              <div className="mt-4 grid gap-3 text-sm">
+                                <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                  <p className="text-[#7c7c7c]">발송일시</p>
+                                  <p className="mt-1 text-white">{formatDateTime(order.shippedAt)}</p>
+                                </div>
+                                <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                  <p className="text-[#7c7c7c]">배송완료일시</p>
+                                  <p className="mt-1 text-white">{formatDateTime(order.deliveredAt)}</p>
+                                </div>
+                              </div>
+                            </section>
+
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <button
+                                type="button"
+                                onClick={() => void handleSaveOrderShipping(order.id)}
+                                disabled={isDeleting}
+                                className="rounded-2xl border border-[#00ffd1] px-4 py-3 text-sm font-medium text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                배송정보 저장
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteAdminOrder(order)}
+                                disabled={isDeleting}
+                                className="rounded-2xl border border-red-700 px-4 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {isDeleting ? '주문 삭제 중...' : '주문 삭제'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>

@@ -382,3 +382,55 @@ export async function PATCH(request: Request) {
     order: mapOrderRow(data as OrderRow),
   });
 }
+
+export async function DELETE(request: Request) {
+  const auth = await authenticateAdmin(request);
+  if (!auth.ok) return auth.response;
+
+  const url = new URL(request.url);
+  const id = normalizeText(url.searchParams.get('id'));
+
+  if (!id) {
+    return NextResponse.json({ message: '삭제 대상 id가 필요합니다.' }, { status: 400 });
+  }
+
+  const { data: existing, error: existingError } = await auth.serviceClient
+    .from('orders')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (existingError) {
+    return NextResponse.json(
+      { message: `주문 조회 실패: ${existingError.message}` },
+      { status: 500 },
+    );
+  }
+
+  if (!existing) {
+    return NextResponse.json({ message: '대상 주문이 없습니다.' }, { status: 404 });
+  }
+
+  const { error } = await auth.serviceClient
+    .from('orders')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    if (error.code === '42P01') {
+      return NextResponse.json(
+        { message: 'orders 테이블이 없습니다. sql/orders_setup.sql을 실행하세요.' },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json(
+      { message: `주문 삭제 실패: ${error.message}` },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    message: '주문이 삭제되었습니다.',
+    id,
+  });
+}
