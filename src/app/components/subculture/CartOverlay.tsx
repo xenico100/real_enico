@@ -22,7 +22,10 @@ const BANK_ACCOUNT_HOLDER = '백형석';
 const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpperCase();
-const CHECKOUT_REGIONS = ['서울', '구역_1 (미국)', '구역_2 (영국)', '구역_3 (아시아)'] as const;
+const DOMESTIC_REGION = '대한민국';
+const DOMESTIC_SHIPPING_FEE = 3000;
+const INTERNATIONAL_SHIPPING_FEE = 40000;
+const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
   'border border-[#454545] bg-[#111] px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]';
 const CHECKOUT_FIELD_GROUP_CLASS = 'border border-[#2d2d2d] bg-[#0b0b0b] px-3 py-3';
@@ -321,7 +324,12 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const canCheckout = cart.length > 0;
-  const shipping = canCheckout ? 3000 : 0;
+  const isInternationalShipping = checkoutCountry !== DOMESTIC_REGION;
+  const shipping = canCheckout
+    ? isInternationalShipping
+      ? INTERNATIONAL_SHIPPING_FEE
+      : DOMESTIC_SHIPPING_FEE
+    : 0;
   const tax = 0;
   const total = subtotal + shipping;
   const itemCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
@@ -980,6 +988,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           <span className="text-[#00ffd1]">구역 (국가)</span>
                           <span className="text-[#666]">shipping zone</span>
                         </label>
+                        <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
+                          대한민국 배송비 3,000원 / 해외 배송비 40,000원
+                        </p>
                         <select
                           ref={checkoutRegionSelectRef}
                           value={checkoutCountry}
