@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       objectKey,
     });
   } catch (error) {
+    console.error('Receipt upload failed', error);
     return NextResponse.json(
       {
         message:

@@ -23,11 +23,37 @@ function isS3ApiUrl(value: string) {
   }
 }
 
+function readEnv(...keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function formatErrorDetails(error: unknown) {
+  if (!(error instanceof Error)) return '알 수 없는 오류';
+
+  const messages = new Set<string>();
+  let current: unknown = error;
+
+  while (current instanceof Error) {
+    if (current.message) {
+      messages.add(current.message);
+    }
+    current = 'cause' in current ? current.cause : null;
+  }
+
+  return Array.from(messages).join(' | ') || error.name;
+}
+
 export function getR2Config(): R2Config | null {
-  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim() || '';
-  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim() || '';
-  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim() || '';
-  const publicBaseUrl = trimTrailingSlash(process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL?.trim() || '');
+  const accountId = readEnv('CLOUDFLARE_R2_ACCOUNT_ID', 'R2_ACCOUNT_ID');
+  const accessKeyId = readEnv('CLOUDFLARE_R2_ACCESS_KEY_ID', 'R2_ACCESS_KEY_ID');
+  const secretAccessKey = readEnv('CLOUDFLARE_R2_SECRET_ACCESS_KEY', 'R2_SECRET_ACCESS_KEY');
+  const publicBaseUrl = trimTrailingSlash(
+    readEnv('CLOUDFLARE_R2_PUBLIC_BASE_URL', 'R2_PUBLIC_BASE_URL'),
+  );
 
   if (!accountId || !accessKeyId || !secretAccessKey || !publicBaseUrl) {
     return null;
@@ -120,17 +146,26 @@ export async function uploadToR2(params: {
   ].join(', ');
 
   const uploadUrl = `https://${host}${canonicalUri}`;
-  const response = await fetch(uploadUrl, {
-    method,
-    headers: {
-      Authorization: authorization,
-      'x-amz-date': amzDate,
-      'x-amz-content-sha256': payloadHash,
-      'content-type': params.contentType || 'application/octet-stream',
-      'cache-control': params.cacheControl || 'public, max-age=31536000, immutable',
-    },
-    body: params.body as unknown as BodyInit,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(uploadUrl, {
+      method,
+      headers: {
+        Authorization: authorization,
+        'x-amz-date': amzDate,
+        'x-amz-content-sha256': payloadHash,
+        'content-type': params.contentType || 'application/octet-stream',
+        'cache-control': params.cacheControl || 'public, max-age=31536000, immutable',
+      },
+      body: params.body as unknown as BodyInit,
+    });
+  } catch (error) {
+    throw new Error(
+      `R2 네트워크 연결 실패(host=${host}, bucket=${R2_BUCKET}): ${formatErrorDetails(error)}`,
+      { cause: error },
+    );
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

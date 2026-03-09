@@ -70,6 +70,30 @@ declare global {
   }
 }
 
+function formatUnknownErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  return '알 수 없는 오류';
+}
+
+async function diagnosePaypalSdkLoad(scriptUrl: string) {
+  try {
+    const response = await fetch(scriptUrl, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      return `PayPal SDK 응답 오류(${response.status}). Client ID와 PayPal 앱 상태를 확인해 주세요.`;
+    }
+
+    return 'PayPal SDK URL 응답은 정상인데 브라우저가 스크립트 실행을 차단했습니다. 광고 차단기, Brave/Safari 추적 차단, 회사/통신사 보안 필터를 확인해 주세요.';
+  } catch (error) {
+    return `PayPal SDK 네트워크 요청 실패: ${formatUnknownErrorMessage(error)}`;
+  }
+}
+
 function parsePayPalCapture(payload: unknown) {
   if (!payload || typeof payload !== 'object') {
     return {
@@ -246,7 +270,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     };
     const handleError = () => {
       setPaypalSdkReady(false);
-      setPaypalError('PayPal SDK 로드에 실패했습니다. 광고 차단기나 브라우저 차단 설정을 확인해 주세요.');
+      void diagnosePaypalSdkLoad(scriptUrl).then((message) => {
+        setPaypalError(message);
+      });
     };
     const timeoutId = window.setTimeout(() => {
       if (!window.paypal) {
