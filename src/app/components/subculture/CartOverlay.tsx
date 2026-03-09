@@ -23,6 +23,11 @@ const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpperCase();
 const CHECKOUT_REGIONS = ['서울', '구역_1 (미국)', '구역_2 (영국)', '구역_3 (아시아)'] as const;
+const CHECKOUT_SECTION_CLASS =
+  'border border-[#454545] bg-[#111] px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]';
+const CHECKOUT_FIELD_GROUP_CLASS = 'border border-[#2d2d2d] bg-[#0b0b0b] px-3 py-3';
+const CHECKOUT_FIELD_CLASS =
+  'w-full rounded-none border border-[#4b4b4b] bg-black px-3 py-3 text-sm text-[#f3f3f3] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none focus:ring-1 focus:ring-[#00ffd1]/35';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -789,7 +794,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
             <div
               ref={checkoutScrollRef}
-              className="flex-1 min-h-0 overflow-y-auto px-5 py-5 pb-32 md:p-7 md:pb-7 space-y-5"
+              className="checkout-scroll-area flex-1 min-h-0 overflow-y-auto px-5 py-5 pr-3 pb-32 md:p-7 md:pr-4 md:pb-7 space-y-5"
             >
               <div className="sticky top-0 z-10 border border-[#333] bg-[#0b0b0b]/95 px-4 py-4 backdrop-blur-md">
                 <div>
@@ -896,7 +901,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 </>
               ) : (
                 <div className="space-y-4">
-                  <div className="border border-[#333] bg-[#111] px-5 py-4">
+                  <div className={CHECKOUT_SECTION_CLASS}>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-3">계좌이체 안내</p>
                     <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-5 py-4">
                       <p className="text-[10px] uppercase tracking-widest text-[#88ffe8]">입금 계좌</p>
@@ -910,25 +915,33 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     </div>
                   </div>
 
-                  <div className="border border-[#333] bg-[#111] px-5 py-4">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-3">연락처</p>
+                  <div className={CHECKOUT_SECTION_CLASS}>
+                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-[#2b2b2b] pb-3">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">연락처</p>
+                      <span className="text-[10px] uppercase tracking-[0.18em] text-[#8fd6c8]">필수 입력</span>
+                    </div>
                     <div className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] text-[#666] mb-2 uppercase">
-                          이메일
+                      <div className={CHECKOUT_FIELD_GROUP_CLASS}>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
+                          <span className="text-[#00ffd1]">이메일</span>
+                          <span className="text-[#666]">order reply</span>
                         </label>
+                        <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
+                          주문 확인과 배송 안내를 받을 메일 주소를 입력하세요.
+                        </p>
                         <input
                           ref={checkoutEmailInputRef}
                           type="email"
                           value={checkoutEmail}
                           onChange={(e) => setCheckoutEmail(e.target.value)}
-                          placeholder="이메일 입력"
-                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          placeholder="example@email.com"
+                          className={CHECKOUT_FIELD_CLASS}
                         />
                       </div>
-                      <div>
-                        <label className="block text-[10px] text-[#666] mb-2 uppercase">
-                          핸드폰 번호
+                      <div className={CHECKOUT_FIELD_GROUP_CLASS}>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
+                          <span className="text-[#00ffd1]">핸드폰 번호</span>
+                          <span className="text-[#666]">contact</span>
                         </label>
                         <input
                           ref={checkoutPhoneInputRef}
@@ -936,12 +949,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           value={checkoutPhone}
                           onChange={(e) => setCheckoutPhone(e.target.value)}
                           placeholder="010-0000-0000"
-                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          className={CHECKOUT_FIELD_CLASS}
                         />
                       </div>
-                      <div>
-                        <label className="block text-[10px] text-[#666] mb-2 uppercase">
-                          수령인 이름
+                      <div className={CHECKOUT_FIELD_GROUP_CLASS}>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
+                          <span className="text-[#00ffd1]">수령인 이름</span>
+                          <span className="text-[#666]">receiver</span>
                         </label>
                         <input
                           ref={checkoutNameInputRef}
@@ -949,22 +963,28 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           value={checkoutName}
                           onChange={(e) => setCheckoutName(e.target.value)}
                           placeholder="수령인 이름 입력"
-                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          className={CHECKOUT_FIELD_CLASS}
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="border border-[#333] bg-[#111] px-5 py-4">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-3">배송 정보</p>
+                  <div className={CHECKOUT_SECTION_CLASS}>
+                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-[#2b2b2b] pb-3">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">배송 정보</p>
+                      <span className="text-[10px] uppercase tracking-[0.18em] text-[#8fd6c8]">주소 입력 필요</span>
+                    </div>
                     <div className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] text-[#666] mb-2 uppercase">구역 (국가)</label>
+                      <div className={CHECKOUT_FIELD_GROUP_CLASS}>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
+                          <span className="text-[#00ffd1]">구역 (국가)</span>
+                          <span className="text-[#666]">shipping zone</span>
+                        </label>
                         <select
                           ref={checkoutRegionSelectRef}
                           value={checkoutCountry}
                           onChange={(e) => setCheckoutCountry(e.target.value)}
-                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          className={CHECKOUT_FIELD_CLASS}
                         >
                           {CHECKOUT_REGIONS.map((region) => (
                             <option key={region} value={region}>
@@ -973,17 +993,21 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-[10px] text-[#666] mb-2 uppercase">
-                          주소
+                      <div className={CHECKOUT_FIELD_GROUP_CLASS}>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
+                          <span className="text-[#00ffd1]">상세 주소</span>
+                          <span className="text-[#666]">required</span>
                         </label>
+                        <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
+                          수령지 주소를 상세하게 입력하세요. 도로명, 건물명, 호수까지 적어야 합니다.
+                        </p>
                         <textarea
                           ref={checkoutAddressInputRef}
                           value={checkoutAddress}
                           onChange={(e) => setCheckoutAddress(e.target.value)}
-                          rows={3}
-                          placeholder="수령지 / 도로명 / 도시"
-                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5] resize-none"
+                          rows={4}
+                          placeholder="수령지 / 도로명 / 건물명 / 도시 / 우편번호"
+                          className={`${CHECKOUT_FIELD_CLASS} resize-none`}
                         />
                       </div>
                     </div>

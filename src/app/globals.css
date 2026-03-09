@@ -24,3 +24,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.checkout-scroll-area {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #00ffd1 #0b0b0b;
+}
+
+.checkout-scroll-area::-webkit-scrollbar {
+  width: 12px;
+}
+
+.checkout-scroll-area::-webkit-scrollbar-track {
+  background: #0b0b0b;
+  border-left: 1px solid #232323;
+}
+
+.checkout-scroll-area::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #00ffd1 0%, #0ca38a 100%);
+  border: 2px solid #0b0b0b;
+  border-radius: 999px;
+}
+
+.checkout-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7effef 0%, #00ffd1 100%);
+}
