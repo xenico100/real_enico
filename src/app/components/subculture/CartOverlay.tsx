@@ -1170,7 +1170,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         disabled={isSubmittingOrder || isUploadingPaymentReceipt}
                         className={`group relative overflow-hidden px-3 py-3 text-left uppercase tracking-[0.1em] shadow-[0_0_0_1px_rgba(0,255,209,0.12)] transition-all duration-200 md:px-4 md:py-4 ${
                           isAuthenticated
-                            ? 'border border-[#00ffd1] bg-[#00ffd1] text-black hover:bg-[#b7fff2]'
+                            ? 'border border-[#00ffd1] bg-[#062b25] text-white shadow-[0_0_24px_rgba(0,255,209,0.18)] hover:border-[#8affeb] hover:bg-[#0b3d34]'
                             : 'border border-white/45 bg-[#111] text-white hover:border-white hover:bg-[#1a1a1a]'
                         } disabled:opacity-50`}
                       >
@@ -1180,13 +1180,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         <span className="relative z-10 flex items-center justify-between gap-2">
                           <span className="flex flex-col gap-1">
                             <span className={`font-mono text-[9px] tracking-[0.18em] md:text-[10px] md:tracking-[0.24em] ${
-                              isAuthenticated ? 'text-black/55' : 'text-white/70'
+                              isAuthenticated ? 'text-[#99f3e2]' : 'text-white/70'
                             }`}>
                               {isAuthenticated ? 'MEMBER' : 'LOGIN'}
                             </span>
-                            <span className={`text-[11px] font-bold leading-snug md:text-base ${
-                              isAuthenticated ? 'text-black' : 'text-white'
-                            }`}>
+                            <span className="text-[11px] font-bold leading-snug text-white md:text-base">
                               {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                             </span>
                             {!isAuthenticated ? (
@@ -1195,9 +1193,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                               </span>
                             ) : null}
                           </span>
-                          <span className={`text-sm font-bold md:text-base ${
-                            isAuthenticated ? 'text-black' : 'text-white'
-                          }`}>
+                          <span className="text-sm font-bold text-white md:text-base">
                             →
                           </span>
                         </span>
