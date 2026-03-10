@@ -26,23 +26,44 @@ interface ProductShowcaseProps {
 
 export type { Product };
 
+const ALL_CATEGORY = '전체' as const;
+
+const CATEGORY_LABELS: Record<typeof ALL_CATEGORY | ProductCategory, string> = {
+  전체: 'All',
+  아우터: 'Outerwear',
+  셔츠: 'Shirts',
+  팬츠: 'Pants',
+  가방: 'Bags',
+  악세사리: 'Accessories',
+  인형: 'Dolls',
+  드레스: 'Dresses',
+};
+
+function getCategoryLabel(category: string) {
+  return category in CATEGORY_LABELS
+    ? CATEGORY_LABELS[category as keyof typeof CATEGORY_LABELS]
+    : category;
+}
+
 export function ProductShowcase({
   initialProducts = [],
   usingFallbackCatalog = false,
   onProductClick,
 }: ProductShowcaseProps) {
   const { cart, addToCart } = useFashionCart();
-  const [activeCategory, setActiveCategory] = useState<'전체' | ProductCategory>('전체');
+  const [activeCategory, setActiveCategory] = useState<typeof ALL_CATEGORY | ProductCategory>(
+    ALL_CATEGORY,
+  );
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(initialProducts);
   const [isRecoveringProducts, setIsRecoveringProducts] = useState(false);
-  const categories = ['전체', ...PRODUCT_CATEGORIES] as const;
+  const categories = [ALL_CATEGORY, ...PRODUCT_CATEGORIES] as const;
   const filteredProducts =
-    activeCategory === '전체'
+    activeCategory === ALL_CATEGORY
       ? catalogProducts
       : catalogProducts.filter((product) => product.category === activeCategory);
   const categoryCounts = categories.reduce<Record<string, number>>((accumulator, category) => {
     accumulator[category] =
-      category === '전체'
+      category === ALL_CATEGORY
         ? catalogProducts.length
         : catalogProducts.filter((product) => product.category === category).length;
     return accumulator;
@@ -159,7 +180,7 @@ export function ProductShowcase({
 
             <div className="flex justify-between items-center mt-1 md:mt-2">
               <span className="font-mono text-[9px] md:text-xs text-[#888] truncate">
-                {product.category}
+                {getCategoryLabel(product.category)}
               </span>
               <div className="flex items-center gap-2">
                 {isSoldOut ? (
@@ -213,7 +234,7 @@ export function ProductShowcase({
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#333] pb-4">
           <div>
             <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.86]">
-              의류
+              Apparel
             </h2>
           </div>
 
@@ -227,7 +248,7 @@ export function ProductShowcase({
                     Category
                   </p>
                   <p className="mt-2 font-heading text-[1.9rem] uppercase leading-none tracking-tight text-white">
-                    카테고리
+                    Categories
                   </p>
                 </div>
 
@@ -268,7 +289,7 @@ export function ProductShowcase({
                           {String(index + 1).padStart(2, '0')}
                         </span>
                         <span className="mt-2 block font-heading text-[1.12rem] uppercase leading-none tracking-tight">
-                          {category}
+                          {getCategoryLabel(category)}
                         </span>
                         <span
                           className={`mt-3 block font-mono text-[11px] ${
