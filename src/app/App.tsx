@@ -7,6 +7,7 @@ import { HeroSection } from '@/app/components/subculture/HeroSection';
 import { ProductShowcase } from '@/app/components/subculture/ProductShowcase';
 import { CollectionSection } from '@/app/components/subculture/CollectionSection';
 import { CollectionDetailPopup } from '@/app/components/subculture/CollectionDetailPopup';
+import { SubcultureFooter } from '@/app/components/subculture/SubcultureFooter';
 import { FashionCartProvider } from '@/app/context/FashionCartContext';
 import type { Collection } from '@/lib/storefront/collectionCatalog';
 import type { Product } from '@/lib/storefront/productCatalog';
@@ -94,6 +95,8 @@ export default function App({
             onCollectionClick={setSelectedCollection}
           />
         </main>
+
+        <SubcultureFooter />
         
         {isCartOpen ? (
           <CartOverlay isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
