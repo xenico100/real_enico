@@ -1380,7 +1380,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         disabled={isSubmittingOrder || isUploadingPaymentReceipt}
                         className={`group relative overflow-hidden px-3 py-3 text-left uppercase tracking-[0.1em] shadow-[0_0_0_1px_rgba(0,255,209,0.12)] transition-all duration-200 md:px-4 md:py-4 ${
                           isAuthenticated
-                            ? 'border border-[#00ffd1] bg-[#062b25] text-white shadow-[0_0_24px_rgba(0,255,209,0.18)] hover:border-[#8affeb] hover:bg-[#0b3d34]'
+                            ? 'border border-[#00ffd1] bg-[linear-gradient(135deg,#00ffd1_0%,#7dfff0_100%)] text-black shadow-[0_0_24px_rgba(0,255,209,0.22)] hover:brightness-105'
                             : 'border border-white/45 bg-[#111] text-white hover:border-white hover:bg-[#1a1a1a]'
                         } disabled:opacity-50`}
                       >
@@ -1390,11 +1390,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         <span className="relative z-10 flex items-center justify-between gap-2">
                           <span className="flex flex-col gap-1">
                             <span className={`font-mono text-[9px] tracking-[0.18em] md:text-[10px] md:tracking-[0.24em] ${
-                              isAuthenticated ? 'text-[#99f3e2]' : 'text-white/70'
+                              isAuthenticated ? 'text-black/65' : 'text-white/70'
                             }`}>
                               {isAuthenticated ? 'MEMBER' : 'LOGIN'}
                             </span>
-                            <span className="text-[11px] font-bold leading-snug text-white md:text-base">
+                            <span className={`text-[11px] font-bold leading-snug md:text-base ${
+                              isAuthenticated ? 'text-black' : 'text-white'
+                            }`}>
                               {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                             </span>
                             {!isAuthenticated ? (
@@ -1403,7 +1405,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                               </span>
                             ) : null}
                           </span>
-                          <span className="text-sm font-bold text-white md:text-base">
+                          <span className={`text-sm font-bold md:text-base ${
+                            isAuthenticated ? 'text-black' : 'text-white'
+                          }`}>
                             →
                           </span>
                         </span>
@@ -1431,9 +1435,24 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         type="button"
                         onClick={() => void handleNicepayCheckout()}
                         disabled={isSubmittingOrder || isStartingNicepay}
-                        className="w-full min-h-[48px] border border-[#00ffd1] bg-[#062b25] px-4 py-3 text-left font-heading text-[0.95rem] uppercase tracking-[0.12em] text-white transition-colors hover:border-[#8affeb] hover:bg-[#0b3d34] disabled:opacity-50"
+                        className="group w-full overflow-hidden border border-[#00ffd1] bg-[linear-gradient(135deg,#00ffd1_0%,#7dfff0_100%)] px-4 py-4 text-left text-black shadow-[0_0_24px_rgba(0,255,209,0.22)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
                       >
-                        {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="flex flex-col">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-black/65">
+                              Card Checkout
+                            </span>
+                            <span className="mt-1 font-heading text-[1.1rem] uppercase tracking-[0.12em] text-black md:text-[1.2rem]">
+                              {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
+                            </span>
+                            <span className="mt-2 text-[11px] leading-relaxed text-black/70">
+                              직불카드 또는 신용카드 결제창 열기
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-xl font-black text-black transition-transform duration-200 group-hover:translate-x-1">
+                            →
+                          </span>
+                        </span>
                       </button>
                     </div>
                     <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
