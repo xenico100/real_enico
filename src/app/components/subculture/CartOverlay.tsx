@@ -6,6 +6,7 @@ import { X, Trash2, CreditCard, ShieldCheck, Truck } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface CartOverlayProps {
@@ -26,6 +27,8 @@ const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpp
 const DOMESTIC_REGION = '대한민국';
 const DOMESTIC_SHIPPING_FEE = 3000;
 const INTERNATIONAL_SHIPPING_FEE = 40000;
+const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
+const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
   'border border-[#454545] bg-[#111] px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]';
@@ -186,6 +189,12 @@ function getNicepayErrorMessage(result: NicepayErrorResult | unknown) {
   return target.errorMsg || target.msg || 'NICE Payments 결제창 실행에 실패했습니다.';
 }
 
+function isDesignatedAdmin(email: string | null | undefined) {
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
+}
+
 async function ensureNicepaySdkLoaded() {
   if (typeof window === 'undefined') {
     throw new Error('브라우저 환경에서만 NICE Payments를 실행할 수 있습니다.');
@@ -264,6 +273,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [paymentReceiptPreviewUrl, setPaymentReceiptPreviewUrl] = useState('');
   const [paymentReceiptFileName, setPaymentReceiptFileName] = useState('');
   const [isUploadingPaymentReceipt, setIsUploadingPaymentReceipt] = useState(false);
+  const canUseNicepayCheckout = isAuthenticated && isDesignatedAdmin(user?.email);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -296,37 +306,70 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   useEffect(() => {
     if (!isOpen || !isAuthenticated) return;
 
-    const metadata =
-      user && user.user_metadata && typeof user.user_metadata === 'object'
-        ? (user.user_metadata as Record<string, unknown>)
-        : null;
+    let isActive = true;
 
-    const profileName = profile?.full_name?.trim() || '';
-    const metadataName =
-      (typeof metadata?.full_name === 'string' && metadata.full_name.trim()) ||
-      (typeof metadata?.name === 'string' && metadata.name.trim()) ||
-      '';
-    const metadataPhone =
-      (typeof metadata?.phone === 'string' && metadata.phone.trim()) ||
-      (typeof metadata?.phone_number === 'string' && metadata.phone_number.trim()) ||
-      '';
-    const metadataAddress =
-      (typeof metadata?.address === 'string' && metadata.address.trim()) ||
-      (typeof metadata?.shipping_address === 'string' && metadata.shipping_address.trim()) ||
-      '';
+    const applyAutofill = (targetUser = user) => {
+      const metadata =
+        targetUser && targetUser.user_metadata && typeof targetUser.user_metadata === 'object'
+          ? (targetUser.user_metadata as Record<string, unknown>)
+          : null;
 
-    const nextName = profileName || metadataName;
-    if (nextName) {
-      setCheckoutName((previous) => (previous.trim() ? previous : nextName));
-    }
+      const profileName = profile?.full_name?.trim() || '';
+      const metadataName =
+        (typeof metadata?.full_name === 'string' && metadata.full_name.trim()) ||
+        (typeof metadata?.name === 'string' && metadata.name.trim()) ||
+        '';
+      const metadataPhone =
+        (typeof metadata?.phone === 'string' && metadata.phone.trim()) ||
+        (typeof metadata?.phone_number === 'string' && metadata.phone_number.trim()) ||
+        '';
+      const metadataAddress =
+        (typeof metadata?.address === 'string' && metadata.address.trim()) ||
+        (typeof metadata?.shipping_address === 'string' && metadata.shipping_address.trim()) ||
+        '';
+      const nextEmail = targetUser?.email?.trim() || '';
+      const nextName = profileName || metadataName;
 
-    if (metadataPhone) {
-      setCheckoutPhone((previous) => (previous.trim() ? previous : metadataPhone));
-    }
+      if (nextEmail) {
+        setCheckoutEmail((previous) => (previous.trim() ? previous : nextEmail));
+      }
 
-    if (metadataAddress) {
-      setCheckoutAddress((previous) => (previous.trim() ? previous : metadataAddress));
-    }
+      if (nextName) {
+        setCheckoutName((previous) => (previous.trim() ? previous : nextName));
+      }
+
+      if (metadataPhone) {
+        setCheckoutPhone((previous) => (previous.trim() ? previous : metadataPhone));
+      }
+
+      if (metadataAddress) {
+        setCheckoutAddress((previous) => (previous.trim() ? previous : metadataAddress));
+      }
+    };
+
+    const syncLatestAccountFields = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        applyAutofill();
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getUser();
+      if (!isActive) return;
+
+      if (error || !data.user || data.user.id !== user?.id) {
+        applyAutofill();
+        return;
+      }
+
+      applyAutofill(data.user);
+    };
+
+    void syncLatestAccountFields();
+
+    return () => {
+      isActive = false;
+    };
   }, [isOpen, isAuthenticated, user, profile?.full_name]);
 
   useEffect(() => {
@@ -694,6 +737,15 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     setCheckoutError(null);
     setNicepayError(null);
 
+    if (!canUseNicepayCheckout) {
+      const message = 'NICE Payments는 현재 관리자 계정에서만 테스트 중입니다.';
+      setCheckoutMessage(message);
+      if (typeof window !== 'undefined') {
+        window.alert(message);
+      }
+      return;
+    }
+
     if (!validateCheckoutFields(normalizedEmail)) return;
 
     if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
@@ -788,6 +840,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   }, [
     announceCheckoutError,
     buildOrderItemsPayload,
+    canUseNicepayCheckout,
     checkoutAddress,
     checkoutCountry,
     checkoutEmail,
@@ -1426,7 +1479,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         NICE Payments
                       </p>
                       <p className="text-[10px] text-[#777] mb-3">
-                        카드 결제를 NICE Payments 서버 승인 흐름으로 처리합니다.
+                        {canUseNicepayCheckout
+                          ? '카드 결제를 NICE Payments 서버 승인 흐름으로 처리합니다.'
+                          : '현재 NICE Payments는 관리자 계정만 테스트 중입니다.'}
                       </p>
                       {nicepayError && (
                         <p className="text-[10px] text-red-300 mb-2">{nicepayError}</p>
@@ -1440,13 +1495,19 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         <span className="flex items-center justify-between gap-3">
                           <span className="flex flex-col">
                             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-black/65">
-                              Card Checkout
+                              {canUseNicepayCheckout ? 'Card Checkout' : 'Testing Only'}
                             </span>
                             <span className="mt-1 font-heading text-[1.1rem] uppercase tracking-[0.12em] text-black md:text-[1.2rem]">
-                              {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
+                              {isStartingNicepay
+                                ? 'NICE 준비중...'
+                                : canUseNicepayCheckout
+                                  ? 'NICE Payments'
+                                  : 'NICE Payments 테스트중'}
                             </span>
                             <span className="mt-2 text-[11px] leading-relaxed text-black/70">
-                              직불카드 또는 신용카드 결제창 열기
+                              {canUseNicepayCheckout
+                                ? '직불카드 또는 신용카드 결제창 열기'
+                                : '일반 회원은 현재 테스트 안내 팝업만 표시됩니다.'}
                             </span>
                           </span>
                           <span className="shrink-0 text-xl font-black text-black transition-transform duration-200 group-hover:translate-x-1">
