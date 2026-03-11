@@ -6,6 +6,7 @@ import { X, Trash2, CreditCard, ShieldCheck, Truck } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
+import { NICEPAY_TEST_PRODUCT_ID } from '@/lib/storefront/productCatalog';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -449,10 +450,14 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const canCheckout = cart.length > 0;
   const isInternationalShipping = checkoutCountry !== DOMESTIC_REGION;
+  const isNicepayTestOrder =
+    canCheckout && cart.every((item) => item.id === NICEPAY_TEST_PRODUCT_ID);
   const shipping = canCheckout
-    ? isInternationalShipping
-      ? INTERNATIONAL_SHIPPING_FEE
-      : DOMESTIC_SHIPPING_FEE
+    ? isNicepayTestOrder
+      ? 0
+      : isInternationalShipping
+        ? INTERNATIONAL_SHIPPING_FEE
+        : DOMESTIC_SHIPPING_FEE
     : 0;
   const tax = 0;
   const total = subtotal + shipping;
@@ -1252,7 +1257,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           <span className="text-[#666]">shipping zone</span>
                         </label>
                         <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
-                          대한민국 배송비 3,000원 / 해외 배송비 40,000원
+                          {isNicepayTestOrder
+                            ? 'NICE 10원 테스트 상품은 배송비 없이 결제됩니다.'
+                            : '대한민국 배송비 3,000원 / 해외 배송비 40,000원'}
                         </p>
                         <select
                           ref={checkoutRegionSelectRef}

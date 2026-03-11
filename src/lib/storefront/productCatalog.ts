@@ -21,7 +21,7 @@ export interface Product {
 
 const FALLBACK_IMAGE_URL =
   'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
-const NICEPAY_TEST_PRODUCT_ID = 'manual-nicepay-test-10krw';
+export const NICEPAY_TEST_PRODUCT_ID = 'manual-nicepay-test-10krw';
 const NICEPAY_TEST_PRODUCT: Product = {
   id: NICEPAY_TEST_PRODUCT_ID,
   name: 'NICE Payments 10Won Test',
