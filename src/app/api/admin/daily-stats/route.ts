@@ -14,6 +14,16 @@ const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   month: '2-digit',
   day: '2-digit',
 });
+const KST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
 const PAGE_SIZE = 5_000;
 
 type DailyRow = {
@@ -51,6 +61,10 @@ function getServerConfig() {
 
 function toDateKst(value: Date) {
   return KST_DATE_FORMATTER.format(value);
+}
+
+function formatDateTimeKst(value: Date) {
+  return KST_DATE_TIME_FORMATTER.format(value);
 }
 
 function getUtcRangeForKstDate(dateKst: string) {
@@ -145,6 +159,7 @@ export async function GET(request: Request) {
   const days = Math.min(31, Math.max(1, Math.trunc(rawDays || 7)));
 
   const todayKst = toDateKst(new Date());
+  const fetchedAt = new Date();
   const dateKstList = Array.from({ length: days }, (_, offset) => {
     const cursor = new Date(`${todayKst}T00:00:00+09:00`);
     cursor.setDate(cursor.getDate() - offset);
@@ -280,5 +295,23 @@ export async function GET(request: Request) {
     },
   );
 
-  return NextResponse.json({ rows: orderedRows, summary, days });
+  return NextResponse.json({
+    rows: orderedRows,
+    summary,
+    days,
+    meta: {
+      timezone: 'Asia/Seoul',
+      fetchedAtKst: formatDateTimeKst(fetchedAt),
+      todayWindowLabelKst: `${todayKst} 00:00:00 이상 ~ ${formatDateTimeKst(fetchedAt)} 기준 누적`,
+      rangeStartKst: formatDateTimeKst(oldestRange.startUtc),
+      rangeEndExclusiveKst: formatDateTimeKst(latestRange.endUtc),
+      rangeLabelKst: `${formatDateTimeKst(oldestRange.startUtc)} 이상 ~ ${formatDateTimeKst(
+        latestRange.endUtc,
+      )} 미만`,
+      bucketLabelKst: '각 날짜 00:00:00 이상 ~ 다음날 00:00:00 미만',
+      createdRoomRule: '생성 채팅방 = chat_rooms.created_at 기준',
+      messageRule: '메시지 = chat_room_messages.created_at 기준',
+      visitorRule: '방문자/페이지 hit = site_daily_visitors.visit_date 기준',
+    },
+  });
 }
