@@ -1258,7 +1258,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </label>
                         <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
                           {isNicepayTestOrder
-                            ? 'NICE 10원 테스트 상품은 배송비 없이 결제됩니다.'
+                            ? 'NICE 1000원 테스트 상품은 배송비 없이 결제됩니다.'
                             : '대한민국 배송비 3,000원 / 해외 배송비 40,000원'}
                         </p>
                         <select
