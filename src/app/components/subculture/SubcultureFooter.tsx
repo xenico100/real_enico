@@ -18,13 +18,9 @@ export function SubcultureFooter() {
             <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#00ffd1]">
               Shop Info
             </p>
-            <h2 className="mt-3 font-heading text-3xl uppercase tracking-tight text-[#f3f7f6] md:text-5xl">
+            <h2 className="mt-3 font-heading text-xl uppercase tracking-[0.08em] text-[#f3f7f6] md:text-2xl">
               Monangsangin
             </h2>
-            <p className="mt-3 max-w-xl text-xs leading-relaxed text-[#8bb7af] md:text-sm">
-              쇼핑몰 하단 정보 영역입니다. 상호와 대표자, 연락처, 사업장 주소를 바로 확인할
-              수 있게 고정했습니다.
-            </p>
           </div>
 
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#5d8d84]">
@@ -38,7 +34,7 @@ export function SubcultureFooter() {
               <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#6e8f89]">
                 {field.label}
               </p>
-              <p className="mt-3 break-words text-sm font-semibold leading-relaxed text-[#f1f5f4] md:text-base">
+              <p className="mt-2 break-words text-xs font-medium leading-relaxed text-[#f1f5f4] md:text-sm">
                 {field.value}
               </p>
             </div>
