@@ -45,6 +45,8 @@ interface AccountProfileUpdateOptions {
   silent?: boolean;
 }
 
+const PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY = 'enicoveck_pending_account_profile_sync';
+
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
@@ -347,7 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateAccountProfile = async (
+  const updateAccountProfile = useCallback(async (
     payload: AccountProfileUpdate,
     options: AccountProfileUpdateOptions = {},
   ) => {
@@ -400,7 +402,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsBusy(false);
       }
     }
-  };
+  }, [clearMessages, syncSession, user]);
+
+  useEffect(() => {
+    if (!user || isAnonymousAuthUser(user) || typeof window === 'undefined') return;
+
+    const flushPendingAccountProfileSync = () => {
+      const rawPayload = window.localStorage.getItem(PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY);
+      if (!rawPayload) return;
+
+      let payload: AccountProfileUpdate | null = null;
+      try {
+        payload = JSON.parse(rawPayload) as AccountProfileUpdate;
+      } catch {
+        window.localStorage.removeItem(PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY);
+        return;
+      }
+
+      window.localStorage.removeItem(PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY);
+      void updateAccountProfile(payload, { silent: true }).catch((error) => {
+        console.error('Pending account profile sync failed', error);
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        flushPendingAccountProfileSync();
+      }
+    };
+
+    flushPendingAccountProfileSync();
+    window.addEventListener('focus', flushPendingAccountProfileSync);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', flushPendingAccountProfileSync);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, updateAccountProfile]);
 
   return (
     <AuthContext.Provider
