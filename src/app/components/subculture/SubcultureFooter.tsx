@@ -21,6 +21,9 @@ export function SubcultureFooter() {
             <h2 className="mt-3 font-heading text-xl uppercase tracking-[0.08em] text-[#f3f7f6] md:text-2xl">
               Monangsangin
             </h2>
+            <p className="mt-2 break-all text-[10px] leading-relaxed text-[#6e8f89] md:text-xs">
+              morba9850@gmail.com. Copyright © Enico Veck. All rights reserved.
+            </p>
           </div>
 
           <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#5d8d84]">
