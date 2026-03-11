@@ -1528,48 +1528,42 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         {isSubmittingOrder ? '처리중...' : '비회원 구매'}
                       </button>
                     </div>
-                    <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
-                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">
-                        NICE Payments
-                      </p>
-                      <p className="text-[10px] text-[#777] mb-3">
-                        {canUseNicepayCheckout
-                          ? '카드 결제를 NICE Payments 서버 승인 흐름으로 처리합니다.'
-                          : '현재 NICE Payments는 관리자 계정만 테스트 중입니다.'}
-                      </p>
-                      {nicepayError && (
-                        <p className="text-[10px] text-red-300 mb-2">{nicepayError}</p>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => void handleNicepayCheckout()}
-                        disabled={isSubmittingOrder || isStartingNicepay}
-                        className="group w-full overflow-hidden border border-[#00ffd1] bg-[linear-gradient(135deg,#00ffd1_0%,#7dfff0_100%)] px-4 py-4 text-left text-black shadow-[0_0_24px_rgba(0,255,209,0.22)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
-                      >
-                        <span className="flex items-center justify-between gap-3">
-                          <span className="flex flex-col">
-                            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-black/65">
-                              {canUseNicepayCheckout ? 'Card Checkout' : 'Testing Only'}
+                    {canUseNicepayCheckout ? (
+                      <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
+                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">
+                          NICE Payments
+                        </p>
+                        <p className="text-[10px] text-[#777] mb-3">
+                          카드 결제를 NICE Payments 서버 승인 흐름으로 처리합니다.
+                        </p>
+                        {nicepayError && (
+                          <p className="text-[10px] text-red-300 mb-2">{nicepayError}</p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleNicepayCheckout()}
+                          disabled={isSubmittingOrder || isStartingNicepay}
+                          className="group w-full overflow-hidden border border-[#00ffd1] bg-[linear-gradient(135deg,#00ffd1_0%,#7dfff0_100%)] px-4 py-4 text-left text-black shadow-[0_0_24px_rgba(0,255,209,0.22)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
+                        >
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="flex flex-col">
+                              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-black/65">
+                                Card Checkout
+                              </span>
+                              <span className="mt-1 font-heading text-[1.1rem] uppercase tracking-[0.12em] text-black md:text-[1.2rem]">
+                                {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
+                              </span>
+                              <span className="mt-2 text-[11px] leading-relaxed text-black/70">
+                                직불카드 또는 신용카드 결제창 열기
+                              </span>
                             </span>
-                            <span className="mt-1 font-heading text-[1.1rem] uppercase tracking-[0.12em] text-black md:text-[1.2rem]">
-                              {isStartingNicepay
-                                ? 'NICE 준비중...'
-                                : canUseNicepayCheckout
-                                  ? 'NICE Payments'
-                                  : 'NICE Payments 테스트중'}
-                            </span>
-                            <span className="mt-2 text-[11px] leading-relaxed text-black/70">
-                              {canUseNicepayCheckout
-                                ? '직불카드 또는 신용카드 결제창 열기'
-                                : '일반 회원은 현재 테스트 안내 팝업만 표시됩니다.'}
+                            <span className="shrink-0 text-xl font-black text-black transition-transform duration-200 group-hover:translate-x-1">
+                              →
                             </span>
                           </span>
-                          <span className="shrink-0 text-xl font-black text-black transition-transform duration-200 group-hover:translate-x-1">
-                            →
-                          </span>
-                        </span>
-                      </button>
-                    </div>
+                        </button>
+                      </div>
+                    ) : null}
                     <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
                       <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">
                         PayPal 결제 (Sandbox)

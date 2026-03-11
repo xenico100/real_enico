@@ -10,9 +10,11 @@ import {
   getFashionCartItemKey,
   useFashionCart,
 } from '@/app/context/FashionCartContext';
+import { useAuth } from '@/app/context/AuthContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import {
   buildProductCatalog,
+  NICEPAY_TEST_PRODUCT_ID,
   type Product,
 } from '@/lib/storefront/productCatalog';
 import { STOREFRONT_PRODUCT_SELECT, type StorefrontProductRow } from '@/lib/storefront/shared';
@@ -27,6 +29,8 @@ interface ProductShowcaseProps {
 export type { Product };
 
 const ALL_CATEGORY = '전체' as const;
+const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
+const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 
 const CATEGORY_LABELS: Record<typeof ALL_CATEGORY | ProductCategory, string> = {
   전체: 'All',
@@ -45,27 +49,38 @@ function getCategoryLabel(category: string) {
     : category;
 }
 
+function isDesignatedAdmin(email: string | null | undefined) {
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
+}
+
 export function ProductShowcase({
   initialProducts = [],
   usingFallbackCatalog = false,
   onProductClick,
 }: ProductShowcaseProps) {
   const { cart, addToCart } = useFashionCart();
+  const { isAuthenticated, user } = useAuth();
   const [activeCategory, setActiveCategory] = useState<typeof ALL_CATEGORY | ProductCategory>(
     ALL_CATEGORY,
   );
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(initialProducts);
   const [isRecoveringProducts, setIsRecoveringProducts] = useState(false);
+  const canViewNicepayTestProduct = isAuthenticated && isDesignatedAdmin(user?.email);
+  const visibleCatalogProducts = canViewNicepayTestProduct
+    ? catalogProducts
+    : catalogProducts.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID);
   const categories = [ALL_CATEGORY, ...PRODUCT_CATEGORIES] as const;
   const filteredProducts =
     activeCategory === ALL_CATEGORY
-      ? catalogProducts
-      : catalogProducts.filter((product) => product.category === activeCategory);
+      ? visibleCatalogProducts
+      : visibleCatalogProducts.filter((product) => product.category === activeCategory);
   const categoryCounts = categories.reduce<Record<string, number>>((accumulator, category) => {
     accumulator[category] =
       category === ALL_CATEGORY
-        ? catalogProducts.length
-        : catalogProducts.filter((product) => product.category === category).length;
+        ? visibleCatalogProducts.length
+        : visibleCatalogProducts.filter((product) => product.category === category).length;
     return accumulator;
   }, {});
   const cartProductKeys = new Set(
@@ -254,7 +269,7 @@ export function ProductShowcase({
 
                 <p className="shrink-0 font-heading text-3xl leading-none text-[#00ffd1]">
                   {filteredProducts.length}
-                  <span className="ml-1 text-xl text-[#5d5d5d]">/ {catalogProducts.length}</span>
+                  <span className="ml-1 text-xl text-[#5d5d5d]">/ {visibleCatalogProducts.length}</span>
                 </p>
               </div>
 
@@ -315,7 +330,7 @@ export function ProductShowcase({
           </div>
         ) : null}
 
-        {catalogProducts.length === 0 ? (
+        {visibleCatalogProducts.length === 0 ? (
           <div className="border border-[#333] bg-[#0a0a0a] px-4 py-10 text-center font-mono text-sm text-[#9a9a9a]">
             표시할 의류 게시물이 없습니다.
           </div>
