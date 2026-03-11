@@ -4,7 +4,7 @@ create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   order_code text not null,
   channel text not null check (channel in ('member', 'guest')),
-  payment_method text not null check (payment_method in ('bank_transfer', 'paypal')),
+  payment_method text not null check (payment_method in ('bank_transfer', 'paypal', 'nicepay')),
   payment_status text not null,
   currency text not null default 'KRW',
   amount_subtotal bigint not null default 0,
@@ -49,6 +49,13 @@ alter table public.orders
 update public.orders
 set shipping_status = 'preparing'
 where shipping_status is null;
+
+alter table public.orders
+  drop constraint if exists orders_payment_method_check;
+
+alter table public.orders
+  add constraint orders_payment_method_check
+  check (payment_method in ('bank_transfer', 'paypal', 'nicepay'));
 
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
 create index if not exists orders_order_code_idx on public.orders (order_code);

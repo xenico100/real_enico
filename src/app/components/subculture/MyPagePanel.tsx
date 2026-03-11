@@ -189,6 +189,10 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
     if (normalizedStatus === 'captured' || normalizedStatus === 'completed') return '결제완료';
   }
 
+  if (normalizedMethod === 'nicepay') {
+    if (normalizedStatus === 'paid' || normalizedStatus === 'completed') return '결제완료';
+  }
+
   return status || '-';
 }
 
@@ -196,6 +200,7 @@ function getPaymentMethodLabel(method: string) {
   const normalizedMethod = (method || '').toLowerCase();
   if (normalizedMethod === 'bank_transfer') return '계좌이체';
   if (normalizedMethod === 'paypal') return 'PayPal';
+  if (normalizedMethod === 'nicepay') return 'NICE Payments';
   return method || '-';
 }
 
@@ -1013,7 +1018,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                         {getShippingStatusLabel(order.shippingStatus)}
                       </span>
                       <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                        {order.paymentMethod || '-'}
+                        {getPaymentMethodLabel(order.paymentMethod)}
                       </span>
                       <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
                         {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}

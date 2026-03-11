@@ -19,6 +19,7 @@ type OrderChannel = 'member' | 'guest';
 const BANK_NAME = '카카오뱅크';
 const BANK_ACCOUNT_NUMBER = '3333-09-2834969';
 const BANK_ACCOUNT_HOLDER = '백형석';
+const NICEPAY_SDK_SCRIPT_ID = 'nicepay-sdk-script';
 const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
 const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpperCase();
@@ -72,9 +73,32 @@ type PayPalNamespace = {
   }) => PayPalButtonsInstance;
 };
 
+type NicepayErrorResult = {
+  errorMsg?: string;
+  errorCode?: string;
+  msg?: string;
+};
+
+type NicepayNamespace = {
+  requestPay: (payload: {
+    clientId: string;
+    method: 'card';
+    orderId: string;
+    amount: number;
+    goodsName: string;
+    returnUrl: string;
+    buyerName?: string;
+    buyerTel?: string;
+    buyerEmail?: string;
+    mallReserved?: string;
+    fnError?: (result: NicepayErrorResult) => void;
+  }) => void;
+};
+
 declare global {
   interface Window {
     paypal?: PayPalNamespace;
+    AUTHNICE?: NicepayNamespace;
   }
 }
 
@@ -149,6 +173,60 @@ function parsePayPalCapture(payload: unknown) {
   };
 }
 
+function generateTransactionId() {
+  return Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
+}
+
+function getNicepayErrorMessage(result: NicepayErrorResult | unknown) {
+  if (!result || typeof result !== 'object') {
+    return 'NICE Payments 결제창 실행에 실패했습니다.';
+  }
+
+  const target = result as NicepayErrorResult;
+  return target.errorMsg || target.msg || 'NICE Payments 결제창 실행에 실패했습니다.';
+}
+
+async function ensureNicepaySdkLoaded() {
+  if (typeof window === 'undefined') {
+    throw new Error('브라우저 환경에서만 NICE Payments를 실행할 수 있습니다.');
+  }
+
+  if (window.AUTHNICE) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const existingScript = document.getElementById(NICEPAY_SDK_SCRIPT_ID) as HTMLScriptElement | null;
+    const handleLoad = () => {
+      if (!window.AUTHNICE) {
+        reject(new Error('NICE Payments SDK를 불러왔지만 초기화에 실패했습니다.'));
+        return;
+      }
+      resolve();
+    };
+    const handleError = () => {
+      reject(new Error('NICE Payments SDK 로딩에 실패했습니다.'));
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad, { once: true });
+      existingScript.addEventListener('error', handleError, { once: true });
+      if (window.AUTHNICE) {
+        resolve();
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = NICEPAY_SDK_SCRIPT_ID;
+    script.src = 'https://pay.nicepay.co.kr/v1/js/';
+    script.async = true;
+    script.addEventListener('load', handleLoad, { once: true });
+    script.addEventListener('error', handleError, { once: true });
+    document.body.appendChild(script);
+  });
+}
+
 function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
@@ -175,6 +253,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [checkoutPhone, setCheckoutPhone] = useState('');
   const [guestLookupPassword, setGuestLookupPassword] = useState('');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isStartingNicepay, setIsStartingNicepay] = useState(false);
+  const [nicepayError, setNicepayError] = useState<string | null>(null);
   const [paypalSdkReady, setPaypalSdkReady] = useState(false);
   const [paypalError, setPaypalError] = useState<string | null>(null);
   const [paypalRetryNonce, setPaypalRetryNonce] = useState(0);
@@ -188,8 +268,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   useEffect(() => {
     if (!isOpen) return;
 
-    setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
+    setTransactionId(generateTransactionId());
     setMode('cart');
+    setNicepayError(null);
     setCheckoutMessage(null);
     setCheckoutError(null);
     setGuestLookupPassword('');
@@ -576,13 +657,154 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       setCheckoutPhone('');
       setGuestLookupPassword('');
       resetPaymentReceiptState();
-      setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
+      setTransactionId(generateTransactionId());
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : '주문 전송에 실패했습니다.');
     } finally {
       setIsSubmittingOrder(false);
     }
   };
+
+  const buildOrderItemsPayload = useCallback(
+    () =>
+      cart.map((item) => {
+        const quantity = item.quantity || 1;
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category || '기타',
+          selectedSize: item.selectedSize || null,
+          quantity,
+          unitPrice: item.price,
+          lineTotal: item.price * quantity,
+        };
+      }),
+    [cart],
+  );
+
+  const handleNicepayCheckout = useCallback(async () => {
+    const channel: OrderChannel = isAuthenticated ? 'member' : 'guest';
+    const normalizedName = checkoutName.trim();
+    const normalizedAddress = checkoutAddress.trim();
+    const normalizedPhone = checkoutPhone.trim();
+    const normalizedEmail = (channel === 'member' ? user?.email || checkoutEmail : checkoutEmail).trim();
+    const normalizedGuestLookupPassword = guestLookupPassword.trim();
+
+    setCheckoutMessage(null);
+    setCheckoutError(null);
+    setNicepayError(null);
+
+    if (!validateCheckoutFields(normalizedEmail)) return;
+
+    if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
+      announceCheckoutError(
+        '비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.',
+        guestPasswordInputRef.current,
+      );
+      return;
+    }
+
+    setIsStartingNicepay(true);
+
+    try {
+      const prepareResponse = await fetch('/api/orders/nicepay/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId,
+          channel,
+          customer: {
+            name: normalizedName,
+            email: normalizedEmail,
+            phone: normalizedPhone,
+            country: checkoutCountry,
+            address: normalizedAddress,
+          },
+          pricing: {
+            subtotal,
+            shipping,
+            tax,
+            total,
+            currency: 'KRW',
+          },
+          guestLookupPassword:
+            channel === 'guest' ? normalizedGuestLookupPassword : undefined,
+          items: buildOrderItemsPayload(),
+        }),
+      });
+
+      const preparePayload = (await prepareResponse.json()) as {
+        message?: string;
+        clientKey?: string;
+        mid?: string;
+        returnUrl?: string;
+        orderId?: string;
+        amount?: number;
+        goodsName?: string;
+        customer?: {
+          name?: string;
+          email?: string;
+          phone?: string;
+        };
+      };
+
+      if (
+        !prepareResponse.ok ||
+        !preparePayload.clientKey ||
+        !preparePayload.returnUrl ||
+        !preparePayload.orderId ||
+        typeof preparePayload.amount !== 'number' ||
+        !preparePayload.goodsName
+      ) {
+        throw new Error(preparePayload.message || 'NICE Payments 결제 준비에 실패했습니다.');
+      }
+
+      await ensureNicepaySdkLoaded();
+
+      if (!window.AUTHNICE) {
+        throw new Error('NICE Payments SDK 초기화에 실패했습니다.');
+      }
+
+      window.AUTHNICE.requestPay({
+        clientId: preparePayload.clientKey,
+        method: 'card',
+        orderId: preparePayload.orderId,
+        amount: preparePayload.amount,
+        goodsName: preparePayload.goodsName,
+        returnUrl: preparePayload.returnUrl,
+        buyerName: preparePayload.customer?.name || normalizedName,
+        buyerTel: preparePayload.customer?.phone || normalizedPhone,
+        buyerEmail: preparePayload.customer?.email || normalizedEmail,
+        mallReserved: preparePayload.mid ? `mid=${preparePayload.mid}` : undefined,
+        fnError: (result) => {
+          setNicepayError(getNicepayErrorMessage(result));
+        },
+      });
+    } catch (error) {
+      setNicepayError(
+        error instanceof Error ? error.message : 'NICE Payments 결제 준비 중 오류가 발생했습니다.',
+      );
+    } finally {
+      setIsStartingNicepay(false);
+    }
+  }, [
+    announceCheckoutError,
+    buildOrderItemsPayload,
+    checkoutAddress,
+    checkoutCountry,
+    checkoutEmail,
+    checkoutName,
+    checkoutPhone,
+    guestLookupPassword,
+    isAuthenticated,
+    shipping,
+    subtotal,
+    tax,
+    total,
+    transactionId,
+    user?.email,
+    validateCheckoutFields,
+  ]);
 
   useEffect(() => {
     if (!isOpen || mode !== 'checkout') return;
@@ -675,18 +897,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 currency: capture.capturedAmount.currency || PAYPAL_CURRENCY,
                 value: capture.capturedAmount.value || paypalOrderAmount,
               },
-              items: cart.map((item) => {
-                const quantity = item.quantity || 1;
-                return {
-                  id: item.id,
-                  name: item.name,
-                  category: item.category || '기타',
-                  selectedSize: item.selectedSize || null,
-                  quantity,
-                  unitPrice: item.price,
-                  lineTotal: item.price * quantity,
-                };
-              }),
+              items: buildOrderItemsPayload(),
             }),
           });
 
@@ -710,7 +921,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           setCheckoutAddress('');
           setCheckoutPhone('');
           setGuestLookupPassword('');
-          setTransactionId(Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join(''));
+          setTransactionId(generateTransactionId());
         } catch (error) {
           setCheckoutError(error instanceof Error ? error.message : 'PayPal 결제 처리 중 오류가 발생했습니다.');
         } finally {
@@ -757,6 +968,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     total,
     transactionId,
     user?.email,
+    buildOrderItemsPayload,
     announceCheckoutError,
     validateCheckoutFields,
     paymentReceiptUrl,
@@ -1060,7 +1272,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 </div>
                 <div className="mb-3 inline-flex items-center gap-2 border border-[#333] bg-[#111] px-3 py-2 text-[10px] uppercase tracking-[0.18em] md:mb-4">
                     <CreditCard size={12} className="text-[#00ffd1]" />
-                    <span className="text-[#aaa]">계좌이체 주문</span>
+                    <span className="text-[#aaa]">결제 수단 선택</span>
                 </div>
 
                 {mode === 'cart' ? (
@@ -1209,6 +1421,25 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         className="min-h-[68px] bg-[#00ffd1] px-3 py-3 text-center font-heading text-[0.95rem] uppercase tracking-[0.08em] text-black transition-colors hover:bg-white disabled:opacity-50 md:px-4 md:py-4 md:text-lg md:tracking-[0.16em]"
                       >
                         {isSubmittingOrder ? '처리중...' : '비회원 구매'}
+                      </button>
+                    </div>
+                    <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
+                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">
+                        NICE Payments
+                      </p>
+                      <p className="text-[10px] text-[#777] mb-3">
+                        카드 결제를 NICE Payments 서버 승인 흐름으로 처리합니다.
+                      </p>
+                      {nicepayError && (
+                        <p className="text-[10px] text-red-300 mb-2">{nicepayError}</p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void handleNicepayCheckout()}
+                        disabled={isSubmittingOrder || isStartingNicepay}
+                        className="w-full min-h-[48px] border border-[#00ffd1] bg-[#062b25] px-4 py-3 text-left font-heading text-[0.95rem] uppercase tracking-[0.12em] text-white transition-colors hover:border-[#8affeb] hover:bg-[#0b3d34] disabled:opacity-50"
+                      >
+                        {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
                       </button>
                     </div>
                     <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
