@@ -29,13 +29,12 @@ function getOrderServerConfig() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '';
   const clientKey = process.env.NICEPAY_CLIENT_KEY?.trim() || '';
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim() || '';
-  const mid = process.env.NICEPAY_MID?.trim() || '';
 
-  if (!url || !serviceRoleKey || !clientKey || !secretKey || !mid) {
+  if (!url || !serviceRoleKey || !clientKey || !secretKey) {
     return null;
   }
 
-  return { url, serviceRoleKey, clientKey, secretKey, mid };
+  return { url, serviceRoleKey, clientKey, secretKey };
 }
 
 function formatKrw(value: number) {
@@ -91,7 +90,6 @@ function buildRawPayload(
   pendingOrder: NonNullable<ReturnType<typeof verifyNicepayPendingOrder>>,
   params: NicepayReturnParams,
   approvalPayload: unknown,
-  config: NonNullable<ReturnType<typeof getOrderServerConfig>>,
 ) {
   return {
     transactionId: pendingOrder.transactionId,
@@ -101,7 +99,6 @@ function buildRawPayload(
     pricing: pendingOrder.pricing,
     items: pendingOrder.items,
     nicepay: {
-      mid: config.mid,
       orderId: pendingOrder.orderId,
       tid: params.tid,
       clientId: params.clientId,
@@ -361,7 +358,7 @@ export async function POST(request: Request) {
       guest_password_hash: pendingOrder.guestPasswordHash,
       shipping_status: 'preparing',
       items: pendingOrder.items,
-      raw_payload: buildRawPayload(pendingOrder, params, approvalPayload, config),
+      raw_payload: buildRawPayload(pendingOrder, params, approvalPayload),
     });
 
     if (insertResult.error) {

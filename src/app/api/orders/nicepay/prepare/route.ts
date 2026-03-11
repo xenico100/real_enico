@@ -43,14 +43,13 @@ function toNumber(value: unknown) {
 function getNicepayConfig() {
   const clientKey = process.env.NICEPAY_CLIENT_KEY?.trim() || '';
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim() || '';
-  const mid = process.env.NICEPAY_MID?.trim() || '';
   const returnUrl = process.env.NICEPAY_RETURN_URL?.trim() || '';
 
-  if (!clientKey || !secretKey || !mid || !returnUrl) {
+  if (!clientKey || !secretKey || !returnUrl) {
     return null;
   }
 
-  return { clientKey, secretKey, mid, returnUrl };
+  return { clientKey, secretKey, returnUrl };
 }
 
 function normalizeGuestLookupPassword(payload: Partial<NicepayPreparePayload>) {
@@ -171,7 +170,7 @@ export async function POST(request: Request) {
   const config = getNicepayConfig();
   if (!config) {
     return NextResponse.json(
-      { message: 'NICEPAY_CLIENT_KEY / NICEPAY_SECRET_KEY / NICEPAY_MID / NICEPAY_RETURN_URL 설정이 필요합니다.' },
+      { message: 'NICEPAY_CLIENT_KEY / NICEPAY_SECRET_KEY / NICEPAY_RETURN_URL 설정이 필요합니다.' },
       { status: 500 },
     );
   }
@@ -203,7 +202,6 @@ export async function POST(request: Request) {
       nicepay: {
         amount,
         goodsName,
-        mid: config.mid,
         returnUrl: config.returnUrl,
       },
     };
@@ -211,7 +209,6 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       ok: true,
       clientKey: config.clientKey,
-      mid: config.mid,
       returnUrl: config.returnUrl,
       orderId,
       amount,

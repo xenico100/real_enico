@@ -35,7 +35,6 @@ export type NicepayPendingOrder = {
   nicepay: {
     amount: number;
     goodsName: string;
-    mid: string;
     returnUrl: string;
   };
 };
