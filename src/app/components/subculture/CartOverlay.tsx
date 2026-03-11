@@ -243,7 +243,7 @@ function formatKrw(value: number) {
 
 export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const { cart, removeFromCart, clearCart } = useFashionCart();
-  const { isAuthenticated, user, profile } = useAuth();
+  const { isAuthenticated, user, profile, updateAccountProfile } = useAuth();
   const checkoutScrollRef = useRef<HTMLDivElement | null>(null);
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
@@ -630,6 +630,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       return;
     }
 
+    if (channel === 'member') {
+      syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
+    }
+
     const normalizedGuestLookupPassword = guestLookupPassword.trim();
     if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
       announceCheckoutError(
@@ -730,6 +734,23 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     [cart],
   );
 
+  const syncCheckoutDetailsToAccount = useCallback(
+    (phone: string, address: string) => {
+      if (!isAuthenticated) return;
+
+      void updateAccountProfile(
+        {
+          phone,
+          address,
+        },
+        { silent: true },
+      ).catch((error) => {
+        console.error('Checkout account sync failed', error);
+      });
+    },
+    [isAuthenticated, updateAccountProfile],
+  );
+
   const handleNicepayCheckout = useCallback(async () => {
     const channel: OrderChannel = isAuthenticated ? 'member' : 'guest';
     const normalizedName = checkoutName.trim();
@@ -752,6 +773,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     }
 
     if (!validateCheckoutFields(normalizedEmail)) return;
+
+    syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
 
     if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
       announceCheckoutError(
@@ -854,6 +877,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     guestLookupPassword,
     isAuthenticated,
     shipping,
+    syncCheckoutDetailsToAccount,
     subtotal,
     tax,
     total,
@@ -880,6 +904,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       onClick: async (_data, actions) => {
         setCheckoutError(null);
         setCheckoutMessage(null);
+        const normalizedAddress = checkoutAddress.trim();
+        const normalizedPhone = checkoutPhone.trim();
 
         if (!validateCheckoutFields()) {
           await actions.reject();
@@ -894,6 +920,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           await actions.reject();
           return;
         }
+
+        syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
 
         await actions.resolve();
       },
@@ -1026,6 +1054,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     user?.email,
     buildOrderItemsPayload,
     announceCheckoutError,
+    syncCheckoutDetailsToAccount,
     validateCheckoutFields,
     paymentReceiptUrl,
     isUploadingPaymentReceipt,
