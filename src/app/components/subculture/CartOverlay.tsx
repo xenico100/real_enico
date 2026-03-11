@@ -28,6 +28,7 @@ const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpp
 const DOMESTIC_REGION = '대한민국';
 const DOMESTIC_SHIPPING_FEE = 3000;
 const INTERNATIONAL_SHIPPING_FEE = 40000;
+const PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY = 'enicoveck_pending_account_profile_sync';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
@@ -187,7 +188,14 @@ function getNicepayErrorMessage(result: NicepayErrorResult | unknown) {
   }
 
   const target = result as NicepayErrorResult;
-  return target.errorMsg || target.msg || 'NICE Payments 결제창 실행에 실패했습니다.';
+  const message = target.errorMsg || target.msg || '';
+  const code = target.errorCode?.trim() || '';
+
+  if (message && code) {
+    return `${message} (${code})`;
+  }
+
+  return message || (code ? `NICE Payments 결제창 실행에 실패했습니다. (${code})` : 'NICE Payments 결제창 실행에 실패했습니다.');
 }
 
 function isDesignatedAdmin(email: string | null | undefined) {
@@ -630,10 +638,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       return;
     }
 
-    if (channel === 'member') {
-      syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
-    }
-
     const normalizedGuestLookupPassword = guestLookupPassword.trim();
     if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
       announceCheckoutError(
@@ -700,6 +704,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           '비회원 주문이 접수되었습니다. 모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 배송조회할 수 있습니다.',
         );
       } else {
+        syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
         setCheckoutMessage('주문이 접수되었습니다. 입금 확인 후 순차 처리됩니다.');
       }
       clearCart();
@@ -751,6 +756,18 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     [isAuthenticated, updateAccountProfile],
   );
 
+  const queueCheckoutDetailsSync = useCallback(
+    (phone: string, address: string) => {
+      if (!isAuthenticated || typeof window === 'undefined') return;
+
+      window.localStorage.setItem(
+        PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY,
+        JSON.stringify({ phone, address }),
+      );
+    },
+    [isAuthenticated],
+  );
+
   const handleNicepayCheckout = useCallback(async () => {
     const channel: OrderChannel = isAuthenticated ? 'member' : 'guest';
     const normalizedName = checkoutName.trim();
@@ -773,8 +790,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     }
 
     if (!validateCheckoutFields(normalizedEmail)) return;
-
-    syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
+    queueCheckoutDetailsSync(normalizedPhone, normalizedAddress);
 
     if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
       announceCheckoutError(
@@ -877,7 +893,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     guestLookupPassword,
     isAuthenticated,
     shipping,
-    syncCheckoutDetailsToAccount,
+    queueCheckoutDetailsSync,
     subtotal,
     tax,
     total,
@@ -904,8 +920,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       onClick: async (_data, actions) => {
         setCheckoutError(null);
         setCheckoutMessage(null);
-        const normalizedAddress = checkoutAddress.trim();
-        const normalizedPhone = checkoutPhone.trim();
 
         if (!validateCheckoutFields()) {
           await actions.reject();
@@ -920,8 +934,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           await actions.reject();
           return;
         }
-
-        syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
 
         await actions.resolve();
       },
@@ -997,6 +1009,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               'PayPal 결제가 완료되었습니다. 모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 배송조회할 수 있습니다.',
             );
           } else {
+            syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
             setCheckoutMessage('PayPal 결제가 완료되었습니다. 주문이 접수되었습니다.');
           }
           clearCart();
