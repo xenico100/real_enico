@@ -36,6 +36,15 @@ interface SignUpCredentials extends EmailCredentials {
   address?: string;
 }
 
+interface AccountProfileUpdate {
+  phone?: string;
+  address?: string;
+}
+
+interface AccountProfileUpdateOptions {
+  silent?: boolean;
+}
+
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
@@ -54,6 +63,10 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   deleteMyAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateAccountProfile: (
+    payload: AccountProfileUpdate,
+    options?: AccountProfileUpdateOptions,
+  ) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -334,6 +347,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const updateAccountProfile = async (
+    payload: AccountProfileUpdate,
+    options: AccountProfileUpdateOptions = {},
+  ) => {
+    const supabase = requireClient();
+    if (!user || isAnonymousAuthUser(user)) {
+      throw new Error('로그인한 회원만 계정 정보를 저장할 수 있습니다.');
+    }
+
+    if (!options.silent) {
+      clearMessages();
+      setIsBusy(true);
+    }
+
+    try {
+      const metadata =
+        user.user_metadata && typeof user.user_metadata === 'object'
+          ? (user.user_metadata as Record<string, unknown>)
+          : {};
+
+      const nextMetadata: Record<string, unknown> = { ...metadata };
+
+      if ('phone' in payload) {
+        nextMetadata.phone = payload.phone?.trim() || null;
+      }
+
+      if ('address' in payload) {
+        nextMetadata.address = payload.address?.trim() || null;
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        data: nextMetadata,
+      });
+      if (error) throw error;
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      await syncSession(sessionData.session ?? null);
+
+      if (!options.silent) {
+        setStatusMessage('계정 정보가 저장되었습니다.');
+      }
+    } catch (error) {
+      if (!options.silent) {
+        setErrorMessage(getFriendlyErrorMessage(error));
+      }
+      throw error;
+    } finally {
+      if (!options.silent && isMountedRef.current) {
+        setIsBusy(false);
+      }
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -355,6 +423,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         deleteMyAccount,
         refreshProfile,
+        updateAccountProfile,
       }}
     >
       {children}

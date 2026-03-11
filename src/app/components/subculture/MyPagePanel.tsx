@@ -339,9 +339,23 @@ type MyPagePanelProps = {
 };
 
 export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
-  const { session, isAuthenticated, isAuthReady, user, profile, signOut, isBusy } = useAuth();
+  const {
+    session,
+    isAuthenticated,
+    isAuthReady,
+    user,
+    profile,
+    signOut,
+    isBusy,
+    updateAccountProfile,
+  } = useAuth();
   const { cart } = useFashionCart();
   const [activeTab, setActiveTab] = useState<MyPageTab>('profile');
+  const [accountPhone, setAccountPhone] = useState('');
+  const [accountAddress, setAccountAddress] = useState('');
+  const [accountProfileMessage, setAccountProfileMessage] = useState<string | null>(null);
+  const [accountProfileError, setAccountProfileError] = useState<string | null>(null);
+  const [isSavingAccountProfile, setIsSavingAccountProfile] = useState(false);
   const [members, setMembers] = useState<MemberRecord[]>([]);
   const [memberDrafts, setMemberDrafts] = useState<Record<string, MemberDraft>>({});
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
@@ -381,6 +395,20 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
       '회원'
     );
   }, [profile?.full_name, user]);
+  const userPhone = useMemo(
+    () => (typeof user?.user_metadata?.phone === 'string' ? user.user_metadata.phone.trim() : ''),
+    [user],
+  );
+  const userAddress = useMemo(
+    () =>
+      typeof user?.user_metadata?.address === 'string' ? user.user_metadata.address.trim() : '',
+    [user],
+  );
+
+  useEffect(() => {
+    setAccountPhone(userPhone);
+    setAccountAddress(userAddress);
+  }, [userAddress, userPhone]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const adminOrderSummary = useMemo(() => {
@@ -430,6 +458,24 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   const resetMemberMessages = () => {
     setMemberMessage(null);
     setMemberError(null);
+  };
+
+  const handleSaveAccountProfile = async () => {
+    setAccountProfileMessage(null);
+    setAccountProfileError(null);
+    setIsSavingAccountProfile(true);
+
+    try {
+      await updateAccountProfile({
+        phone: accountPhone,
+        address: accountAddress,
+      });
+      setAccountProfileMessage('전화번호와 주소를 저장했습니다.');
+    } catch (error) {
+      setAccountProfileError(error instanceof Error ? error.message : '계정 정보 저장 실패');
+    } finally {
+      setIsSavingAccountProfile(false);
+    }
   };
 
   const resetMemberOrderMessages = () => {
@@ -1187,6 +1233,59 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           <div className="rounded-2xl border border-white/15 bg-[#121212] p-4">
             <p className="text-[#8a8a8a] mb-1">가입일</p>
             <p className="text-[#f5f5f5] text-sm">{formatDate(profile?.created_at || user.created_at)}</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-[#101010] p-4">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">배송 정보 저장</p>
+              <p className="mt-1 text-[11px] text-[#8d8d8d]">
+                여기서 저장하거나 주문창에서 입력하면 회원정보에 자동 반영됩니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleSaveAccountProfile()}
+              disabled={isBusy || isSavingAccountProfile}
+              className="border border-[#2c5b53] bg-[#0a1715] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#bafff0] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] disabled:opacity-50"
+            >
+              {isSavingAccountProfile ? '저장중...' : '저장'}
+            </button>
+          </div>
+
+          {(accountProfileMessage || accountProfileError) && (
+            <div
+              className={`mt-3 border px-3 py-2 text-xs ${
+                accountProfileError
+                  ? 'border-red-700 bg-red-950/20 text-red-300'
+                  : 'border-[#00ffd1]/30 bg-[#00ffd1]/5 text-[#bafff0]'
+              }`}
+            >
+              {accountProfileError || accountProfileMessage}
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-[11px] text-[#8a8a8a]">핸드폰번호</span>
+              <input
+                type="tel"
+                value={accountPhone}
+                onChange={(event) => setAccountPhone(event.target.value)}
+                placeholder="010-0000-0000"
+                className="w-full rounded-none border border-[#333] bg-black px-3 py-3 text-sm text-[#e5e5e5] outline-none transition-colors focus:border-[#00ffd1]"
+              />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-[11px] text-[#8a8a8a]">주소</span>
+              <textarea
+                value={accountAddress}
+                onChange={(event) => setAccountAddress(event.target.value)}
+                rows={3}
+                placeholder="주소를 입력하세요"
+                className="w-full resize-y rounded-none border border-[#333] bg-black px-3 py-3 text-sm text-[#e5e5e5] outline-none transition-colors focus:border-[#00ffd1]"
+              />
+            </label>
           </div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-[#101010] p-4">
