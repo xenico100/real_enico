@@ -56,7 +56,7 @@ export function buildNicepayGoodsName(items: OrderItem[]) {
 }
 
 export function generateNicepayOrderId() {
-  return `nicepay_${Date.now()}_${randomBytes(4).toString('hex')}`;
+  return `nicepay-${Date.now()}-${randomBytes(4).toString('hex')}`;
 }
 
 export function getNicepayApiBaseUrl(clientKey: string) {

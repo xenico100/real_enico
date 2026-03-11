@@ -182,6 +182,10 @@ function generateTransactionId() {
   return Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
 }
 
+function normalizeNicepayBuyerTel(phone: string) {
+  return phone.replace(/\D+/g, '');
+}
+
 function getNicepayErrorMessage(result: NicepayErrorResult | unknown) {
   if (!result || typeof result !== 'object') {
     return 'NICE Payments 결제창 실행에 실패했습니다.';
@@ -773,6 +777,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     const normalizedName = checkoutName.trim();
     const normalizedAddress = checkoutAddress.trim();
     const normalizedPhone = checkoutPhone.trim();
+    const nicepayBuyerTel = normalizeNicepayBuyerTel(normalizedPhone);
     const normalizedEmail = (channel === 'member' ? user?.email || checkoutEmail : checkoutEmail).trim();
     const normalizedGuestLookupPassword = guestLookupPassword.trim();
 
@@ -868,7 +873,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
         goodsName: preparePayload.goodsName,
         returnUrl: preparePayload.returnUrl,
         buyerName: preparePayload.customer?.name || normalizedName,
-        buyerTel: preparePayload.customer?.phone || normalizedPhone,
+        buyerTel: normalizeNicepayBuyerTel(preparePayload.customer?.phone || nicepayBuyerTel),
         buyerEmail: preparePayload.customer?.email || normalizedEmail,
         fnError: (result) => {
           setNicepayError(getNicepayErrorMessage(result));
