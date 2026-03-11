@@ -2,7 +2,7 @@
 
 const FOOTER_FIELDS = [
   { label: '상호', value: '몽상인' },
-  { label: '대표자', value: '백형석' },
+  { label: '대표자', value: '몽상인' },
   { label: '연락처', value: '010-9850-7214' },
   { label: '사업장 주소', value: '강서로 17다길 16-5' },
 ] as const;
