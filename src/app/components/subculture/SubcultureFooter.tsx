@@ -18,10 +18,10 @@ export function SubcultureFooter() {
             <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#00ffd1]">
               Shop Info
             </p>
-            <h2 className="mt-3 font-heading text-xl uppercase tracking-[0.08em] text-[#f3f7f6] md:text-2xl">
+            <h2 className="mt-2 font-heading text-base uppercase tracking-[0.06em] text-[#b6bfbd] md:text-lg">
               Monangsangin
             </h2>
-            <p className="mt-2 break-all text-[10px] leading-relaxed text-[#6e8f89] md:text-xs">
+            <p className="mt-1 break-all text-[9px] leading-relaxed text-[#6f7977] md:text-[10px]">
               morba9850@gmail.com. Copyright © Enico Veck. All rights reserved.
             </p>
           </div>
@@ -34,10 +34,10 @@ export function SubcultureFooter() {
         <div className="grid gap-3 border-x border-b border-[#17332f] bg-[#050908]/96 p-4 md:grid-cols-2 md:p-7 xl:grid-cols-4">
           {FOOTER_FIELDS.map((field) => (
             <div key={field.label} className="border border-[#18312c] bg-[#0a1513] px-4 py-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#6e8f89]">
+              <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#68716f] md:text-[10px]">
                 {field.label}
               </p>
-              <p className="mt-2 break-words text-xs font-medium leading-relaxed text-[#f1f5f4] md:text-sm">
+              <p className="mt-1.5 break-words text-[11px] font-normal leading-relaxed text-[#9ea7a5] md:text-xs">
                 {field.value}
               </p>
             </div>
