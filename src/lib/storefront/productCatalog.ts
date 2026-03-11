@@ -21,6 +21,19 @@ export interface Product {
 
 const FALLBACK_IMAGE_URL =
   'https://dummyimage.com/600x800/101010/8a8a8a&text=ENICO+VECK';
+const NICEPAY_TEST_PRODUCT_ID = 'manual-nicepay-test-10krw';
+const NICEPAY_TEST_PRODUCT: Product = {
+  id: NICEPAY_TEST_PRODUCT_ID,
+  name: 'NICE Payments 10Won Test',
+  category: '악세사리',
+  price: 10,
+  image: 'https://dummyimage.com/600x800/031a17/00ffd1&text=NICE+10WON+TEST',
+  images: ['https://dummyimage.com/600x800/031a17/00ffd1&text=NICE+10WON+TEST'],
+  description:
+    '10원 결제창 동작 확인용 테스트 상품입니다. 실제 운영 상품이 아니라 NICE Payments 승인 흐름만 점검할 때 사용합니다.',
+  apparelSpecs: 'TEST ITEM, PRICE 10 KRW, NICEPAY CHECKOUT ONLY',
+  updatedAt: '2026-03-11T15:25:00.000Z',
+};
 
 const UPLOAD_TITLE_CATEGORY_HINTS: Array<{ title: string; category: ProductCategory }> = [
   { title: 'enico MIX shirts', category: '셔츠' },
@@ -508,11 +521,18 @@ function sortProductsByCsvLatest(products: Product[]) {
   });
 }
 
+function injectManualProducts(products: Product[]) {
+  const filteredProducts = products.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID);
+  return [NICEPAY_TEST_PRODUCT, ...filteredProducts];
+}
+
 export function buildProductCatalog(rows: StorefrontProductRow[]) {
-  return sortProductsByCsvLatest(
-    rows
-      .map(mapDbRowToProduct)
-      .filter((item): item is Product => Boolean(item)),
+  return injectManualProducts(
+    sortProductsByCsvLatest(
+      rows
+        .map(mapDbRowToProduct)
+        .filter((item): item is Product => Boolean(item)),
+    ),
   );
 }
 
