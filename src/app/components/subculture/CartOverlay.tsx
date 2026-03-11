@@ -736,7 +736,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       const preparePayload = (await prepareResponse.json()) as {
         message?: string;
         clientKey?: string;
-        mid?: string;
         returnUrl?: string;
         orderId?: string;
         amount?: number;
@@ -775,7 +774,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
         buyerName: preparePayload.customer?.name || normalizedName,
         buyerTel: preparePayload.customer?.phone || normalizedPhone,
         buyerEmail: preparePayload.customer?.email || normalizedEmail,
-        mallReserved: preparePayload.mid ? `mid=${preparePayload.mid}` : undefined,
         fnError: (result) => {
           setNicepayError(getNicepayErrorMessage(result));
         },
