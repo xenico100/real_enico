@@ -40,6 +40,10 @@ function toNumber(value: unknown) {
   return typeof value === 'number' ? value : Number(value);
 }
 
+function toRoundedAmount(value: number) {
+  return Math.round(value);
+}
+
 function getNicepayConfig() {
   const clientKey = process.env.NICEPAY_CLIENT_KEY?.trim() || '';
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim() || '';
@@ -109,6 +113,7 @@ function validatePayload(body: unknown): NicepayPreparePayload | null {
   }
 
   const normalizedItems: OrderItem[] = [];
+  let subtotalFromItems = 0;
   for (const item of items) {
     if (!item || typeof item !== 'object') return null;
     const target = item as Partial<OrderItem>;
@@ -128,8 +133,14 @@ function validatePayload(body: unknown): NicepayPreparePayload | null {
       Number.isNaN(unitPrice) ||
       Number.isNaN(lineTotal) ||
       quantity <= 0 ||
-      quantity > 1
+      quantity > 99 ||
+      unitPrice < 0 ||
+      lineTotal < 0
     ) {
+      return null;
+    }
+
+    if (toRoundedAmount(unitPrice * quantity) !== toRoundedAmount(lineTotal)) {
       return null;
     }
 
@@ -142,6 +153,19 @@ function validatePayload(body: unknown): NicepayPreparePayload | null {
       unitPrice,
       lineTotal,
     });
+    subtotalFromItems += toRoundedAmount(lineTotal);
+  }
+
+  if (
+    subtotal < 0 ||
+    shipping < 0 ||
+    tax < 0 ||
+    total < 0 ||
+    toRoundedAmount(subtotal) !== subtotalFromItems ||
+    toRoundedAmount(subtotal + shipping + tax) !== toRoundedAmount(total) ||
+    pricing.currency.trim().toUpperCase() !== 'KRW'
+  ) {
+    return null;
   }
 
   return {

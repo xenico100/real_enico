@@ -22,6 +22,7 @@ type NicepayReturnParams = {
   amount: string | null;
   authToken: string | null;
   mallReserved: string | null;
+  signature: string | null;
 };
 
 function getOrderServerConfig() {
@@ -72,6 +73,7 @@ async function readReturnParams(request: Request): Promise<NicepayReturnParams> 
     amount: normalizeText(params.get('amount')),
     authToken: normalizeText(params.get('authToken')),
     mallReserved: normalizeText(params.get('mallReserved')),
+    signature: normalizeText(params.get('signature')),
   });
 
   if (request.method === 'POST' && contentType.includes('application/x-www-form-urlencoded')) {
@@ -84,6 +86,97 @@ async function readReturnParams(request: Request): Promise<NicepayReturnParams> 
 
   const url = new URL(request.url);
   return fromParams(url.searchParams);
+}
+
+function toNumber(value: unknown) {
+  return typeof value === 'number' ? value : Number(value);
+}
+
+function isExpectedDigest(value: string | null | undefined) {
+  if (!value) return false;
+  return /^[a-fA-F0-9]{32,128}$/.test(value.trim());
+}
+
+function validateApprovalPayload(
+  approvalPayload: Record<string, unknown> | null,
+  pendingOrder: NonNullable<ReturnType<typeof verifyNicepayPendingOrder>>,
+  params: NicepayReturnParams,
+) {
+  const resultCode = normalizeText(approvalPayload?.resultCode);
+  const status = normalizeText(approvalPayload?.status).toLowerCase();
+  const tid = normalizeText(approvalPayload?.tid);
+  const orderId = normalizeText(approvalPayload?.orderId);
+  const currency = normalizeText(approvalPayload?.currency).toUpperCase();
+  const goodsName = normalizeText(approvalPayload?.goodsName);
+  const approvalSignature = normalizeText(approvalPayload?.signature);
+  const amount = toNumber(approvalPayload?.amount);
+
+  if (resultCode !== '0000') {
+    return {
+      ok: false as const,
+      code: resultCode || 'approval_failed',
+      message:
+        normalizeText(approvalPayload?.resultMsg) || 'NICE 승인 응답의 resultCode가 0000이 아닙니다.',
+    };
+  }
+
+  if (status !== 'paid') {
+    return {
+      ok: false as const,
+      code: status || 'approval_status_invalid',
+      message: 'NICE 승인 응답의 결제 상태가 paid가 아닙니다.',
+    };
+  }
+
+  if (!Number.isFinite(amount) || Math.round(amount) !== pendingOrder.nicepay.amount) {
+    return {
+      ok: false as const,
+      code: 'approval_amount_mismatch',
+      message: 'NICE 승인 응답의 금액이 주문 금액과 일치하지 않습니다.',
+    };
+  }
+
+  if (!tid || tid !== params.tid) {
+    return {
+      ok: false as const,
+      code: 'approval_tid_mismatch',
+      message: 'NICE 승인 응답의 tid가 인증 단계 응답과 일치하지 않습니다.',
+    };
+  }
+
+  if (!orderId || orderId !== pendingOrder.orderId) {
+    return {
+      ok: false as const,
+      code: 'approval_orderid_mismatch',
+      message: 'NICE 승인 응답의 orderId가 주문 정보와 일치하지 않습니다.',
+    };
+  }
+
+  if (currency && currency !== pendingOrder.pricing.currency) {
+    return {
+      ok: false as const,
+      code: 'approval_currency_mismatch',
+      message: 'NICE 승인 응답의 통화가 주문 통화와 일치하지 않습니다.',
+    };
+  }
+
+  if (goodsName && goodsName !== pendingOrder.nicepay.goodsName) {
+    return {
+      ok: false as const,
+      code: 'approval_goods_mismatch',
+      message: 'NICE 승인 응답의 상품명이 주문 준비 정보와 일치하지 않습니다.',
+    };
+  }
+
+  if (!isExpectedDigest(approvalSignature)) {
+    return {
+      ok: false as const,
+      code: 'approval_signature_missing',
+      message: 'NICE 승인 응답의 signature 형식이 올바르지 않습니다.',
+    };
+  }
+
+  return { ok: true as const };
 }
 
 function buildRawPayload(
@@ -106,6 +199,7 @@ function buildRawPayload(
       authResultMsg: params.authResultMsg,
       amount: params.amount,
       mallReserved: params.mallReserved,
+      signature: params.signature,
       approval: approvalPayload,
     },
   };
@@ -134,7 +228,9 @@ function buildEmailText(
     `clientId: ${params.clientId || '-'}`,
     `인증결과: ${params.authResultCode || '-'} / ${params.authResultMsg || '-'}`,
     `결제금액: ${params.amount || '-'} KRW`,
+    `인증 signature: ${params.signature || '-'}`,
     `승인상태: ${normalizeText(approvalPayload?.status) || normalizeText(approvalPayload?.resultCode) || 'paid'}`,
+    `승인 signature: ${normalizeText(approvalPayload?.signature) || '-'}`,
     '',
     '[주문자 정보]',
     `이름: ${pendingOrder.customer.name}`,
@@ -249,12 +345,24 @@ export async function POST(request: Request) {
     !params.authToken ||
     !params.orderId ||
     !params.clientId ||
-    !params.amount
+    !params.amount ||
+    !params.signature
   ) {
     const response = buildRedirect(
       buildNicepayFailureUrl(requestUrl.origin, {
         code: 'return_params_missing',
         message: 'NICE 승인에 필요한 리턴 파라미터가 부족합니다.',
+      }),
+    );
+    deletePendingOrderCookie(response);
+    return response;
+  }
+
+  if (!isExpectedDigest(params.signature)) {
+    const response = buildRedirect(
+      buildNicepayFailureUrl(requestUrl.origin, {
+        code: 'return_signature_invalid',
+        message: 'NICE 인증 응답의 signature 형식이 올바르지 않습니다.',
       }),
     );
     deletePendingOrderCookie(response);
@@ -305,10 +413,12 @@ export async function POST(request: Request) {
       `${getNicepayApiBaseUrl(config.clientKey)}/v1/payments/${encodeURIComponent(params.tid)}`,
       {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           Authorization: `Basic ${Buffer.from(`${config.clientKey}:${config.secretKey}`).toString('base64')}`,
           'Content-Type': 'application/json',
         },
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           amount: pendingOrder.nicepay.amount,
         }),
@@ -330,6 +440,18 @@ export async function POST(request: Request) {
             normalizeText(approvalPayload?.resultMsg) ||
             normalizeText(approvalPayload?.message) ||
             'NICE 서버 승인에 실패했습니다.',
+        }),
+      );
+      deletePendingOrderCookie(failureResponse);
+      return failureResponse;
+    }
+
+    const approvalValidation = validateApprovalPayload(approvalPayload, pendingOrder, params);
+    if (!approvalValidation.ok) {
+      const failureResponse = buildRedirect(
+        buildNicepayFailureUrl(requestUrl.origin, {
+          code: approvalValidation.code,
+          message: approvalValidation.message,
         }),
       );
       deletePendingOrderCookie(failureResponse);
