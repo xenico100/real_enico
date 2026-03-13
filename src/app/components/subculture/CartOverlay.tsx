@@ -1371,7 +1371,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           className="group w-full min-h-[58px] overflow-hidden rounded-[16px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-4 py-3 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
                         >
                           <span className="flex min-h-[34px] items-center justify-between gap-3">
-                            <span className="font-heading text-[0.95rem] uppercase tracking-[0.05em] text-black md:text-[1rem]">
+                            <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-black">
                               {isStartingNicepay ? '카드결제 준비중...' : '카드결제'}
                             </span>
                             <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
@@ -1412,7 +1412,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       type="button"
                       onClick={() => void submitBankTransferOrder('guest')}
                       disabled={isSubmittingOrder}
-                      className="group relative min-h-[58px] overflow-hidden rounded-[16px] border border-[#8f98a8] bg-[linear-gradient(180deg,#1d222b_0%,#171b23_100%)] px-4 py-3 text-left text-white shadow-[0_8px_18px_rgba(0,0,0,0.2)] transition-colors hover:border-[#d8dee8] hover:bg-[#202631] disabled:opacity-50"
+                      className="group relative min-h-[58px] overflow-hidden rounded-[16px] border border-[#c8d0dc]/45 bg-[linear-gradient(180deg,#242a35_0%,#1a1f28_100%)] px-4 py-3 text-left text-white shadow-[0_10px_22px_rgba(0,0,0,0.22)] transition-colors hover:border-[#eef2f7] hover:bg-[#2a313d] disabled:opacity-50"
                     >
                       <span className="flex min-h-[34px] items-center justify-between gap-3">
                         <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-white">
