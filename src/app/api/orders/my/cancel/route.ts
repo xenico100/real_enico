@@ -77,24 +77,40 @@ function normalizeItems(value: unknown) {
   return [];
 }
 
-function buildCancelledRawPayload(rawPayloadValue: unknown, reason: string, actor: 'member') {
+function buildRefundPendingRawPayload(rawPayloadValue: unknown, reason: string, actor: 'member') {
   const rawPayload =
     rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
       ? (rawPayloadValue as Record<string, unknown>)
       : {};
-  const cancelledAt = new Date().toISOString();
+  const refundRequestedAt = new Date().toISOString();
 
   return {
     ...rawPayload,
-    cancelledAt,
-    cancelledBy: actor,
-    cancelReason: reason,
+    refundRequestedAt,
+    refundRequestedBy: actor,
+    refundReason: reason,
+    refundStatus: 'pending',
     cancellation: {
-      cancelledAt,
-      cancelledBy: actor,
+      refundRequestedAt,
+      refundRequestedBy: actor,
       reason,
+      status: 'pending',
     },
   };
+}
+
+function getCancelErrorStatus(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  if (
+    message.includes('이미 ') ||
+    message.includes('배송이 시작된') ||
+    message.includes('지원하지 않습니다') ||
+    message.includes('결제완료 상태') ||
+    message.includes('환불 진행 중')
+  ) {
+    return 400;
+  }
+  return 500;
 }
 
 async function sendMemberCancelNotificationEmail(order: OrderRow, reason: string) {
@@ -264,8 +280,12 @@ export async function POST(request: Request) {
         selectQuery: ORDER_SELECT,
       });
     } else if (paymentMethod === 'bank_transfer') {
+      if (paymentStatus === 'refund_pending') {
+        return NextResponse.json({ message: '이미 환불 진행 중인 주문입니다.' }, { status: 400 });
+      }
+
       if (paymentStatus === 'cancelled') {
-        return NextResponse.json({ message: '이미 취소된 주문입니다.' }, { status: 400 });
+        return NextResponse.json({ message: '이미 환불 완료된 주문입니다.' }, { status: 400 });
       }
 
       if (shippingStatus && shippingStatus !== 'preparing') {
@@ -278,9 +298,9 @@ export async function POST(request: Request) {
       const { data, error } = await serviceClient
         .from('orders')
         .update({
-          payment_status: 'cancelled',
+          payment_status: 'refund_pending',
           updated_at: new Date().toISOString(),
-          raw_payload: buildCancelledRawPayload(existing.raw_payload, cancelReason, 'member'),
+          raw_payload: buildRefundPendingRawPayload(existing.raw_payload, cancelReason, 'member'),
         })
         .eq('id', orderId)
         .select(ORDER_SELECT)
@@ -291,7 +311,7 @@ export async function POST(request: Request) {
       }
 
       if (!data) {
-        throw new Error('취소 후 주문 정보를 다시 불러오지 못했습니다.');
+        throw new Error('환불 요청 후 주문 정보를 다시 불러오지 못했습니다.');
       }
 
       updatedOrder = data as OrderRow;
@@ -303,13 +323,19 @@ export async function POST(request: Request) {
       }
     } else {
       return NextResponse.json(
-        { message: '회원 주문취소는 NICE Payments와 계좌이체 주문만 지원합니다.' },
+        {
+          message:
+            '이 결제수단은 회원 자동 환불을 지원하지 않습니다. 관리자에게 문의해 주세요.',
+        },
         { status: 400 },
       );
     }
 
     return NextResponse.json({
-      message: '주문취소가 완료되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.',
+      message:
+        paymentMethod === 'nicepay'
+          ? '카드결제 취소가 완료되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.'
+          : '환불 요청이 접수되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.',
       order: mapOrderRow(updatedOrder),
     });
   } catch (error) {
@@ -318,7 +344,7 @@ export async function POST(request: Request) {
         message:
           error instanceof Error ? error.message : '주문취소 처리 중 오류가 발생했습니다.',
       },
-      { status: 500 },
+      { status: getCancelErrorStatus(error) },
     );
   }
 }

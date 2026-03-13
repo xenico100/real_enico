@@ -595,8 +595,17 @@ export async function POST(request: Request) {
     };
 
     const persistResult = pendingOrderRowId
-      ? await serviceClient.from('orders').update(persistPayload).eq('id', pendingOrderRowId)
-      : await serviceClient.from('orders').insert(persistPayload);
+      ? await serviceClient
+          .from('orders')
+          .update(persistPayload)
+          .eq('id', pendingOrderRowId)
+          .select('id, order_code, payment_method, payment_status')
+          .maybeSingle()
+      : await serviceClient
+          .from('orders')
+          .insert(persistPayload)
+          .select('id, order_code, payment_method, payment_status')
+          .maybeSingle();
 
     if (persistResult.error) {
       if (persistResult.error.code === '42P01') {
@@ -616,6 +625,10 @@ export async function POST(request: Request) {
         );
       }
       throw new Error(persistResult.error.message);
+    }
+
+    if (!persistResult.data?.id) {
+      throw new Error('NICE 승인 후 주문 저장 결과를 확인하지 못했습니다.');
     }
 
     try {

@@ -13,6 +13,7 @@ type ShippingStatus = 'preparing' | 'shipping' | 'delivered';
 type PaymentStatus =
   | 'pending_transfer'
   | 'transfer_confirmed'
+  | 'refund_pending'
   | 'captured'
   | 'completed'
   | 'paid'
@@ -121,6 +122,7 @@ function normalizePaymentStatus(value: unknown): PaymentStatus | null {
   if (
     normalized === 'pending_transfer' ||
     normalized === 'transfer_confirmed' ||
+    normalized === 'refund_pending' ||
     normalized === 'paid' ||
     normalized === 'captured' ||
     normalized === 'completed' ||
@@ -168,24 +170,40 @@ function mapOrderRow(row: OrderRow) {
   };
 }
 
-function mergeCancelledRawPayload(rawPayloadValue: unknown, reason: string, actor: 'admin') {
+function mergeRefundPendingRawPayload(rawPayloadValue: unknown, reason: string, actor: 'admin') {
   const rawPayload =
     rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
       ? (rawPayloadValue as Record<string, unknown>)
       : {};
-  const cancelledAt = new Date().toISOString();
+  const refundRequestedAt = new Date().toISOString();
 
   return {
     ...rawPayload,
-    cancelledAt,
-    cancelledBy: actor,
-    cancelReason: reason,
+    refundRequestedAt,
+    refundRequestedBy: actor,
+    refundReason: reason,
+    refundStatus: 'pending',
     cancellation: {
-      cancelledAt,
-      cancelledBy: actor,
+      refundRequestedAt,
+      refundRequestedBy: actor,
       reason,
+      status: 'pending',
     },
   };
+}
+
+function getCancelErrorStatus(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  if (
+    message.includes('이미 ') ||
+    message.includes('배송이 시작된') ||
+    message.includes('지원하지 않습니다') ||
+    message.includes('결제완료 상태') ||
+    message.includes('환불 진행 중')
+  ) {
+    return 400;
+  }
+  return 500;
 }
 
 async function sendAdminCancelNotificationEmail(order: OrderRow, reason: string) {
@@ -307,6 +325,7 @@ export async function GET(request: Request) {
   const { data, error } = await auth.serviceClient
     .from('orders')
     .select(ORDER_SELECT)
+    .neq('payment_status', 'pending_payment')
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -366,7 +385,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(
       {
         message:
-          'paymentStatus는 pending_transfer/transfer_confirmed/paid/captured/completed/cancelled 중 하나여야 합니다.',
+          'paymentStatus는 pending_transfer/transfer_confirmed/refund_pending/paid/captured/completed/cancelled 중 하나여야 합니다.',
       },
       { status: 400 },
     );
@@ -526,8 +545,12 @@ export async function POST(request: Request) {
         selectQuery: ORDER_SELECT,
       });
     } else if (paymentMethod === 'bank_transfer') {
+      if (paymentStatus === 'refund_pending') {
+        return NextResponse.json({ message: '이미 환불 진행 중인 주문입니다.' }, { status: 400 });
+      }
+
       if (paymentStatus === 'cancelled') {
-        return NextResponse.json({ message: '이미 취소된 주문입니다.' }, { status: 400 });
+        return NextResponse.json({ message: '이미 환불 완료된 주문입니다.' }, { status: 400 });
       }
 
       if (shippingStatus && shippingStatus !== 'preparing') {
@@ -540,9 +563,9 @@ export async function POST(request: Request) {
       const { data, error } = await auth.serviceClient
         .from('orders')
         .update({
-          payment_status: 'cancelled',
+          payment_status: 'refund_pending',
           updated_at: new Date().toISOString(),
-          raw_payload: mergeCancelledRawPayload(existing.raw_payload, reason, 'admin'),
+          raw_payload: mergeRefundPendingRawPayload(existing.raw_payload, reason, 'admin'),
         })
         .eq('id', id)
         .select(ORDER_SELECT)
@@ -571,7 +594,10 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: '주문취소가 완료되고 관리자 메일로도 정보가 전송됩니다.',
+      message:
+        paymentMethod === 'nicepay'
+          ? '카드결제 취소가 완료되고 관리자 메일로도 정보가 전송됩니다.'
+          : '환불 요청 상태로 변경되고 관리자 메일로도 정보가 전송됩니다.',
       order: mapOrderRow(updatedOrder),
     });
   } catch (error) {
@@ -580,7 +606,7 @@ export async function POST(request: Request) {
         message:
           error instanceof Error ? error.message : '관리자 결제 취소 처리 중 오류가 발생했습니다.',
       },
-      { status: 500 },
+      { status: getCancelErrorStatus(error) },
     );
   }
 }
