@@ -6,7 +6,9 @@ import {
   buildNicepayFailureUrl,
   buildNicepaySuccessUrl,
   getNicepayApiBaseUrl,
+  getNicepayPendingOrderCookieSameSite,
   NICEPAY_PENDING_ORDER_COOKIE,
+  type NicepayPendingOrder,
   verifyNicepayPendingOrder,
 } from '@/lib/orders/nicepay';
 
@@ -55,7 +57,7 @@ function deletePendingOrderCookie(response: NextResponse) {
     name: NICEPAY_PENDING_ORDER_COOKIE,
     value: '',
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: getNicepayPendingOrderCookieSameSite(),
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 0,
@@ -95,6 +97,27 @@ function toNumber(value: unknown) {
 function isExpectedDigest(value: string | null | undefined) {
   if (!value) return false;
   return /^[a-fA-F0-9]{32,128}$/.test(value.trim());
+}
+
+function parsePendingOrderFromRawPayload(rawPayload: unknown): NicepayPendingOrder | null {
+  if (!rawPayload || typeof rawPayload !== 'object') return null;
+
+  const target = rawPayload as { pendingOrder?: unknown };
+  if (!target.pendingOrder || typeof target.pendingOrder !== 'object') return null;
+
+  const pendingOrder = target.pendingOrder as Partial<NicepayPendingOrder>;
+  if (
+    !normalizeText(pendingOrder.orderId) ||
+    !normalizeText(pendingOrder.transactionId) ||
+    !pendingOrder.customer ||
+    !pendingOrder.pricing ||
+    !pendingOrder.nicepay ||
+    !Array.isArray(pendingOrder.items)
+  ) {
+    return null;
+  }
+
+  return pendingOrder as NicepayPendingOrder;
 }
 
 function validateApprovalPayload(
@@ -312,11 +335,44 @@ export async function POST(request: Request) {
   }
 
   const params = await readReturnParams(request);
+  const serviceClient = createClient(config.url, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const cookieStore = await cookies();
-  const pendingOrder = verifyNicepayPendingOrder(
+  let pendingOrder = verifyNicepayPendingOrder(
     cookieStore.get(NICEPAY_PENDING_ORDER_COOKIE)?.value,
     config.secretKey,
   );
+  let pendingOrderRowId: string | null = null;
+
+  const fallbackOrderCode = normalizeText(requestUrl.searchParams.get('orderCode'));
+  if (!pendingOrder && fallbackOrderCode) {
+    const fallbackLookup = await serviceClient
+      .from('orders')
+      .select('id, raw_payload')
+      .eq('order_code', fallbackOrderCode)
+      .eq('payment_method', 'nicepay')
+      .eq('payment_status', 'pending_payment')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (fallbackLookup.error) {
+      const response = buildRedirect(
+        buildNicepayFailureUrl(requestUrl.origin, {
+          code: 'pending_order_lookup_failed',
+          message: fallbackLookup.error.message,
+        }),
+      );
+      deletePendingOrderCookie(response);
+      return response;
+    }
+
+    const fallbackRow = fallbackLookup.data?.[0];
+    if (fallbackRow) {
+      pendingOrder = parsePendingOrderFromRawPayload(fallbackRow.raw_payload);
+      pendingOrderRowId = normalizeText(fallbackRow.id);
+    }
+  }
 
   if (!pendingOrder) {
     const response = buildRedirect(
@@ -384,15 +440,27 @@ export async function POST(request: Request) {
     return response;
   }
 
-  const serviceClient = createClient(config.url, config.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  if (!pendingOrderRowId) {
+    const pendingLookup = await serviceClient
+      .from('orders')
+      .select('id')
+      .eq('order_code', pendingOrder.transactionId)
+      .eq('payment_method', 'nicepay')
+      .eq('payment_status', 'pending_payment')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (!pendingLookup.error) {
+      pendingOrderRowId = normalizeText(pendingLookup.data?.[0]?.id);
+    }
+  }
 
   const existingOrder = await serviceClient
     .from('orders')
     .select('id, guest_order_number')
     .eq('order_code', pendingOrder.transactionId)
     .eq('payment_method', 'nicepay')
+    .eq('payment_status', 'paid')
     .limit(1)
     .maybeSingle();
 
@@ -460,8 +528,7 @@ export async function POST(request: Request) {
 
     const guestOrderNumber =
       pendingOrder.channel === 'guest' ? generateGuestOrderNumber() : null;
-
-    const insertResult = await serviceClient.from('orders').insert({
+    const persistPayload = {
       order_code: pendingOrder.transactionId,
       channel: pendingOrder.channel,
       payment_method: 'nicepay',
@@ -481,26 +548,30 @@ export async function POST(request: Request) {
       shipping_status: 'preparing',
       items: pendingOrder.items,
       raw_payload: buildRawPayload(pendingOrder, params, approvalPayload),
-    });
+    };
 
-    if (insertResult.error) {
-      if (insertResult.error.code === '42P01') {
+    const persistResult = pendingOrderRowId
+      ? await serviceClient.from('orders').update(persistPayload).eq('id', pendingOrderRowId)
+      : await serviceClient.from('orders').insert(persistPayload);
+
+    if (persistResult.error) {
+      if (persistResult.error.code === '42P01') {
         throw new Error('orders 테이블이 없습니다. sql/orders_setup.sql을 먼저 실행하세요.');
       }
       if (
-        insertResult.error.code === '23514' ||
-        insertResult.error.message.toLowerCase().includes('payment_method')
+        persistResult.error.code === '23514' ||
+        persistResult.error.message.toLowerCase().includes('payment_method')
       ) {
         throw new Error(
           'orders 결제수단 제약조건이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행해 주세요.',
         );
       }
-      if (insertResult.error.code === '42703') {
+      if (persistResult.error.code === '42703') {
         throw new Error(
           'orders 테이블 컬럼이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행해 주세요.',
         );
       }
-      throw new Error(insertResult.error.message);
+      throw new Error(persistResult.error.message);
     }
 
     let mailFailed = false;
