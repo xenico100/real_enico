@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Trash2, CreditCard } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
@@ -1296,11 +1296,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     </div>
                   </div>
                 </div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-[12px] border border-white/10 bg-white/5 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-[#c3cad5]">
-                    <CreditCard size={12} className="text-[#dbe4f5]" />
-                    <span>결제 수단 선택</span>
-                </div>
-
                 {mode === 'cart' ? (
                   <button
                     type="button"
@@ -1345,22 +1340,12 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.28),transparent_55%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                         ) : null}
                         <span className="relative z-10 flex items-center justify-between gap-2">
-                          <span className="flex flex-col gap-1">
-                            <span className={`font-mono text-[9px] uppercase tracking-[0.16em] md:tracking-[0.2em] ${
-                              isAuthenticated ? 'text-black/55' : 'text-white/55'
-                            }`}>
-                              {isAuthenticated ? 'MEMBER' : 'LOGIN'}
-                            </span>
-                            <span className={`text-[0.88rem] font-semibold tracking-[-0.02em] leading-snug ${
+                          <span
+                            className={`text-[0.92rem] font-semibold tracking-[-0.02em] leading-snug ${
                               isAuthenticated ? 'text-black' : 'text-white'
-                            }`}>
-                              {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
-                            </span>
-                            {!isAuthenticated ? (
-                              <span className="text-[11px] leading-snug text-white/65">
-                                로그인 필요
-                              </span>
-                            ) : null}
+                            }`}
+                          >
+                            {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                           </span>
                           <span className={`text-sm font-semibold ${
                             isAuthenticated ? 'text-black' : 'text-white'
@@ -1372,12 +1357,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     </div>
                     {canUseNicepayCheckout ? (
                       <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3.5 py-3">
-                        <p className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-[#c9d5eb]">
-                          NICE Payments
-                        </p>
-                        <p className="mb-2.5 text-[11px] leading-relaxed text-[#8e96a3]">
-                          카드 결제를 NICE Payments 서버 승인 흐름으로 처리합니다.
-                        </p>
                         {nicepayError && (
                           <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{nicepayError}</p>
                         )}
@@ -1388,16 +1367,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           className="group w-full overflow-hidden rounded-[16px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-3.5 py-2.5 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
                         >
                           <span className="flex items-center justify-between gap-2.5">
-                            <span className="flex flex-col">
-                              <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/55">
-                                Card Checkout
-                              </span>
-                              <span className="mt-0.5 font-heading text-[0.9rem] uppercase tracking-[0.05em] text-black md:text-[0.96rem]">
-                                {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
-                              </span>
-                              <span className="mt-1 text-[11px] leading-relaxed text-black/70">
-                                직불카드 또는 신용카드 결제창 열기
-                              </span>
+                            <span className="font-heading text-[0.92rem] uppercase tracking-[0.05em] text-black md:text-[0.98rem]">
+                              {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
                             </span>
                             <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                               →
@@ -1407,17 +1378,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                     ) : null}
                     <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3.5 py-3">
-                      <p className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-[#c9d5eb]">
-                        PayPal 결제 (Sandbox)
-                      </p>
-                      <p className="mb-2.5 text-[11px] leading-relaxed text-[#8e96a3]">
-                        테스트 결제용 버튼입니다. 결제 완료 후 주문 메일이 발송됩니다.
-                      </p>
                       {paypalError && (
                         <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{paypalError}</p>
-                      )}
-                      {!paypalSdkReady && !paypalError && (
-                        <p className="mb-2 text-xs text-[#8e96a3]">PayPal 버튼 불러오는 중...</p>
                       )}
                       <div className="origin-top scale-[0.88]">
                         <div
@@ -1448,11 +1410,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     >
                       {isSubmittingOrder ? '처리중...' : '비회원 구매'}
                     </button>
-                    {!isAuthenticated && (
-                      <p className="px-1 text-xs leading-relaxed text-[#8e96a3]">
-                        회원 계좌이체 구매는 로그인 후 사용할 수 있습니다. 비회원은 결제 시 설정한 비밀번호와 주문번호로 배송조회가 가능합니다.
-                      </p>
-                    )}
                     <button
                       type="button"
                       onClick={() => setMode('cart')}
