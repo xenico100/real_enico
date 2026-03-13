@@ -207,6 +207,67 @@ function getPaymentMethodLabel(method: string) {
   return method || '-';
 }
 
+function getEditablePaymentStatusValue(paymentMethod: string, status: string) {
+  const normalizedMethod = (paymentMethod || '').trim().toLowerCase();
+  const normalizedStatus = (status || '').trim().toLowerCase();
+
+  if (normalizedStatus === 'cancelled') return 'cancelled';
+
+  if (normalizedMethod === 'bank_transfer') {
+    return normalizedStatus === 'transfer_confirmed' ? 'transfer_confirmed' : 'pending_transfer';
+  }
+
+  if (normalizedMethod === 'nicepay') {
+    return normalizedStatus === 'completed' ? 'completed' : 'paid';
+  }
+
+  if (normalizedMethod === 'paypal') {
+    return normalizedStatus === 'completed' ? 'completed' : 'captured';
+  }
+
+  return normalizedStatus || 'pending_transfer';
+}
+
+function getPaymentStatusSelectOptions(paymentMethod: string, currentStatus: string) {
+  const normalizedMethod = (paymentMethod || '').trim().toLowerCase();
+  const normalizedStatus = (currentStatus || '').trim().toLowerCase();
+
+  if (normalizedMethod === 'bank_transfer') {
+    return [
+      { value: 'pending_transfer', label: '이체확인중' },
+      { value: 'transfer_confirmed', label: '이체확인' },
+      { value: 'cancelled', label: '주문취소' },
+    ];
+  }
+
+  if (normalizedMethod === 'nicepay') {
+    return [
+      {
+        value: normalizedStatus === 'completed' ? 'completed' : 'paid',
+        label: '결제완료',
+      },
+      { value: 'cancelled', label: '결제취소' },
+    ];
+  }
+
+  if (normalizedMethod === 'paypal') {
+    return [
+      {
+        value: normalizedStatus === 'completed' ? 'completed' : 'captured',
+        label: '결제완료',
+      },
+      { value: 'cancelled', label: '결제취소' },
+    ];
+  }
+
+  return [
+    {
+      value: normalizedStatus || 'pending_transfer',
+      label: getPaymentStatusLabel(paymentMethod, currentStatus),
+    },
+  ];
+}
+
 function getMemberOrderCancelState(
   order: Pick<OrderRecord, 'paymentMethod' | 'paymentStatus' | 'shippingStatus'>,
 ) {
@@ -241,19 +302,6 @@ function getMemberOrderCancelState(
       title: '카드결제 취소',
       label: '카드결제 취소',
       description: 'NICE 결제 승인 취소와 관리자 메일 전송을 함께 처리합니다.',
-    };
-  }
-
-  if (
-    paymentMethod === 'bank_transfer' &&
-    (paymentStatus === 'pending_transfer' || paymentStatus === 'transfer_confirmed')
-  ) {
-    return {
-      visible: true,
-      enabled: true,
-      title: '주문취소',
-      label: '주문취소',
-      description: '계좌이체 주문을 취소 상태로 변경하고 관리자 메일로 기록을 보냅니다.',
     };
   }
 
@@ -1741,6 +1789,14 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     const draft = adminOrderDrafts[order.id] || createAdminOrderDraft(order);
                     const isCancelling = cancellingAdminOrderId === order.id;
                     const cancelState = getAdminOrderCancelState(order);
+                    const selectedPaymentStatus = getEditablePaymentStatusValue(
+                      order.paymentMethod,
+                      draft.paymentStatus || order.paymentStatus,
+                    );
+                    const paymentStatusOptions = getPaymentStatusSelectOptions(
+                      order.paymentMethod,
+                      selectedPaymentStatus,
+                    );
 
                     return (
                       <article
@@ -1916,18 +1972,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                   <div>
                                     <label className="mb-2 block text-sm text-[#8ca39e]">결제 상태</label>
                                     <select
-                                      value={draft.paymentStatus || 'pending_transfer'}
+                                      value={selectedPaymentStatus}
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
                                       }
                                       className="w-full rounded-2xl border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
                                     >
-                                      <option value="pending_transfer">이체확인중</option>
-                                      <option value="transfer_confirmed">이체확인</option>
-                                      <option value="paid">결제완료(paid)</option>
-                                      <option value="cancelled">결제취소(cancelled)</option>
-                                      <option value="captured">결제완료(captured)</option>
-                                      <option value="completed">결제완료(completed)</option>
+                                      {paymentStatusOptions.map((option) => (
+                                        <option key={`${order.id}-${option.value}`} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
                                     </select>
                                   </div>
                                   <div>
