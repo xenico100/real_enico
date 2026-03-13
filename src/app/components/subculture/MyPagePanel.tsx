@@ -1354,7 +1354,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               return (
                 <article
                   key={order.id}
-                  className="overflow-hidden rounded-[26px] border border-[#7a808a] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                  className="overflow-hidden rounded-[26px] border-2 border-[#8f96a0] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                 >
                   <div className="border-b border-[#6d7480] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-5">
                     <div className="mb-3 text-[11px] uppercase tracking-[0.24em] text-[#c7ced8]">
@@ -1861,7 +1861,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     return (
                       <article
                         key={order.id}
-                        className="overflow-hidden rounded-[26px] border border-[#7a808a] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                        className="overflow-hidden rounded-[26px] border-2 border-[#8f96a0] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                       >
                         <div className="border-b border-[#6d7480] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-5">
                           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -1895,20 +1895,20 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 xl:w-[320px]">
-                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">생성일</p>
+                              <div className="rounded-2xl border border-[#7a808a] bg-black/35 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">생성일</p>
                                 <p className="mt-2 text-sm text-white">{formatDate(order.createdAt || undefined)}</p>
                               </div>
-                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">최근 수정</p>
+                              <div className="rounded-2xl border border-[#7a808a] bg-black/35 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">최근 수정</p>
                                 <p className="mt-2 text-sm text-white">{formatDateTime(order.updatedAt)}</p>
                               </div>
-                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">주문 금액</p>
+                              <div className="rounded-2xl border border-[#7a808a] bg-black/35 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">주문 금액</p>
                                 <p className="mt-2 text-base font-semibold text-[#00ffd1]">{formatKrw(order.amountTotal)}</p>
                               </div>
-                              <div className="rounded-2xl border border-[#2a2a2a] bg-black/55 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#86a39d]">상품 수량</p>
+                              <div className="rounded-2xl border border-[#7a808a] bg-black/35 p-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">상품 수량</p>
                                 <p className="mt-2 text-base font-semibold text-white">
                                   {Array.isArray(order.items) ? order.items.length : 0}개
                                 </p>
@@ -1920,8 +1920,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                         <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
                           <div className="space-y-4">
                             <div className="grid gap-4 md:grid-cols-2">
-                              <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">고객 정보</p>
+                              <section className="rounded-[20px] border border-[#7a808a] bg-[#0f1114] p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">고객 정보</p>
                                 <div className="mt-4 space-y-3 text-sm">
                                   <div>
                                     <p className="text-[#7c7c7c]">이름</p>
@@ -1940,22 +1940,22 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                 </div>
                               </section>
 
-                              <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">결제 요약</p>
+                              <section className="rounded-[20px] border border-[#7a808a] bg-[#0f1114] p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">결제 요약</p>
                                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                  <div className="rounded-2xl border border-[#7a808a] bg-black/30 p-3">
                                     <p className="text-[#7c7c7c]">상품금액</p>
                                     <p className="mt-1 text-white">{formatKrw(order.amountSubtotal)}</p>
                                   </div>
-                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                  <div className="rounded-2xl border border-[#7a808a] bg-black/30 p-3">
                                     <p className="text-[#7c7c7c]">배송비</p>
                                     <p className="mt-1 text-white">{formatKrw(order.amountShipping)}</p>
                                   </div>
-                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                  <div className="rounded-2xl border border-[#7a808a] bg-black/30 p-3">
                                     <p className="text-[#7c7c7c]">결제수단</p>
                                     <p className="mt-1 text-white">{getPaymentMethodLabel(order.paymentMethod)}</p>
                                   </div>
-                                  <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                  <div className="rounded-2xl border border-[#7a808a] bg-black/30 p-3">
                                     <p className="text-[#7c7c7c]">결제상태</p>
                                     <p className="mt-1 text-white">
                                       {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
@@ -1965,17 +1965,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               </section>
                             </div>
 
-                            <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">배송지</p>
+                            <section className="rounded-[20px] border border-[#7a808a] bg-[#0f1114] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">배송지</p>
                               <p className="mt-3 whitespace-pre-line break-words text-sm leading-7 text-[#e7e7e7]">
                                 {order.customerAddress || '-'}
                               </p>
                             </section>
 
                             {order.paymentReceiptUrl ? (
-                              <section className="rounded-[20px] border border-[#2a433e] bg-[#0b1211] p-4">
+                              <section className="rounded-[20px] border border-[#7a808a] bg-[#101215] p-4">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#8ff3dc]">
+                                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
                                     이체확인 사진
                                   </p>
                                   <a
@@ -1987,7 +1987,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                     새 탭에서 보기
                                   </a>
                                 </div>
-                                <div className="relative mt-4 aspect-[4/5] overflow-hidden rounded-2xl border border-[#333] bg-black">
+                                <div className="relative mt-4 aspect-[4/5] overflow-hidden rounded-2xl border border-[#7a808a] bg-black">
                                   <img
                                     src={order.paymentReceiptUrl}
                                     alt="이체확인 사진"
@@ -1998,15 +1998,15 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             ) : null}
 
                             {Array.isArray(order.items) && order.items.length > 0 ? (
-                              <section className="rounded-[20px] border border-[#252525] bg-[#0b0b0b] p-4">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#8ea8c7]">
+                              <section className="rounded-[20px] border border-[#7a808a] bg-[#0f1114] p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
                                   주문 상품 목록
                                 </p>
                                 <div className="mt-4 space-y-2">
                                   {order.items.map((item, index) => (
                                     <div
                                       key={`${order.id}-${item.id}-${index}`}
-                                      className="rounded-2xl border border-[#2a2a2a] bg-[#111] px-4 py-3"
+                                      className="rounded-2xl border border-[#7a808a] bg-[#111316] px-4 py-3"
                                     >
                                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                                         <p className="break-words text-sm text-[#f3f3f3]">
@@ -2025,7 +2025,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                           </div>
 
                           <div className="space-y-4">
-                            <section className="rounded-[20px] border border-[#34423d] bg-[#0d1111] p-4">
+                            <section className="rounded-[20px] border border-[#7a808a] bg-[#101215] p-4">
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">배송정보 편집</p>
                                 <span className="text-sm text-[#8ba49d]">
@@ -2106,14 +2106,14 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               </div>
                             </section>
 
-                            <section className="rounded-[20px] border border-[#2f2f2f] bg-[#0b0b0b] p-4">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#8fbeb2]">배송 타임라인</p>
+                            <section className="rounded-[20px] border border-[#7a808a] bg-[#0f1114] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">배송 타임라인</p>
                               <div className="mt-4 grid gap-3 text-sm">
-                                <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                <div className="rounded-2xl border border-[#7a808a] bg-black/30 p-3">
                                   <p className="text-[#7c7c7c]">발송일시</p>
                                   <p className="mt-1 text-white">{formatDateTime(order.shippedAt)}</p>
                                 </div>
-                                <div className="rounded-2xl border border-[#242424] bg-black/40 p-3">
+                                <div className="rounded-2xl border border-[#7a808a] bg-black/30 p-3">
                                   <p className="text-[#7c7c7c]">배송완료일시</p>
                                   <p className="mt-1 text-white">{formatDateTime(order.deliveredAt)}</p>
                                 </div>
@@ -2202,18 +2202,18 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               <button
                 type="button"
                 onClick={() => openAdminComposer('products')}
-                className="rounded-xl border border-[#7bb8ff]/45 bg-[#7bb8ff]/12 p-3 text-left text-xs text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
+                className="rounded-[20px] border-2 border-[#8a93a2] bg-[linear-gradient(180deg,#171a1e_0%,#121417_100%)] p-4 text-left text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
               >
                 <p className="font-semibold">의류 게시물 편집 열기</p>
-                <p className="text-[10px] mt-1 text-[#a9c7e7]">의류 게시글 작성/수정/삭제</p>
+                <p className="mt-1 text-xs text-[#aeb5bf]">의류 게시글 작성/수정/삭제</p>
               </button>
               <button
                 type="button"
                 onClick={() => openAdminComposer('collections')}
-                className="rounded-xl border border-[#00ffd1]/45 bg-[#00ffd1]/12 p-3 text-left text-xs text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
+                className="rounded-[20px] border-2 border-[#8a93a2] bg-[linear-gradient(180deg,#171a1e_0%,#121417_100%)] p-4 text-left text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
               >
                 <p className="font-semibold">컬렉션 게시물 편집 열기</p>
-                <p className="text-[10px] mt-1 text-[#9fe6d7]">컬렉션 게시글 작성/수정/삭제</p>
+                <p className="mt-1 text-xs text-[#aeb5bf]">컬렉션 게시글 작성/수정/삭제</p>
               </button>
             </div>
 
@@ -2232,36 +2232,36 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                   return (
                     <div
                       key={member.id}
-                      className="overflow-hidden rounded-[22px] border border-[#2e3d49] bg-[#111] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                      className="overflow-hidden rounded-[24px] border-2 border-[#8f96a0] bg-[linear-gradient(180deg,#17191d_0%,#101114_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                     >
-                      <div className="border-b border-[#202830] bg-[#13181d] px-4 py-4">
-                        <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#8ea8c7]">
+                      <div className="border-b border-[#717884] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-5">
+                        <div className="mb-2 text-[11px] uppercase tracking-[0.24em] text-[#d2d9e2]">
                           Member Card
                         </div>
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-xs text-[#e5e5e5] break-all">{member.email || '-'}</p>
-                            <p className="text-[10px] text-[#9b9b9b] mt-1">
+                            <p className="text-sm font-medium text-[#f2f5f8] break-all">{member.email || '-'}</p>
+                            <p className="mt-2 text-xs text-[#aab1ba]">
                               생성일: {formatDate(member.createdAt || undefined)}
                             </p>
                           </div>
                           {member.isPrimaryAdmin && (
-                            <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                            <span className="rounded-full border border-[#00ffd1]/50 bg-[#00ffd1]/10 px-3 py-1.5 text-[10px] uppercase tracking-widest text-[#00ffd1]">
                               주 관리자
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="space-y-3 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                      <div className="space-y-4 p-5">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 text-sm">
                           <input
                             type="text"
                             value={draft.fullName}
                             onChange={(event) =>
                               updateMemberDraft(member.id, 'fullName', event.target.value)
                             }
-                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            className="w-full rounded-[18px] border border-[#7a808a] bg-[#101215] px-4 py-3 text-[#eef2f7] focus:border-[#00ffd1] focus:outline-none"
                             placeholder="이름"
                           />
                           <input
@@ -2270,7 +2270,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             onChange={(event) =>
                               updateMemberDraft(member.id, 'phone', event.target.value)
                             }
-                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            className="w-full rounded-[18px] border border-[#7a808a] bg-[#101215] px-4 py-3 text-[#eef2f7] focus:border-[#00ffd1] focus:outline-none"
                             placeholder="전화번호"
                           />
                           <input
@@ -2279,7 +2279,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             onChange={(event) =>
                               updateMemberDraft(member.id, 'address', event.target.value)
                             }
-                            className="w-full rounded-lg md:col-span-2 bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            className="w-full rounded-[18px] border border-[#7a808a] bg-[#101215] px-4 py-3 text-[#eef2f7] focus:border-[#00ffd1] focus:outline-none md:col-span-2"
                             placeholder="주소"
                           />
                           <input
@@ -2288,7 +2288,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             onChange={(event) =>
                               updateMemberDraft(member.id, 'email', event.target.value)
                             }
-                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            className="w-full rounded-[18px] border border-[#7a808a] bg-[#101215] px-4 py-3 text-[#eef2f7] focus:border-[#00ffd1] focus:outline-none"
                             placeholder="이메일"
                           />
                           <input
@@ -2297,7 +2297,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             onChange={(event) =>
                               updateMemberDraft(member.id, 'password', event.target.value)
                             }
-                            className="w-full rounded-lg bg-black border border-[#333] py-2 px-3 focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                            className="w-full rounded-[18px] border border-[#7a808a] bg-[#101215] px-4 py-3 text-[#eef2f7] focus:border-[#00ffd1] focus:outline-none"
                             placeholder="비밀번호 변경 시에만 입력"
                           />
                         </div>
@@ -2307,7 +2307,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             type="button"
                             onClick={() => void handleSaveMember(member.id)}
                             disabled={isLoadingMembers}
-                            className="rounded-lg py-2 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs uppercase tracking-widest disabled:opacity-50"
+                            className="rounded-[18px] border border-[#00ffd1] py-3 text-xs uppercase tracking-widest text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:opacity-50"
                           >
                             회원정보 저장
                           </button>
@@ -2315,7 +2315,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             type="button"
                             onClick={() => void handleDeleteMember(member.id)}
                             disabled={isLoadingMembers || member.isPrimaryAdmin}
-                            className="rounded-lg py-2 border border-red-700 text-red-300 hover:bg-red-600 hover:text-white transition-colors text-xs uppercase tracking-widest disabled:opacity-50"
+                            className="rounded-[18px] border border-red-700 py-3 text-xs uppercase tracking-widest text-red-300 transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
                           >
                             회원 삭제
                           </button>
@@ -2398,12 +2398,12 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-[22px] border px-4 py-4 text-center transition-all ${
                       active
-                        ? 'border-[#c4cad3] bg-[linear-gradient(180deg,rgba(196,202,211,0.18),rgba(255,255,255,0.04))] text-white shadow-[0_0_0_1px_rgba(196,202,211,0.22)]'
+                        ? 'border-[#00ffd1]/75 bg-[linear-gradient(180deg,rgba(0,255,209,0.2),rgba(0,255,209,0.05))] text-white shadow-[0_0_0_1px_rgba(0,255,209,0.22)]'
                         : 'border-[#6c727b] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] text-[#e6e6e6] hover:border-[#b8bec8] hover:bg-[#1b1d20]'
                     }`}
                   >
                     <span className="text-base font-semibold tracking-[-0.01em]">{tab.label}</span>
-                    <span className={`text-xs ${active ? 'text-[#d8dde5]' : 'text-[#9ea4ad]'}`}>
+                    <span className={`text-xs ${active ? 'text-[#bafff1]' : 'text-[#9ea4ad]'}`}>
                       {typeof tab.count === 'number' ? `${tab.count}건` : '메뉴'}
                     </span>
                   </button>

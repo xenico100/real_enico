@@ -1012,11 +1012,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   <h2 className="mt-3 text-[1.85rem] font-heading font-black uppercase tracking-[-0.04em] leading-none text-white md:text-[2.45rem]">
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-[#8e96a3]">
-                    {mode === 'checkout'
-                      ? '배송 정보와 결제 수단을 차례대로 입력하면 바로 주문할 수 있습니다.'
-                      : '담아둔 상품과 최종 결제 금액을 한눈에 확인할 수 있습니다.'}
-                  </p>
+                  {mode === 'checkout' ? (
+                    <p className="mt-3 text-sm leading-relaxed text-[#8e96a3]">
+                      배송 정보와 결제 수단을 차례대로 입력하면 바로 주문할 수 있습니다.
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   onClick={onClose}
@@ -1034,8 +1034,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               <div className="sticky top-0 z-10 rounded-[24px] border border-white/8 bg-[#11141b]/92 px-4 py-4 shadow-[0_14px_30px_rgba(0,0,0,0.24)] backdrop-blur-xl">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Order Snapshot</p>
-                    <p className="mt-2 text-lg font-semibold text-white">{itemCount}개 상품</p>
+                    <p className="text-lg font-semibold text-white">{itemCount}개 상품</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-[#7a818c]">Total</p>

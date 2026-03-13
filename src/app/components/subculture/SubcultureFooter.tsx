@@ -3,6 +3,7 @@
 const FOOTER_FIELDS = [
   { label: '상호', value: '몽상인' },
   { label: '대표자', value: '몽상인' },
+  { label: '사업자등록번호', value: '445-03-04118' },
   { label: '연락처', value: '010-9850-7214' },
   { label: '사업장 주소', value: '강서로 17다길 16' },
 ] as const;
