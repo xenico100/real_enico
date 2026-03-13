@@ -572,7 +572,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const [accountAddress, setAccountAddress] = useState('');
   const [accountProfileMessage, setAccountProfileMessage] = useState<string | null>(null);
   const [accountProfileError, setAccountProfileError] = useState<string | null>(null);
-  const [isSavingAccountProfile, setIsSavingAccountProfile] = useState(false);
+  const [savingAccountField, setSavingAccountField] = useState<'phone' | 'address' | null>(null);
   const [members, setMembers] = useState<MemberRecord[]>([]);
   const [memberDrafts, setMemberDrafts] = useState<Record<string, MemberDraft>>({});
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
@@ -696,21 +696,27 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     setMemberError(null);
   };
 
-  const handleSaveAccountProfile = async () => {
+  const handleSaveAccountField = async (field: 'phone' | 'address') => {
     setAccountProfileMessage(null);
     setAccountProfileError(null);
-    setIsSavingAccountProfile(true);
+    setSavingAccountField(field);
 
     try {
-      await updateAccountProfile({
-        phone: accountPhone,
-        address: accountAddress,
-      });
-      setAccountProfileMessage('전화번호와 주소를 저장했습니다.');
+      if (field === 'phone') {
+        await updateAccountProfile({
+          phone: accountPhone,
+        });
+        setAccountProfileMessage('핸드폰번호를 저장했습니다.');
+      } else {
+        await updateAccountProfile({
+          address: accountAddress,
+        });
+        setAccountProfileMessage('주소를 저장했습니다.');
+      }
     } catch (error) {
       setAccountProfileError(error instanceof Error ? error.message : '계정 정보 저장 실패');
     } finally {
-      setIsSavingAccountProfile(false);
+      setSavingAccountField(null);
     }
   };
 
@@ -1313,7 +1319,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <p className="text-[11px] uppercase tracking-[0.22em] text-[#c7ced8]">내 주문 / 배송조회</p>
-              <p className="mt-2 text-sm text-[#a8afb9]">주문 카드, 배송 정보, 취소 상태를 더 크게 나눠서 보여줍니다.</p>
             </div>
             <button
               type="button"
@@ -1584,23 +1589,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
         </div>
         <div className="rounded-[14px] border border-white/10 bg-[#101010] p-4">
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">배송 정보 저장</p>
-              <p className="mt-1 text-[11px] text-[#8d8d8d]">
-                여기서 저장하거나 주문창에서 입력하면 회원정보에 자동 반영됩니다.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleSaveAccountProfile()}
-              disabled={isBusy || isSavingAccountProfile}
-              className="border border-[#2c5b53] bg-[#0a1715] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#bafff0] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] disabled:opacity-50"
-            >
-              {isSavingAccountProfile ? '저장중...' : '저장'}
-            </button>
-          </div>
-
           {(accountProfileMessage || accountProfileError) && (
             <div
               className={`mt-3 border px-3 py-2 text-xs ${
@@ -1613,25 +1601,45 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             </div>
           )}
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-[11px] text-[#8a8a8a]">핸드폰번호</span>
+          <div className={`${accountProfileMessage || accountProfileError ? 'mt-4' : ''} grid gap-3 md:grid-cols-2`}>
+            <label className="block rounded-[8px] border border-[#bcc5d0] bg-[#0d1015] p-3 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
+              <span className="mb-2 flex items-center justify-between gap-3">
+                <span className="text-[11px] text-[#8a8a8a]">핸드폰번호</span>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAccountField('phone')}
+                  disabled={isBusy || savingAccountField === 'phone'}
+                  className="rounded-[6px] border border-[#2c5b53] bg-[#0a1715] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#bafff0] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] disabled:opacity-50"
+                >
+                  {savingAccountField === 'phone' ? '수정중...' : '수정'}
+                </button>
+              </span>
               <input
                 type="tel"
                 value={accountPhone}
                 onChange={(event) => setAccountPhone(event.target.value)}
                 placeholder="010-0000-0000"
-                className="w-full rounded-none border border-[#333] bg-black px-3 py-3 text-sm text-[#e5e5e5] outline-none transition-colors focus:border-[#00ffd1]"
+                className="w-full rounded-[4px] border border-[#949eab] bg-[#090b0f] px-3 py-3 text-sm text-[#e5e5e5] outline-none transition-colors focus:border-[#00ffd1]"
               />
             </label>
-            <label className="block md:col-span-2">
-              <span className="mb-2 block text-[11px] text-[#8a8a8a]">주소</span>
+            <label className="block rounded-[8px] border border-[#bcc5d0] bg-[#0d1015] p-3 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)] md:col-span-2">
+              <span className="mb-2 flex items-center justify-between gap-3">
+                <span className="text-[11px] text-[#8a8a8a]">주소</span>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAccountField('address')}
+                  disabled={isBusy || savingAccountField === 'address'}
+                  className="rounded-[6px] border border-[#2c5b53] bg-[#0a1715] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#bafff0] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] disabled:opacity-50"
+                >
+                  {savingAccountField === 'address' ? '수정중...' : '수정'}
+                </button>
+              </span>
               <textarea
                 value={accountAddress}
                 onChange={(event) => setAccountAddress(event.target.value)}
                 rows={3}
                 placeholder="주소를 입력하세요"
-                className="w-full resize-y rounded-none border border-[#333] bg-black px-3 py-3 text-sm text-[#e5e5e5] outline-none transition-colors focus:border-[#00ffd1]"
+                className="w-full resize-y rounded-[4px] border border-[#949eab] bg-[#090b0f] px-3 py-3 text-sm text-[#e5e5e5] outline-none transition-colors focus:border-[#00ffd1]"
               />
             </label>
           </div>
