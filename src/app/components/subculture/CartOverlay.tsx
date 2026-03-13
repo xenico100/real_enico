@@ -33,10 +33,11 @@ const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
-  'border border-[#454545] bg-[#111] px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]';
-const CHECKOUT_FIELD_GROUP_CLASS = 'border border-[#2d2d2d] bg-[#0b0b0b] px-3 py-3';
+  'overflow-hidden rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,#16191f_0%,#111319_100%)] px-4 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-5 md:py-5';
+const CHECKOUT_FIELD_GROUP_CLASS =
+  'rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,#1a1d24_0%,#151820_100%)] px-4 py-4';
 const CHECKOUT_FIELD_CLASS =
-  'w-full rounded-none border border-[#4b4b4b] bg-black px-3 py-3 text-sm text-[#f3f3f3] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none focus:ring-1 focus:ring-[#00ffd1]/35';
+  'w-full rounded-[18px] border border-[#313641] bg-[#101319] px-4 py-3.5 text-[15px] leading-6 text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#c7d2fe] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe]/20';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -1096,19 +1097,26 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'tween', ease: 'circOut', duration: 0.45 }}
-            className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+18px)] bottom-[calc(env(safe-area-inset-bottom)+14px)] z-[90] flex h-auto flex-col overflow-hidden rounded-[22px] border border-[#333] bg-[#0a0a0a] font-mono text-[#e5e5e5] shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:left-auto md:right-0 md:top-0 md:bottom-0 md:w-[560px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
+            className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+18px)] bottom-[calc(env(safe-area-inset-bottom)+14px)] z-[90] flex h-auto flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#111318_0%,#090a0d_100%)] font-mono text-[#e5e5e5] shadow-[0_30px_90px_rgba(0,0,0,0.5)] md:left-auto md:right-0 md:top-0 md:bottom-0 md:w-[580px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
           >
-            <div className="border-b border-[#333] bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.14)_1px,transparent_0)] bg-[size:14px_14px] px-4 pb-4 pt-5 md:p-7">
+            <div className="border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] px-5 pb-5 pt-5 md:px-7 md:pb-6 md:pt-7">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] text-[#00ffd1] uppercase tracking-[0.2em]">결제 콘솔</p>
-                  <h2 className="mt-2 text-[1.55rem] font-heading font-black uppercase tracking-tighter leading-none md:text-4xl">
+                <div className="max-w-[25rem]">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#97a0ad]">
+                    Secure Checkout
+                  </p>
+                  <h2 className="mt-3 text-[1.85rem] font-heading font-black uppercase tracking-[-0.04em] leading-none text-white md:text-[2.45rem]">
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
+                  <p className="mt-3 text-sm leading-relaxed text-[#8e96a3]">
+                    {mode === 'checkout'
+                      ? '배송 정보와 결제 수단을 차례대로 입력하면 바로 주문할 수 있습니다.'
+                      : '담아둔 상품과 최종 결제 금액을 한눈에 확인할 수 있습니다.'}
+                  </p>
                 </div>
                 <button
                   onClick={onClose}
-                  className="p-2 border border-[#333] bg-black/60 hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors"
+                  className="rounded-full border border-white/10 bg-white/5 p-2.5 text-[#c6cad2] transition-colors hover:border-white/25 hover:bg-white/10 hover:text-white"
                 >
                   <X size={20} />
                 </button>
@@ -1117,15 +1125,21 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
             <div
               ref={checkoutScrollRef}
-              className="checkout-scroll-area flex-1 min-h-0 overflow-y-auto px-5 py-5 pr-3 pb-32 md:p-7 md:pr-4 md:pb-7 space-y-5"
+              className="checkout-scroll-area flex-1 min-h-0 overflow-y-auto px-4 py-4 pr-2 pb-36 md:px-7 md:py-6 md:pr-4 md:pb-8 space-y-5"
             >
-              <div className="sticky top-0 z-10 border border-[#333] bg-[#0b0b0b]/95 px-4 py-4 backdrop-blur-md">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#666]">주문 요약</p>
-                  <p className="mt-2 text-xs text-[#9a9a9a]">{itemCount}개 상품</p>
+              <div className="sticky top-0 z-10 rounded-[24px] border border-white/8 bg-[#11141b]/92 px-4 py-4 shadow-[0_14px_30px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Order Snapshot</p>
+                    <p className="mt-2 text-lg font-semibold text-white">{itemCount}개 상품</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#7a818c]">Total</p>
+                    <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">{formatKrw(total)}</p>
+                  </div>
                 </div>
 
-                <div className="mt-3 border border-[#222] bg-[#111] px-4 py-3 space-y-2">
+                <div className="mt-4 space-y-2 rounded-[20px] border border-white/6 bg-black/25 px-4 py-3">
                   {canCheckout ? (
                     cart.map((item) => {
                       const quantity = item.quantity || 1;
@@ -1149,10 +1163,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
               {(checkoutMessage || checkoutError) && (
                 <div
-                  className={`border px-4 py-3 text-xs leading-relaxed ${
+                  className={`rounded-[20px] border px-4 py-3 text-sm leading-relaxed ${
                     checkoutError
-                      ? 'border-red-700 bg-red-950/20 text-red-300'
-                      : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+                      ? 'border-red-400/30 bg-red-500/10 text-red-200'
+                      : 'border-[#c7d2fe]/25 bg-[#c7d2fe]/10 text-[#e7ecff]'
                   }`}
                 >
                   {checkoutError || checkoutMessage}
@@ -1225,31 +1239,44 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               ) : (
                 <div className="space-y-4">
                   <div className={CHECKOUT_SECTION_CLASS}>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1] mb-3">계좌이체 안내</p>
-                    <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-5 py-4">
-                      <p className="text-[10px] uppercase tracking-widest text-[#88ffe8]">입금 계좌</p>
-                      <p className="text-lg font-bold text-[#e5e5e5] mt-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Bank Transfer</p>
+                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">계좌이체 안내</h3>
+                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#b4bcc8]">
+                        Optional
+                      </span>
+                    </div>
+                    <div className="mt-4 rounded-[22px] border border-[#2c323d] bg-[linear-gradient(180deg,#1a1f27_0%,#151920_100%)] px-5 py-5">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#9ea8b6]">입금 계좌</p>
+                      <p className="mt-3 text-[1.35rem] font-semibold tracking-[-0.03em] text-white md:text-[1.5rem]">
                         {BANK_NAME} {BANK_ACCOUNT_NUMBER}
                       </p>
-                      <p className="text-xs text-[#9adfd1] mt-1">예금주: {BANK_ACCOUNT_HOLDER}</p>
-                      <p className="text-xs text-[#9adfd1] mt-3 leading-relaxed">
+                      <p className="mt-2 text-sm text-[#c6ced8]">예금주: {BANK_ACCOUNT_HOLDER}</p>
+                      <p className="mt-4 text-sm leading-relaxed text-[#99a1ad]">
                         주문 접수 후 위 계좌로 입금해 주세요. 입금자명은 수령인 이름과 동일하게 입력해 주세요.
                       </p>
                     </div>
                   </div>
 
                   <div className={CHECKOUT_SECTION_CLASS}>
-                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-[#2b2b2b] pb-3">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">연락처</p>
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-[#8fd6c8]">필수 입력</span>
+                    <div className="mb-4 flex items-start justify-between gap-3 border-b border-white/8 pb-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Contact</p>
+                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">주문자 정보</h3>
+                      </div>
+                      <span className="rounded-full border border-[#c7d2fe]/20 bg-[#c7d2fe]/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#dce5ff]">
+                        Required
+                      </span>
                     </div>
                     <div className="space-y-3">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
-                          <span className="text-[#00ffd1]">이메일</span>
-                          <span className="text-[#666]">order reply</span>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
+                          <span className="text-[#d9dfe8]">이메일</span>
+                          <span className="text-[#79808b]">order reply</span>
                         </label>
-                        <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
+                        <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
                           주문 확인과 배송 안내를 받을 메일 주소를 입력하세요.
                         </p>
                         <input
@@ -1262,9 +1289,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         />
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
-                          <span className="text-[#00ffd1]">핸드폰 번호</span>
-                          <span className="text-[#666]">contact</span>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
+                          <span className="text-[#d9dfe8]">핸드폰 번호</span>
+                          <span className="text-[#79808b]">contact</span>
                         </label>
                         <input
                           ref={checkoutPhoneInputRef}
@@ -1276,9 +1303,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         />
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
-                          <span className="text-[#00ffd1]">수령인 이름</span>
-                          <span className="text-[#666]">receiver</span>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
+                          <span className="text-[#d9dfe8]">수령인 이름</span>
+                          <span className="text-[#79808b]">receiver</span>
                         </label>
                         <input
                           ref={checkoutNameInputRef}
@@ -1293,17 +1320,22 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </div>
 
                   <div className={CHECKOUT_SECTION_CLASS}>
-                    <div className="mb-3 flex items-center justify-between gap-3 border-b border-[#2b2b2b] pb-3">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">배송 정보</p>
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-[#8fd6c8]">주소 입력 필요</span>
+                    <div className="mb-4 flex items-start justify-between gap-3 border-b border-white/8 pb-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Shipping</p>
+                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">배송 정보</h3>
+                      </div>
+                      <span className="rounded-full border border-[#c7d2fe]/20 bg-[#c7d2fe]/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#dce5ff]">
+                        Address
+                      </span>
                     </div>
                     <div className="space-y-3">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
-                          <span className="text-[#00ffd1]">구역 (국가)</span>
-                          <span className="text-[#666]">shipping zone</span>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
+                          <span className="text-[#d9dfe8]">구역 (국가)</span>
+                          <span className="text-[#79808b]">shipping zone</span>
                         </label>
-                        <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
+                        <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
                           {isNicepayTestOrder
                             ? 'NICE 1000원 테스트 상품은 배송비 없이 결제됩니다.'
                             : '대한민국 배송비 3,000원 / 해외 배송비 40,000원'}
@@ -1322,11 +1354,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </select>
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase">
-                          <span className="text-[#00ffd1]">상세 주소</span>
-                          <span className="text-[#666]">required</span>
+                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
+                          <span className="text-[#d9dfe8]">상세 주소</span>
+                          <span className="text-[#79808b]">required</span>
                         </label>
-                        <p className="mb-2 text-[10px] leading-relaxed text-[#7f7f7f]">
+                        <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
                           수령지 주소를 상세하게 입력하세요. 도로명, 건물명, 호수까지 적어야 합니다.
                         </p>
                         <textarea
@@ -1341,18 +1373,22 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                    <div className="border border-[#333] bg-[#0d0d0d] p-3 flex items-start gap-2">
-                      <ShieldCheck size={14} className="text-[#00ffd1] mt-0.5 shrink-0" />
-                      <p className="text-[#999] leading-relaxed">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="rounded-[22px] border border-white/8 bg-[#13161c] p-4">
+                      <div className="flex items-start gap-3">
+                        <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#d9e3ff]" />
+                        <p className="text-sm leading-relaxed text-[#a5acb8]">
                         주문이 접수되면 관리자 메일로 주문자 정보와 주문 금액이 전달됩니다.
-                      </p>
+                        </p>
+                      </div>
                     </div>
-                    <div className="border border-[#333] bg-[#0d0d0d] p-3 flex items-start gap-2">
-                      <Truck size={14} className="text-[#00ffd1] mt-0.5 shrink-0" />
-                      <p className="text-[#999] leading-relaxed">
+                    <div className="rounded-[22px] border border-white/8 bg-[#13161c] p-4">
+                      <div className="flex items-start gap-3">
+                        <Truck size={18} className="mt-0.5 shrink-0 text-[#d9e3ff]" />
+                        <p className="text-sm leading-relaxed text-[#a5acb8]">
                         입금 확인 후 배송 절차가 시작되며, 확인 연락은 입력한 이메일로 안내됩니다.
-                      </p>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1360,35 +1396,42 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             </div>
 
             {canCheckout && (
-              <div className="sticky bottom-0 z-20 border-t border-[#333] bg-[#050505]/96 px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+12px)] backdrop-blur-md md:static md:bg-[#050505] md:p-7 md:pb-7">
-                <div className="mb-3 border border-[#333] bg-[#0d0d0d] px-4 py-3 md:mb-4">
-                  <div className="flex items-center justify-between gap-3 text-xs text-[#888]">
-                    <p className="uppercase tracking-widest text-[#666]">상품 금액</p>
-                    <p className="text-[#e5e5e5]">{formatKrw(subtotal)}</p>
+              <div className="sticky bottom-0 z-20 border-t border-white/8 bg-[#0a0c10]/92 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+14px)] shadow-[0_-18px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl md:static md:bg-transparent md:px-7 md:pb-7">
+                <div className="mb-4 rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4 md:px-5 md:py-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Payment Summary</p>
+                      <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">결제 예정 금액</p>
+                    </div>
+                    <p className="text-right text-[1.6rem] font-semibold tracking-[-0.04em] text-white md:text-[1.8rem]">
+                      {formatKrw(total)}
+                    </p>
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[#888]">
-                    <p className="uppercase tracking-widest text-[#666]">배송비</p>
-                    <p className="text-[#e5e5e5]">{formatKrw(shipping)}</p>
-                  </div>
-                  <div className="mt-2 pt-2 border-t border-[#333] flex items-center justify-between gap-3">
-                    <p className="uppercase tracking-widest text-[#00ffd1] text-xs">주문 합계</p>
-                    <p className="text-lg text-[#00ffd1] mt-1 font-bold">{formatKrw(total)}</p>
+                  <div className="mt-4 space-y-2 rounded-[18px] border border-white/6 bg-black/20 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3 text-sm text-[#a5acb8]">
+                      <p>상품 금액</p>
+                      <p className="text-white">{formatKrw(subtotal)}</p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-sm text-[#a5acb8]">
+                      <p>배송비</p>
+                      <p className="text-white">{formatKrw(shipping)}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="mb-3 inline-flex items-center gap-2 border border-[#333] bg-[#111] px-3 py-2 text-[10px] uppercase tracking-[0.18em] md:mb-4">
-                    <CreditCard size={12} className="text-[#00ffd1]" />
-                    <span className="text-[#aaa]">결제 수단 선택</span>
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-[#c3cad5]">
+                    <CreditCard size={12} className="text-[#dbe4f5]" />
+                    <span>결제 수단 선택</span>
                 </div>
 
                 {mode === 'cart' ? (
                   <button
                     onClick={() => setMode('checkout')}
-                    className="w-full py-4 bg-[#e5e5e5] text-black font-heading uppercase text-lg tracking-[0.16em] md:text-xl md:tracking-widest hover:bg-[#00ffd1] transition-colors"
+                    className="w-full rounded-[22px] bg-[#f5f7fa] px-5 py-4 text-center font-heading text-lg uppercase tracking-[0.1em] text-black transition-all hover:bg-white md:text-[1.15rem]"
                   >
                     결제로 이동
                   </button>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <input
                       ref={paymentReceiptInputRef}
                       type="file"
@@ -1397,17 +1440,17 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       onChange={(event) => void handlePaymentReceiptChange(event)}
                     />
 
-                    <div className="mb-3 border border-[#333] bg-[#101010] px-4 py-4">
+                    <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-[#c9d5eb]">
                             이체확인 사진
                           </p>
-                          <p className="mt-2 text-[10px] leading-relaxed text-[#8a8a8a]">
+                          <p className="mt-2 text-xs leading-relaxed text-[#8e96a3]">
                             송금 완료 화면을 올리면 관리자 주문목록에서 바로 확인할 수 있습니다.
                           </p>
                         </div>
-                        <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-[#8fd6c8]">
+                        <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#c3cad5]">
                           {isUploadingPaymentReceipt
                             ? '업로드중'
                             : paymentReceiptUrl
@@ -1421,7 +1464,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           type="button"
                           onClick={() => paymentReceiptInputRef.current?.click()}
                           disabled={isUploadingPaymentReceipt}
-                          className="border border-[#00ffd1]/45 bg-[#081a17] px-3 py-3 text-xs uppercase tracking-[0.16em] text-[#bafff0] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] disabled:opacity-50"
+                          className="rounded-[18px] border border-[#c7d2fe]/20 bg-[#c7d2fe]/10 px-3 py-3 text-xs uppercase tracking-[0.16em] text-[#ecf0ff] transition-colors hover:border-[#c7d2fe]/40 hover:bg-[#c7d2fe]/15 disabled:opacity-50"
                         >
                           {isUploadingPaymentReceipt
                             ? '업로드중...'
@@ -1433,18 +1476,18 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           type="button"
                           onClick={resetPaymentReceiptState}
                           disabled={isUploadingPaymentReceipt && !paymentReceiptUrl}
-                          className="border border-[#333] bg-black px-3 py-3 text-xs uppercase tracking-[0.16em] text-[#aaa] transition-colors hover:border-[#e5e5e5] hover:text-[#e5e5e5] disabled:opacity-50"
+                          className="rounded-[18px] border border-white/10 bg-black/20 px-3 py-3 text-xs uppercase tracking-[0.16em] text-[#b8c0cc] transition-colors hover:border-white/20 hover:text-white disabled:opacity-50"
                         >
                           삭제
                         </button>
                       </div>
 
-                      <p className="mt-2 text-[10px] text-[#717171]">
+                      <p className="mt-2 text-[10px] text-[#737b88]">
                         JPG / PNG / WEBP / HEIC, 최대 8MB
                       </p>
 
                       {(paymentReceiptPreviewUrl || paymentReceiptUrl) ? (
-                        <div className="mt-3 overflow-hidden border border-[#333] bg-black">
+                        <div className="mt-3 overflow-hidden rounded-[18px] border border-white/10 bg-black">
                           <div className="relative aspect-[4/5] w-full">
                             <img
                               src={paymentReceiptPreviewUrl || paymentReceiptUrl}
@@ -1452,8 +1495,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                               className="h-full w-full object-contain bg-black"
                             />
                           </div>
-                          <div className="border-t border-[#333] px-3 py-2">
-                            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-[#8fd6c8]">
+                          <div className="border-t border-white/10 px-3 py-2">
+                            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-[#c3cad5]">
                               {paymentReceiptFileName || '업로드된 이체확인 이미지'}
                             </p>
                           </div>
@@ -1462,8 +1505,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     </div>
 
                     {!isAuthenticated && (
-                      <div className="mb-3 border border-[#333] bg-[#101010] px-4 py-3">
-                        <label className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-[#00ffd1]">
+                      <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4">
+                        <label className="mb-2 block text-[11px] uppercase tracking-[0.2em] text-[#c9d5eb]">
                           비회원 주문조회 비밀번호
                         </label>
                         <input
@@ -1472,47 +1515,47 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           value={guestLookupPassword}
                           onChange={(e) => setGuestLookupPassword(e.target.value)}
                           placeholder="4자 이상 입력"
-                          className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                          className={CHECKOUT_FIELD_CLASS}
                         />
-                        <p className="mt-2 text-[10px] text-[#8a8a8a]">
+                        <p className="mt-3 text-xs leading-relaxed text-[#8e96a3]">
                           비회원 구매 후 주문번호와 이 비밀번호로 배송조회합니다.
                         </p>
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2 md:gap-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
                         disabled={isSubmittingOrder || isUploadingPaymentReceipt}
-                        className={`group relative overflow-hidden px-3 py-3 text-left uppercase tracking-[0.1em] shadow-[0_0_0_1px_rgba(0,255,209,0.12)] transition-all duration-200 md:px-4 md:py-4 ${
+                        className={`group relative overflow-hidden rounded-[22px] px-4 py-4 text-left transition-all duration-200 md:px-5 md:py-5 ${
                           isAuthenticated
-                            ? 'border border-[#00ffd1] bg-[linear-gradient(135deg,#00ffd1_0%,#7dfff0_100%)] text-black shadow-[0_0_24px_rgba(0,255,209,0.22)] hover:brightness-105'
-                            : 'border border-white/45 bg-[#111] text-white hover:border-white hover:bg-[#1a1a1a]'
+                            ? 'border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] text-black shadow-[0_12px_28px_rgba(171,190,220,0.18)] hover:brightness-105'
+                            : 'border border-white/12 bg-[#151922] text-white hover:border-white/25 hover:bg-[#181d26]'
                         } disabled:opacity-50`}
                       >
                         {isAuthenticated && !isSubmittingOrder ? (
-                          <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.22),transparent_55%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                          <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.28),transparent_55%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                         ) : null}
                         <span className="relative z-10 flex items-center justify-between gap-2">
                           <span className="flex flex-col gap-1">
-                            <span className={`font-mono text-[9px] tracking-[0.18em] md:text-[10px] md:tracking-[0.24em] ${
-                              isAuthenticated ? 'text-black/65' : 'text-white/70'
+                            <span className={`font-mono text-[10px] uppercase tracking-[0.18em] md:tracking-[0.24em] ${
+                              isAuthenticated ? 'text-black/55' : 'text-white/55'
                             }`}>
                               {isAuthenticated ? 'MEMBER' : 'LOGIN'}
                             </span>
-                            <span className={`text-[11px] font-bold leading-snug md:text-base ${
+                            <span className={`text-base font-semibold tracking-[-0.02em] leading-snug ${
                               isAuthenticated ? 'text-black' : 'text-white'
                             }`}>
                               {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                             </span>
                             {!isAuthenticated ? (
-                              <span className="font-mono text-[9px] leading-snug text-white/70">
+                              <span className="text-xs leading-snug text-white/65">
                                 로그인 필요
                               </span>
                             ) : null}
                           </span>
-                          <span className={`text-sm font-bold md:text-base ${
+                          <span className={`text-lg font-semibold ${
                             isAuthenticated ? 'text-black' : 'text-white'
                           }`}>
                             →
@@ -1523,37 +1566,37 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         type="button"
                         onClick={() => void submitBankTransferOrder('guest')}
                         disabled={isSubmittingOrder || isUploadingPaymentReceipt}
-                        className="min-h-[68px] bg-[#00ffd1] px-3 py-3 text-center font-heading text-[0.95rem] uppercase tracking-[0.08em] text-black transition-colors hover:bg-white disabled:opacity-50 md:px-4 md:py-4 md:text-lg md:tracking-[0.16em]"
+                        className="min-h-[78px] rounded-[22px] border border-white/10 bg-[#171b23] px-4 py-4 text-center font-heading text-[1rem] uppercase tracking-[0.06em] text-white transition-colors hover:border-white/20 hover:bg-[#1c212b] disabled:opacity-50 md:text-[1.08rem]"
                       >
                         {isSubmittingOrder ? '처리중...' : '비회원 구매'}
                       </button>
                     </div>
                     {canUseNicepayCheckout ? (
-                      <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
-                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">
+                      <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#c9d5eb] mb-2">
                           NICE Payments
                         </p>
-                        <p className="text-[10px] text-[#777] mb-3">
+                        <p className="text-xs leading-relaxed text-[#8e96a3] mb-3">
                           카드 결제를 NICE Payments 서버 승인 흐름으로 처리합니다.
                         </p>
                         {nicepayError && (
-                          <p className="text-[10px] text-red-300 mb-2">{nicepayError}</p>
+                          <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{nicepayError}</p>
                         )}
                         <button
                           type="button"
                           onClick={() => void handleNicepayCheckout()}
                           disabled={isSubmittingOrder || isStartingNicepay}
-                          className="group w-full overflow-hidden border border-[#00ffd1] bg-[linear-gradient(135deg,#00ffd1_0%,#7dfff0_100%)] px-4 py-4 text-left text-black shadow-[0_0_24px_rgba(0,255,209,0.22)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
+                          className="group w-full overflow-hidden rounded-[22px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-4 py-4 text-left text-black shadow-[0_12px_28px_rgba(171,190,220,0.18)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
                         >
                           <span className="flex items-center justify-between gap-3">
                             <span className="flex flex-col">
-                              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-black/65">
+                              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-black/55">
                                 Card Checkout
                               </span>
-                              <span className="mt-1 font-heading text-[1.1rem] uppercase tracking-[0.12em] text-black md:text-[1.2rem]">
+                              <span className="mt-1 font-heading text-[1.18rem] uppercase tracking-[0.08em] text-black md:text-[1.3rem]">
                                 {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
                               </span>
-                              <span className="mt-2 text-[11px] leading-relaxed text-black/70">
+                              <span className="mt-2 text-sm leading-relaxed text-black/70">
                                 직불카드 또는 신용카드 결제창 열기
                               </span>
                             </span>
@@ -1564,18 +1607,18 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </button>
                       </div>
                     ) : null}
-                    <div className="border border-[#333] bg-[#0a0a0a] px-4 py-3">
-                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">
+                    <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#c9d5eb] mb-2">
                         PayPal 결제 (Sandbox)
                       </p>
-                      <p className="text-[10px] text-[#777] mb-3">
+                      <p className="text-xs leading-relaxed text-[#8e96a3] mb-3">
                         테스트 결제용 버튼입니다. 결제 완료 후 주문 메일이 발송됩니다.
                       </p>
                       {paypalError && (
-                        <p className="text-[10px] text-red-300 mb-2">{paypalError}</p>
+                        <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{paypalError}</p>
                       )}
                       {!paypalSdkReady && !paypalError && (
-                        <p className="text-[10px] text-[#9a9a9a] mb-2">PayPal 버튼 불러오는 중...</p>
+                        <p className="mb-2 text-xs text-[#8e96a3]">PayPal 버튼 불러오는 중...</p>
                       )}
                       <div
                         ref={paypalContainerRef}
@@ -1590,20 +1633,20 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             setPaypalSdkReady(false);
                             setPaypalRetryNonce((value) => value + 1);
                           }}
-                          className="mt-3 w-full border border-[#666] px-3 py-2 text-[10px] uppercase tracking-widest text-[#d8d8d8] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1]"
+                          className="mt-3 w-full rounded-[18px] border border-white/10 px-3 py-3 text-[11px] uppercase tracking-[0.18em] text-[#d8dee8] transition-colors hover:border-white/20 hover:text-white"
                         >
                           PayPal 다시 시도
                         </button>
                       )}
                     </div>
                     {!isAuthenticated && (
-                      <p className="text-[10px] text-[#888]">
+                      <p className="px-1 text-xs leading-relaxed text-[#8e96a3]">
                         회원 계좌이체 구매는 로그인 후 사용할 수 있습니다. 비회원은 결제 시 설정한 비밀번호와 주문번호로 배송조회가 가능합니다.
                       </p>
                     )}
                     <button
                       onClick={() => setMode('cart')}
-                      className="w-full py-3 border border-[#333] text-[#888] hover:text-[#e5e5e5] hover:border-[#e5e5e5] uppercase text-xs tracking-widest transition-colors"
+                      className="w-full rounded-[20px] border border-white/10 py-3 text-sm text-[#b8c0cc] transition-colors hover:border-white/20 hover:text-white"
                     >
                       장바구니로
                     </button>
