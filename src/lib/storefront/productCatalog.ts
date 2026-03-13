@@ -3,6 +3,7 @@ import {
   isProductCategory,
   type ProductCategory,
 } from '@/app/constants/productCategories';
+import { isProductMarkedSoldOut } from '@/lib/storefront/productAvailability';
 import type { StorefrontProductRow } from '@/lib/storefront/shared';
 
 export interface Product {
@@ -495,7 +496,9 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     description,
     apparelSpecs: apparelSpecs || undefined,
     updatedAt: row.updated_at ?? row.created_at ?? null,
-    isSoldOut: SOLD_OUT_PRODUCT_KEY_SET.has(normalizeCategoryHintKey(title)),
+    isSoldOut:
+      SOLD_OUT_PRODUCT_KEY_SET.has(normalizeCategoryHintKey(title)) ||
+      isProductMarkedSoldOut(row.raw),
     smartstoreUrl: getSmartstoreUrlByTitle(title),
   };
 }

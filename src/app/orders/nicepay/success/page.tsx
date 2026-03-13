@@ -11,6 +11,8 @@ type NicepaySuccessPageProps = {
 
 export default async function NicepaySuccessPage({ searchParams }: NicepaySuccessPageProps) {
   const params = await searchParams;
+  const orderLookupHref =
+    params.channel === 'member' ? '/?popup=mypage&tab=orders' : '/?popup=mypage';
 
   return (
     <main className="min-h-screen bg-[#050505] px-4 py-12 text-[#e5e5e5] md:px-6">
@@ -60,7 +62,7 @@ export default async function NicepaySuccessPage({ searchParams }: NicepaySucces
             홈으로
           </Link>
           <Link
-            href="/"
+            href={orderLookupHref}
             className="inline-flex min-h-[52px] items-center justify-center border border-[#333] bg-[#111] px-4 text-sm uppercase tracking-[0.16em] text-[#d7d7d7] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1]"
           >
             주문 확인하러 가기

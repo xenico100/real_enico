@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { generateGuestOrderNumber } from '@/lib/orders/guestLookup';
@@ -11,6 +12,10 @@ import {
   type NicepayPendingOrder,
   verifyNicepayPendingOrder,
 } from '@/lib/orders/nicepay';
+import {
+  buildSoldOutRaw,
+  extractPersistentProductIds,
+} from '@/lib/storefront/productAvailability';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -226,6 +231,45 @@ function buildRawPayload(
       approval: approvalPayload,
     },
   };
+}
+
+async function markPurchasedItemsSoldOut(
+  serviceClient: SupabaseClient,
+  pendingOrder: NonNullable<ReturnType<typeof verifyNicepayPendingOrder>>,
+) {
+  const productIds = extractPersistentProductIds(pendingOrder.items);
+  if (productIds.length === 0) return;
+
+  const { data, error } = await serviceClient
+    .from('products')
+    .select('id, raw')
+    .in('id', productIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as Array<{ id: string; raw: unknown }>;
+  const updateResults = await Promise.all(
+    rows.map((row) =>
+      serviceClient
+        .from('products')
+        .update({
+          raw: buildSoldOutRaw(row.raw, {
+            orderCode: pendingOrder.transactionId,
+            paymentMethod: 'nicepay',
+          }),
+        })
+        .eq('id', row.id),
+    ),
+  );
+
+  const failedUpdate = updateResults.find((result) => result.error);
+  if (failedUpdate?.error) {
+    throw new Error(failedUpdate.error.message);
+  }
+
+  revalidateTag('storefront-products', 'max');
 }
 
 function buildEmailText(
@@ -572,6 +616,12 @@ export async function POST(request: Request) {
         );
       }
       throw new Error(persistResult.error.message);
+    }
+
+    try {
+      await markPurchasedItemsSoldOut(serviceClient, pendingOrder);
+    } catch (error) {
+      console.error('Failed to mark products sold out after NICE approval', error);
     }
 
     let mailFailed = false;

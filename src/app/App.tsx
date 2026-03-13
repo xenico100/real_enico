@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { SubcultureHeader } from '@/app/components/subculture/SubcultureHeader';
 import { HeroSection } from '@/app/components/subculture/HeroSection';
 import { ProductShowcase } from '@/app/components/subculture/ProductShowcase';
@@ -35,6 +36,16 @@ interface AppProps {
   usingFallbackProducts?: boolean;
   initialCollections?: Collection[];
   usingFallbackCollections?: boolean;
+  initialPopup?: 'about' | 'contact' | 'mypage' | null;
+  initialMyPageTab?:
+    | 'overview'
+    | 'orders'
+    | 'saved'
+    | 'cart'
+    | 'profile'
+    | 'dailyStats'
+    | 'members'
+    | 'adminOrders';
 }
 
 export default function App({
@@ -42,15 +53,23 @@ export default function App({
   usingFallbackProducts,
   initialCollections,
   usingFallbackCollections,
+  initialPopup,
+  initialMyPageTab,
 }: AppProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'mypage' | null>(null);
   const [isRandomChatOpen, setIsRandomChatOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+  const [ignoreInitialPopup, setIgnoreInitialPopup] = useState(false);
+  const deepLinkPopup =
+    ignoreInitialPopup ? null : initialPopup || null;
+  const shownPopup = activePopup || deepLinkPopup;
   const shouldLockBodyScroll =
     isCartOpen ||
-    Boolean(activePopup) ||
+    Boolean(shownPopup) ||
     Boolean(selectedProduct) ||
     Boolean(selectedCollection);
 
@@ -102,10 +121,17 @@ export default function App({
           <CartOverlay isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
         ) : null}
         
-        {activePopup && (
+        {shownPopup && (
           <InfoPopup 
-            type={activePopup}
-            onClose={() => setActivePopup(null)} 
+            type={shownPopup}
+            initialMyPageTab={initialMyPageTab}
+            onClose={() => {
+              setActivePopup(null);
+              if (deepLinkPopup) {
+                setIgnoreInitialPopup(true);
+                router.replace(pathname || '/', { scroll: false });
+              }
+            }} 
           />
         )}
         

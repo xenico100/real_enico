@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { hashGuestLookupPassword } from '@/lib/orders/guestLookup';
 import {
@@ -12,6 +12,10 @@ import {
   type OrderChannel,
   type OrderItem,
 } from '@/lib/orders/nicepay';
+import {
+  extractPersistentProductIds,
+  isProductMarkedSoldOut,
+} from '@/lib/storefront/productAvailability';
 
 type NicepayPreparePayload = {
   transactionId: string;
@@ -65,6 +69,35 @@ function buildPendingRawPayload(pendingOrder: NicepayPendingOrder) {
     stage: 'pending',
     pendingOrder,
   };
+}
+
+async function ensureItemsAvailable(
+  serviceClient: SupabaseClient,
+  items: OrderItem[],
+) {
+  const productIds = extractPersistentProductIds(items);
+  if (productIds.length === 0) return;
+
+  const { data, error } = await serviceClient
+    .from('products')
+    .select('id, title, raw')
+    .in('id', productIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as Array<{ id: string; title?: string | null; raw?: unknown }>;
+  if (rows.length !== productIds.length) {
+    throw new Error('이미 판매 완료되었거나 더 이상 구매할 수 없는 상품이 포함되어 있습니다.');
+  }
+
+  const soldOutProduct = rows.find((row) => isProductMarkedSoldOut(row.raw));
+  if (soldOutProduct) {
+    throw new Error(
+      `${soldOutProduct.title?.trim() || '선택한 상품'}은 이미 품절되어 결제를 진행할 수 없습니다.`,
+    );
+  }
 }
 
 function normalizeGuestLookupPassword(payload: Partial<NicepayPreparePayload>) {
@@ -247,6 +280,8 @@ export async function POST(request: Request) {
     const serviceClient = createClient(config.url, config.serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    await ensureItemsAvailable(serviceClient, payload.items);
 
     const deletePendingResult = await serviceClient
       .from('orders')
