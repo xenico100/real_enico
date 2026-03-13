@@ -1330,7 +1330,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3">
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
@@ -1368,14 +1368,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             →
                           </span>
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void submitBankTransferOrder('guest')}
-                        disabled={isSubmittingOrder}
-                        className="min-h-[54px] rounded-[16px] border border-white/10 bg-[#171b23] px-3.5 py-2.5 text-center font-heading text-[0.88rem] uppercase tracking-[0.04em] text-white transition-colors hover:border-white/20 hover:bg-[#1c212b] disabled:opacity-50 md:text-[0.92rem]"
-                      >
-                        {isSubmittingOrder ? '처리중...' : '비회원 구매'}
                       </button>
                     </div>
                     {canUseNicepayCheckout ? (
@@ -1448,6 +1440,14 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </button>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => void submitBankTransferOrder('guest')}
+                      disabled={isSubmittingOrder}
+                      className="min-h-[54px] rounded-[16px] border border-white/10 bg-[#171b23] px-3.5 py-2.5 text-center font-heading text-[0.88rem] uppercase tracking-[0.04em] text-white transition-colors hover:border-white/20 hover:bg-[#1c212b] disabled:opacity-50 md:text-[0.92rem]"
+                    >
+                      {isSubmittingOrder ? '처리중...' : '비회원 구매'}
+                    </button>
                     {!isAuthenticated && (
                       <p className="px-1 text-xs leading-relaxed text-[#8e96a3]">
                         회원 계좌이체 구매는 로그인 후 사용할 수 있습니다. 비회원은 결제 시 설정한 비밀번호와 주문번호로 배송조회가 가능합니다.
