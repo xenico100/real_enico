@@ -1271,7 +1271,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   const tabContent: Record<MyPageTab, ReactNode> = {
     overview: (
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
           <div className="border border-[#333] bg-[#111] p-4">
             <p className="text-[#9b9b9b] mb-1">가입일</p>
@@ -1793,11 +1793,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
         ) : (
           <>
-            <div className="rounded-[8px] border-2 border-[#d7dce4] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[0_0_0_1px_rgba(236,240,245,0.16)]">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="rounded-[8px] border-2 border-[#e4e8ef] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-6 shadow-[0_0_0_1px_rgba(244,247,251,0.24)]">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-[#c7ced8]">주문 관리</p>
-                  <p className="mt-2 text-sm text-[#a8afb9]">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-[#dde3ec]">주문 관리</p>
+                  <p className="mt-3 text-sm leading-7 text-[#c3cad4]">
                     주문 목록과 배송정보(상태/택배사/운송장번호)를 관리할 수 있습니다.
                   </p>
                 </div>
@@ -1805,7 +1805,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                   type="button"
                   onClick={() => void loadAdminOrders()}
                   disabled={isLoadingAdminOrders}
-                  className="rounded-[6px] border border-[#c2c9d3] bg-[#15181c] px-4 py-3 text-sm font-medium text-[#eef2f7] hover:border-[#eef2f7] transition-colors disabled:opacity-50"
+                  className="rounded-[6px] border-2 border-[#dbe1ea] bg-[#15181c] px-4 py-3 text-sm font-medium text-[#eef2f7] hover:border-[#ffffff] transition-colors disabled:opacity-50"
                 >
                   {isLoadingAdminOrders ? '새로고침 중...' : '주문 새로고침'}
                 </button>
@@ -1833,40 +1833,40 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                 저장된 주문이 없습니다. 결제 완료 후 목록이 표시됩니다.
               </div>
             ) : (
-              <div className="space-y-5">
+              <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-                  <div className="rounded-[8px] border border-[#c2c9d3] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.05)]">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">전체 주문</p>
+                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">전체 주문</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.total}</p>
-                    <p className="mt-2 text-sm text-[#a9afb8]">총 주문금액 {formatKrw(adminOrderSummary.revenue)}</p>
+                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">총 주문금액 {formatKrw(adminOrderSummary.revenue)}</p>
                   </div>
                   {adminOrderSummary.awaitingPayment > 0 ? (
-                    <div className="rounded-[8px] border border-[#c2c9d3] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.05)]">
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#e8bf7a]">입금 대기</p>
+                    <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#e8bf7a]">입금 대기</p>
                       <p className="mt-3 text-2xl font-semibold text-white">
                         {adminOrderSummary.awaitingPayment}
                       </p>
-                      <p className="mt-2 text-sm text-[#a9afb8]">계좌이체 확인이 필요한 주문</p>
+                      <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">계좌이체 확인이 필요한 주문</p>
                     </div>
                   ) : null}
-                  <div className="rounded-[8px] border border-[#c2c9d3] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.05)]">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">배송준비</p>
+                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">배송준비</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.preparing}</p>
-                    <p className="mt-2 text-sm text-[#a9afb8]">결제완료 후 출고 대기 주문</p>
+                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">결제완료 후 출고 대기 주문</p>
                   </div>
-                  <div className="rounded-[8px] border border-[#c2c9d3] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.05)]">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">배송중</p>
+                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">배송중</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.shipping}</p>
-                    <p className="mt-2 text-sm text-[#a9afb8]">발송 처리된 주문</p>
+                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">발송 처리된 주문</p>
                   </div>
-                  <div className="rounded-[8px] border border-[#c2c9d3] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.05)]">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">배송완료</p>
+                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">배송완료</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.delivered}</p>
-                    <p className="mt-2 text-sm text-[#a9afb8]">수령 완료 처리된 주문</p>
+                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">수령 완료 처리된 주문</p>
                   </div>
                 </div>
 
-                <div className="space-y-5">
+                <div className="space-y-7">
                   {adminOrders.map((order) => {
                     const draft = adminOrderDrafts[order.id] || createAdminOrderDraft(order);
                     const isCancelling = cancellingAdminOrderId === order.id;
@@ -1883,29 +1883,29 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     return (
                       <article
                         key={order.id}
-                        className="overflow-hidden rounded-[8px] border-2 border-[#d9dee6] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(237,242,246,0.18)]"
+                        className="overflow-hidden rounded-[8px] border-2 border-[#edf1f6] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(244,247,251,0.22)]"
                       >
-                        <div className="border-b-2 border-[#b2bbc9] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-4">
-                          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="border-b-2 border-[#d7dde7] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-6 py-5">
+                          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                             <div className="min-w-0">
-                              <p className="text-[11px] uppercase tracking-[0.24em] text-[#c7ced8]">
+                              <p className="text-[11px] uppercase tracking-[0.24em] text-[#dde3ec]">
                                 Shipping Console
                               </p>
                               <h3 className="mt-3 break-all text-lg font-semibold text-white md:text-2xl">
                                 {order.orderCode || order.guestOrderNumber || order.id}
                               </h3>
-                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em]">
-                                <span className="rounded-[6px] border border-[#dbe1e8] bg-[#d8dde5]/10 px-3 py-1 text-[#f4f7fb]">
+                              <div className="mt-4 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.16em]">
+                                <span className="rounded-[6px] border-2 border-[#eef2f7] bg-[#d8dde5]/10 px-3 py-1.5 text-[#f4f7fb]">
                                   {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
                                 </span>
-                                <span className="rounded-[6px] border border-[#b8c1cd] bg-black/25 px-3 py-1 text-[#d4dae2]">
+                                <span className="rounded-[6px] border-2 border-[#d7dde7] bg-black/25 px-3 py-1.5 text-[#e0e5ec]">
                                   {getPaymentMethodLabel(order.paymentMethod)}
                                 </span>
-                                <span className="rounded-[6px] border border-[#b8c1cd] bg-black/25 px-3 py-1 text-[#d4dae2]">
+                                <span className="rounded-[6px] border-2 border-[#d7dde7] bg-black/25 px-3 py-1.5 text-[#e0e5ec]">
                                   {getShippingStatusLabel(order.shippingStatus)}
                                 </span>
                               </div>
-                              <p className="mt-4 text-sm leading-relaxed text-[#c9d7d4]">
+                              <p className="mt-5 text-sm leading-7 text-[#d2d8e0]">
                                 {order.customerName || '주문자 미입력'} / {order.customerPhone || '-'} /{' '}
                                 {order.customerEmail || '-'}
                               </p>
@@ -1916,22 +1916,22 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               ) : null}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 xl:w-[320px]">
-                              <div className="rounded-[12px] border border-[#7a808a] bg-black/35 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">생성일</p>
-                                <p className="mt-2 text-sm text-white">{formatDate(order.createdAt || undefined)}</p>
+                            <div className="grid grid-cols-2 gap-3 xl:w-[340px]">
+                              <div className="rounded-[10px] border-2 border-[#d3dae3] bg-black/35 p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d3dae3]">생성일</p>
+                                <p className="mt-3 text-sm leading-6 text-white">{formatDate(order.createdAt || undefined)}</p>
                               </div>
-                              <div className="rounded-[12px] border border-[#7a808a] bg-black/35 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">최근 수정</p>
-                                <p className="mt-2 text-sm text-white">{formatDateTime(order.updatedAt)}</p>
+                              <div className="rounded-[10px] border-2 border-[#d3dae3] bg-black/35 p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d3dae3]">최근 수정</p>
+                                <p className="mt-3 text-sm leading-6 text-white">{formatDateTime(order.updatedAt)}</p>
                               </div>
-                              <div className="rounded-[12px] border border-[#7a808a] bg-black/35 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">주문 금액</p>
-                                <p className="mt-2 text-base font-semibold text-[#00ffd1]">{formatKrw(order.amountTotal)}</p>
+                              <div className="rounded-[10px] border-2 border-[#d3dae3] bg-black/35 p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d3dae3]">주문 금액</p>
+                                <p className="mt-3 text-base font-semibold leading-6 text-[#00ffd1]">{formatKrw(order.amountTotal)}</p>
                               </div>
-                              <div className="rounded-[12px] border border-[#7a808a] bg-black/35 p-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c0c7d1]">상품 수량</p>
-                                <p className="mt-2 text-base font-semibold text-white">
+                              <div className="rounded-[10px] border-2 border-[#d3dae3] bg-black/35 p-4">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d3dae3]">상품 수량</p>
+                                <p className="mt-3 text-base font-semibold leading-6 text-white">
                                   {Array.isArray(order.items) ? order.items.length : 0}개
                                 </p>
                               </div>
@@ -1939,47 +1939,47 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                           </div>
                         </div>
 
-                        <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-                          <div className="space-y-4">
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <section className="rounded-[14px] border border-[#7a808a] bg-[#0f1114] p-4">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">고객 정보</p>
-                                <div className="mt-4 space-y-3 text-sm">
+                        <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                          <div className="space-y-5">
+                            <div className="grid gap-5 md:grid-cols-2">
+                              <section className="rounded-[10px] border-2 border-[#d3dae3] bg-[#0f1114] p-5 shadow-[inset_0_0_0_1px_rgba(244,247,251,0.05)]">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#dbe1ea]">고객 정보</p>
+                                <div className="mt-5 space-y-4 text-sm">
                                   <div>
-                                    <p className="text-[#7c7c7c]">이름</p>
-                                    <p className="mt-1 text-white">{order.customerName || '-'}</p>
+                                    <p className="text-[#9ea8b4]">이름</p>
+                                    <p className="mt-2 text-base leading-7 text-white">{order.customerName || '-'}</p>
                                   </div>
                                   <div>
-                                    <p className="text-[#7c7c7c]">이메일</p>
-                                    <p className="mt-1 break-all text-white">{order.customerEmail || '-'}</p>
+                                    <p className="text-[#9ea8b4]">이메일</p>
+                                    <p className="mt-2 break-all text-base leading-7 text-white">{order.customerEmail || '-'}</p>
                                   </div>
                                   <div>
-                                    <p className="text-[#7c7c7c]">연락처 / 국가</p>
-                                    <p className="mt-1 text-white">
+                                    <p className="text-[#9ea8b4]">연락처 / 국가</p>
+                                    <p className="mt-2 text-base leading-7 text-white">
                                       {order.customerPhone || '-'} / {order.customerCountry || '-'}
                                     </p>
                                   </div>
                                 </div>
                               </section>
 
-                              <section className="rounded-[14px] border border-[#7a808a] bg-[#0f1114] p-4">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">결제 요약</p>
-                                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                                  <div className="rounded-[12px] border border-[#7a808a] bg-black/30 p-3">
-                                    <p className="text-[#7c7c7c]">상품금액</p>
-                                    <p className="mt-1 text-white">{formatKrw(order.amountSubtotal)}</p>
+                              <section className="rounded-[10px] border-2 border-[#d3dae3] bg-[#0f1114] p-5 shadow-[inset_0_0_0_1px_rgba(244,247,251,0.05)]">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#dbe1ea]">결제 요약</p>
+                                <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+                                  <div className="rounded-[10px] border-2 border-[#cfd6df] bg-black/30 p-4">
+                                    <p className="text-[#9ea8b4]">상품금액</p>
+                                    <p className="mt-2 text-base leading-6 text-white">{formatKrw(order.amountSubtotal)}</p>
                                   </div>
-                                  <div className="rounded-[12px] border border-[#7a808a] bg-black/30 p-3">
-                                    <p className="text-[#7c7c7c]">배송비</p>
-                                    <p className="mt-1 text-white">{formatKrw(order.amountShipping)}</p>
+                                  <div className="rounded-[10px] border-2 border-[#cfd6df] bg-black/30 p-4">
+                                    <p className="text-[#9ea8b4]">배송비</p>
+                                    <p className="mt-2 text-base leading-6 text-white">{formatKrw(order.amountShipping)}</p>
                                   </div>
-                                  <div className="rounded-[12px] border border-[#7a808a] bg-black/30 p-3">
-                                    <p className="text-[#7c7c7c]">결제수단</p>
-                                    <p className="mt-1 text-white">{getPaymentMethodLabel(order.paymentMethod)}</p>
+                                  <div className="rounded-[10px] border-2 border-[#cfd6df] bg-black/30 p-4">
+                                    <p className="text-[#9ea8b4]">결제수단</p>
+                                    <p className="mt-2 text-base leading-6 text-white">{getPaymentMethodLabel(order.paymentMethod)}</p>
                                   </div>
-                                  <div className="rounded-[12px] border border-[#7a808a] bg-black/30 p-3">
-                                    <p className="text-[#7c7c7c]">결제상태</p>
-                                    <p className="mt-1 text-white">
+                                  <div className="rounded-[10px] border-2 border-[#cfd6df] bg-black/30 p-4">
+                                    <p className="text-[#9ea8b4]">결제상태</p>
+                                    <p className="mt-2 text-base leading-6 text-white">
                                       {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
                                     </p>
                                   </div>
@@ -1987,17 +1987,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               </section>
                             </div>
 
-                            <section className="rounded-[14px] border border-[#7a808a] bg-[#0f1114] p-4">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">배송지</p>
-                              <p className="mt-3 whitespace-pre-line break-words text-sm leading-7 text-[#e7e7e7]">
+                            <section className="rounded-[10px] border-2 border-[#d3dae3] bg-[#0f1114] p-5 shadow-[inset_0_0_0_1px_rgba(244,247,251,0.05)]">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#dbe1ea]">배송지</p>
+                              <p className="mt-4 whitespace-pre-line break-words text-base leading-8 text-[#e7e7e7]">
                                 {order.customerAddress || '-'}
                               </p>
                             </section>
 
                             {order.paymentReceiptUrl ? (
-                              <section className="rounded-[14px] border border-[#7a808a] bg-[#101215] p-4">
+                              <section className="rounded-[10px] border-2 border-[#d3dae3] bg-[#101215] p-5 shadow-[inset_0_0_0_1px_rgba(244,247,251,0.05)]">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
+                                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#dbe1ea]">
                                     이체확인 사진
                                   </p>
                                   <a
@@ -2009,7 +2009,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                     새 탭에서 보기
                                   </a>
                                 </div>
-                                <div className="relative mt-4 aspect-[4/5] overflow-hidden rounded-[12px] border border-[#7a808a] bg-black">
+                                <div className="relative mt-5 aspect-[4/5] overflow-hidden rounded-[10px] border-2 border-[#cfd6df] bg-black">
                                   <img
                                     src={order.paymentReceiptUrl}
                                     alt="이체확인 사진"
@@ -2020,18 +2020,18 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             ) : null}
 
                             {Array.isArray(order.items) && order.items.length > 0 ? (
-                              <section className="rounded-[14px] border border-[#7a808a] bg-[#0f1114] p-4">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
+                              <section className="rounded-[10px] border-2 border-[#d3dae3] bg-[#0f1114] p-5 shadow-[inset_0_0_0_1px_rgba(244,247,251,0.05)]">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-[#dbe1ea]">
                                   주문 상품 목록
                                 </p>
-                                <div className="mt-4 space-y-2">
+                                <div className="mt-5 space-y-3">
                                   {order.items.map((item, index) => (
                                     <div
                                       key={`${order.id}-${item.id}-${index}`}
-                                      className="rounded-[12px] border border-[#7a808a] bg-[#111316] px-4 py-3"
+                                      className="rounded-[10px] border-2 border-[#cfd6df] bg-[#111316] px-4 py-4"
                                     >
                                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                        <p className="break-words text-sm text-[#f3f3f3]">
+                                        <p className="break-words text-sm leading-7 text-[#f3f3f3]">
                                           {item.name} ({item.category || '-'})
                                           {item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : ''}
                                         </p>
@@ -2046,8 +2046,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             ) : null}
                           </div>
 
-                          <div className="space-y-4">
-                            <section className="rounded-[14px] border border-[#7a808a] bg-[#101215] p-4">
+                          <div className="space-y-5">
+                            <section className="rounded-[10px] border-2 border-[#d3dae3] bg-[#101215] p-5 shadow-[inset_0_0_0_1px_rgba(244,247,251,0.05)]">
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">배송정보 편집</p>
                                 <span className="text-sm text-[#8ba49d]">
@@ -2055,16 +2055,16 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                 </span>
                               </div>
 
-                              <div className="mt-4 space-y-4">
-                                <div className="grid gap-4 md:grid-cols-2">
+                              <div className="mt-5 space-y-5">
+                                <div className="grid gap-5 md:grid-cols-2">
                                   <div>
-                                    <label className="mb-2 block text-sm text-[#8ca39e]">결제 상태</label>
+                                    <label className="mb-3 block text-sm text-[#b5beca]">결제 상태</label>
                                     <select
                                       value={selectedPaymentStatus}
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
                                       }
-                                      className="w-full rounded-[12px] border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
+                                      className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
                                     >
                                       {paymentStatusOptions.map((option) => (
                                         <option key={`${order.id}-${option.value}`} value={option.value}>
@@ -2074,13 +2074,13 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="mb-2 block text-sm text-[#8ca39e]">배송 상태</label>
+                                    <label className="mb-3 block text-sm text-[#b5beca]">배송 상태</label>
                                     <select
                                       value={draft.shippingStatus || 'preparing'}
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'shippingStatus', event.target.value)
                                       }
-                                      className="w-full rounded-[12px] border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
+                                      className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
                                     >
                                       <option value="preparing">배송준비중</option>
                                       <option value="shipping">배송중</option>
@@ -2088,56 +2088,56 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="mb-2 block text-sm text-[#8ca39e]">택배사</label>
+                                    <label className="mb-3 block text-sm text-[#b5beca]">택배사</label>
                                     <input
                                       type="text"
                                       value={draft.shippingCompany || ''}
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
                                       }
-                                      className="w-full rounded-[12px] border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
+                                      className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
                                       placeholder="예: 우체국, CJ대한통운"
                                     />
                                   </div>
                                   <div>
-                                    <label className="mb-2 block text-sm text-[#8ca39e]">운송장번호</label>
+                                    <label className="mb-3 block text-sm text-[#b5beca]">운송장번호</label>
                                     <input
                                       type="text"
                                       value={draft.trackingNumber || ''}
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'trackingNumber', event.target.value)
                                       }
-                                      className="w-full rounded-[12px] border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
+                                      className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
                                       placeholder="운송장번호 입력"
                                     />
                                   </div>
                                 </div>
 
                                 <div>
-                                  <label className="mb-2 block text-sm text-[#8ca39e]">배송 메모</label>
+                                  <label className="mb-3 block text-sm text-[#b5beca]">배송 메모</label>
                                   <textarea
                                     value={draft.shippingNote || ''}
                                     onChange={(event) =>
                                       updateAdminOrderDraft(order.id, 'shippingNote', event.target.value)
                                     }
                                     rows={4}
-                                    className="w-full rounded-[12px] border border-[#2f3b38] bg-[#050505] px-4 py-3 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
+                                    className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm leading-7 text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
                                     placeholder="송장 분실, 보류 사유, 연락 필요 내용 등을 기록"
                                   />
                                 </div>
                               </div>
                             </section>
 
-                            <section className="rounded-[14px] border border-[#7a808a] bg-[#0f1114] p-4">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8]">배송 타임라인</p>
-                              <div className="mt-4 grid gap-3 text-sm">
-                                <div className="rounded-[12px] border border-[#7a808a] bg-black/30 p-3">
-                                  <p className="text-[#7c7c7c]">발송일시</p>
-                                  <p className="mt-1 text-white">{formatDateTime(order.shippedAt)}</p>
+                            <section className="rounded-[10px] border-2 border-[#d3dae3] bg-[#0f1114] p-5 shadow-[inset_0_0_0_1px_rgba(244,247,251,0.05)]">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-[#dbe1ea]">배송 타임라인</p>
+                              <div className="mt-5 grid gap-4 text-sm">
+                                <div className="rounded-[10px] border-2 border-[#cfd6df] bg-black/30 p-4">
+                                  <p className="text-[#9ea8b4]">발송일시</p>
+                                  <p className="mt-2 text-base leading-7 text-white">{formatDateTime(order.shippedAt)}</p>
                                 </div>
-                                <div className="rounded-[12px] border border-[#7a808a] bg-black/30 p-3">
-                                  <p className="text-[#7c7c7c]">배송완료일시</p>
-                                  <p className="mt-1 text-white">{formatDateTime(order.deliveredAt)}</p>
+                                <div className="rounded-[10px] border-2 border-[#cfd6df] bg-black/30 p-4">
+                                  <p className="text-[#9ea8b4]">배송완료일시</p>
+                                  <p className="mt-2 text-base leading-7 text-white">{formatDateTime(order.deliveredAt)}</p>
                                 </div>
                               </div>
                             </section>
