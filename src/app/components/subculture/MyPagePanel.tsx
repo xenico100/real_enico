@@ -207,28 +207,19 @@ function getPaymentMethodLabel(method: string) {
   return method || '-';
 }
 
-function getNicepayCancelState(
+function getMemberOrderCancelState(
   order: Pick<OrderRecord, 'paymentMethod' | 'paymentStatus' | 'shippingStatus'>,
 ) {
   const paymentMethod = (order.paymentMethod || '').trim().toLowerCase();
   const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
   const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
 
-  if (paymentMethod !== 'nicepay') {
-    return {
-      visible: false,
-      enabled: false,
-      label: '',
-      description: '',
-    };
-  }
-
   if (paymentStatus === 'cancelled') {
     return {
       visible: true,
       enabled: false,
-      label: '결제취소 완료',
-      description: '이미 NICE 결제취소가 완료된 주문입니다.',
+      label: '주문취소 완료',
+      description: '이미 취소가 완료된 주문입니다.',
     };
   }
 
@@ -237,16 +228,28 @@ function getNicepayCancelState(
       visible: true,
       enabled: false,
       label: '배송 시작 후 취소불가',
-      description: '배송준비중 상태의 NICE 카드결제 주문만 온라인 취소할 수 있습니다.',
+      description: '배송준비중 상태의 주문만 온라인에서 취소할 수 있습니다.',
     };
   }
 
-  if (paymentStatus === 'paid' || paymentStatus === 'completed') {
+  if (paymentMethod === 'nicepay' && (paymentStatus === 'paid' || paymentStatus === 'completed')) {
     return {
       visible: true,
       enabled: true,
       label: '주문취소',
       description: 'NICE 결제 승인 취소와 관리자 메일 전송을 함께 처리합니다.',
+    };
+  }
+
+  if (
+    paymentMethod === 'bank_transfer' &&
+    (paymentStatus === 'pending_transfer' || paymentStatus === 'transfer_confirmed')
+  ) {
+    return {
+      visible: true,
+      enabled: true,
+      label: '주문취소',
+      description: '계좌이체 주문을 취소 상태로 변경하고 관리자 메일로 기록을 보냅니다.',
     };
   }
 
@@ -310,13 +313,6 @@ function getAdminOrderCancelState(
     label: '',
     description: '',
   };
-}
-
-function getChannelLabel(channel: string) {
-  const normalizedChannel = (channel || '').toLowerCase();
-  if (normalizedChannel === 'member') return '회원';
-  if (normalizedChannel === 'guest') return '비회원';
-  return channel || '-';
 }
 
 function formatKrw(value: number | string | null | undefined) {
@@ -543,6 +539,18 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           summary.awaitingPayment += 1;
         }
 
+        const normalizedPaymentStatus = (order.paymentStatus || '').trim().toLowerCase();
+        const normalizedShippingStatus = (order.shippingStatus || '').trim().toLowerCase();
+        const isPaidOrder =
+          normalizedPaymentStatus === 'paid' ||
+          normalizedPaymentStatus === 'captured' ||
+          normalizedPaymentStatus === 'completed' ||
+          normalizedPaymentStatus === 'transfer_confirmed';
+
+        if (normalizedShippingStatus === 'preparing' && isPaidOrder) {
+          summary.preparing += 1;
+        }
+
         if (order.shippingStatus === 'shipping') {
           summary.shipping += 1;
         }
@@ -556,6 +564,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
       {
         total: 0,
         awaitingPayment: 0,
+        preparing: 0,
         shipping: 0,
         delivered: 0,
         revenue: 0,
@@ -937,7 +946,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const handleCancelMemberOrder = async (order: MemberOrderRecord) => {
     if (!session?.access_token) return;
 
-    const cancelState = getNicepayCancelState(order);
+    const cancelState = getMemberOrderCancelState(order);
     if (!cancelState.enabled) return;
 
     const orderIdentifier = order.orderCode || order.guestOrderNumber || order.id;
@@ -991,7 +1000,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const handleCancelAdminOrder = async (order: AdminOrderRecord) => {
     if (!session?.access_token) return;
 
-    const cancelState = getNicepayCancelState(order);
+    const cancelState = getMemberOrderCancelState(order);
     if (!cancelState.enabled) return;
 
     const orderIdentifier = order.orderCode || order.guestOrderNumber || order.id;
@@ -1227,7 +1236,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {memberOrders.map((order) => {
-              const cancelState = getNicepayCancelState(order);
+              const cancelState = getMemberOrderCancelState(order);
               const isCancelling = cancellingMemberOrderId === order.id;
 
               return (
@@ -1683,18 +1692,25 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               </div>
             ) : (
               <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
                   <div className="rounded-[20px] border border-[#2a4a43] bg-[#0e1615] p-4">
                     <p className="text-[11px] uppercase tracking-[0.2em] text-[#7fb9ae]">전체 주문</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.total}</p>
                     <p className="mt-2 text-sm text-[#8da39e]">총 주문금액 {formatKrw(adminOrderSummary.revenue)}</p>
                   </div>
-                  <div className="rounded-[20px] border border-[#4f3b23] bg-[#17120d] p-4">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#e8bf7a]">입금 대기</p>
-                    <p className="mt-3 text-2xl font-semibold text-white">
-                      {adminOrderSummary.awaitingPayment}
-                    </p>
-                    <p className="mt-2 text-sm text-[#ad9c84]">계좌이체 확인이 필요한 주문</p>
+                  {adminOrderSummary.awaitingPayment > 0 ? (
+                    <div className="rounded-[20px] border border-[#4f3b23] bg-[#17120d] p-4">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#e8bf7a]">입금 대기</p>
+                      <p className="mt-3 text-2xl font-semibold text-white">
+                        {adminOrderSummary.awaitingPayment}
+                      </p>
+                      <p className="mt-2 text-sm text-[#ad9c84]">계좌이체 확인이 필요한 주문</p>
+                    </div>
+                  ) : null}
+                  <div className="rounded-[20px] border border-[#335846] bg-[#101714] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#8ff3dc]">배송준비</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.preparing}</p>
+                    <p className="mt-2 text-sm text-[#8da39a]">결제완료 후 출고 대기 주문</p>
                   </div>
                   <div className="rounded-[20px] border border-[#214960] bg-[#0c141a] p-4">
                     <p className="text-[11px] uppercase tracking-[0.2em] text-[#87cfff]">배송중</p>
@@ -1731,15 +1747,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               <div className="mt-3 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em]">
                                 <span className="rounded-full border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-1 text-[#00ffd1]">
                                   {getShippingStatusLabel(order.shippingStatus)}
-                                </span>
-                                <span className="rounded-full border border-[#2e4843] bg-[#0d1514] px-3 py-1 text-[#d7f8f0]">
-                                  {getPaymentMethodLabel(order.paymentMethod)}
-                                </span>
-                                <span className="rounded-full border border-[#313131] bg-black px-3 py-1 text-[#d8d8d8]">
-                                  {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
-                                </span>
-                                <span className="rounded-full border border-[#313131] bg-black px-3 py-1 text-[#d8d8d8]">
-                                  {getChannelLabel(order.channel)}
                                 </span>
                               </div>
                               <p className="mt-4 text-sm leading-relaxed text-[#c9d7d4]">
