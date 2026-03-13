@@ -42,6 +42,10 @@ export type NicepayPendingOrder = {
 export const NICEPAY_PENDING_ORDER_COOKIE = 'nicepay_pending_order';
 export const NICEPAY_PENDING_ORDER_MAX_AGE = 15 * 60;
 
+export function getNicepayPendingOrderCookieSameSite() {
+  return process.env.NODE_ENV === 'production' ? 'none' : 'lax';
+}
+
 function toBase64Url(value: string) {
   return Buffer.from(value, 'utf8').toString('base64url');
 }

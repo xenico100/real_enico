@@ -1,8 +1,10 @@
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { hashGuestLookupPassword } from '@/lib/orders/guestLookup';
 import {
   buildNicepayGoodsName,
   generateNicepayOrderId,
+  getNicepayPendingOrderCookieSameSite,
   NICEPAY_PENDING_ORDER_COOKIE,
   NICEPAY_PENDING_ORDER_MAX_AGE,
   signNicepayPendingOrder,
@@ -45,15 +47,24 @@ function toRoundedAmount(value: number) {
 }
 
 function getNicepayConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '';
   const clientKey = process.env.NICEPAY_CLIENT_KEY?.trim() || '';
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim() || '';
   const returnUrl = process.env.NICEPAY_RETURN_URL?.trim() || '';
 
-  if (!clientKey || !secretKey || !returnUrl) {
+  if (!url || !serviceRoleKey || !clientKey || !secretKey || !returnUrl) {
     return null;
   }
 
-  return { clientKey, secretKey, returnUrl };
+  return { url, serviceRoleKey, clientKey, secretKey, returnUrl };
+}
+
+function buildPendingRawPayload(pendingOrder: NicepayPendingOrder) {
+  return {
+    stage: 'pending',
+    pendingOrder,
+  };
 }
 
 function normalizeGuestLookupPassword(payload: Partial<NicepayPreparePayload>) {
@@ -212,6 +223,9 @@ export async function POST(request: Request) {
     const orderId = generateNicepayOrderId();
     const amount = Math.max(1, Math.round(payload.pricing.total));
     const goodsName = buildNicepayGoodsName(payload.items);
+    const dynamicReturnUrl = new URL(config.returnUrl);
+    dynamicReturnUrl.searchParams.set('orderCode', payload.transactionId);
+    const resolvedReturnUrl = dynamicReturnUrl.toString();
     const pendingOrder: NicepayPendingOrder = {
       orderId,
       transactionId: payload.transactionId,
@@ -226,14 +240,70 @@ export async function POST(request: Request) {
       nicepay: {
         amount,
         goodsName,
-        returnUrl: config.returnUrl,
+        returnUrl: resolvedReturnUrl,
       },
     };
+
+    const serviceClient = createClient(config.url, config.serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const deletePendingResult = await serviceClient
+      .from('orders')
+      .delete()
+      .eq('order_code', payload.transactionId)
+      .eq('payment_method', 'nicepay')
+      .eq('payment_status', 'pending_payment');
+
+    if (deletePendingResult.error && deletePendingResult.error.code !== 'PGRST116') {
+      throw new Error(deletePendingResult.error.message);
+    }
+
+    const insertResult = await serviceClient.from('orders').insert({
+      order_code: payload.transactionId,
+      channel: payload.channel,
+      payment_method: 'nicepay',
+      payment_status: 'pending_payment',
+      currency: payload.pricing.currency,
+      amount_subtotal: Math.round(payload.pricing.subtotal),
+      amount_shipping: Math.round(payload.pricing.shipping),
+      amount_tax: Math.round(payload.pricing.tax),
+      amount_total: Math.round(payload.pricing.total),
+      customer_name: payload.customer.name,
+      customer_email: payload.customer.email,
+      customer_phone: payload.customer.phone,
+      customer_country: payload.customer.country,
+      customer_address: payload.customer.address,
+      guest_password_hash: pendingOrder.guestPasswordHash,
+      shipping_status: 'preparing',
+      items: payload.items,
+      raw_payload: buildPendingRawPayload(pendingOrder),
+    });
+
+    if (insertResult.error) {
+      if (insertResult.error.code === '42P01') {
+        throw new Error('orders 테이블이 없습니다. sql/orders_setup.sql을 먼저 실행하세요.');
+      }
+      if (
+        insertResult.error.code === '23514' ||
+        insertResult.error.message.toLowerCase().includes('payment_method')
+      ) {
+        throw new Error(
+          'orders 결제수단 제약조건이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행해 주세요.',
+        );
+      }
+      if (insertResult.error.code === '42703') {
+        throw new Error(
+          'orders 테이블 컬럼이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행해 주세요.',
+        );
+      }
+      throw new Error(insertResult.error.message);
+    }
 
     const response = NextResponse.json({
       ok: true,
       clientKey: config.clientKey,
-      returnUrl: config.returnUrl,
+      returnUrl: resolvedReturnUrl,
       orderId,
       amount,
       goodsName,
@@ -248,7 +318,7 @@ export async function POST(request: Request) {
       name: NICEPAY_PENDING_ORDER_COOKIE,
       value: signNicepayPendingOrder(pendingOrder, config.secretKey),
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: getNicepayPendingOrderCookieSameSite(),
       secure: process.env.NODE_ENV === 'production',
       path: '/',
       maxAge: NICEPAY_PENDING_ORDER_MAX_AGE,
