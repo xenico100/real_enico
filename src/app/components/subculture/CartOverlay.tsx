@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Trash2, CreditCard, ShieldCheck, Truck } from 'lucide-react';
+import { X, Trash2, CreditCard } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
@@ -607,6 +607,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
       const payload = (await response.json()) as {
         message?: string;
+        guestOrderNumber?: string;
       };
       if (!response.ok) {
         throw new Error(payload.message || '주문 접수 중 오류가 발생했습니다.');
@@ -614,11 +615,30 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
       if (channel === 'guest') {
         setCheckoutMessage(
-          '비회원 주문이 접수되었습니다. 모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 배송조회할 수 있습니다.',
+          [
+            '비회원 계좌이체 주문이 접수되었습니다.',
+            payload.guestOrderNumber
+              ? `비회원 조회번호: ${payload.guestOrderNumber}`
+              : null,
+            `${BANK_NAME} ${BANK_ACCOUNT_NUMBER}`,
+            `예금주: ${BANK_ACCOUNT_HOLDER}`,
+            '입금자명은 수령인 이름과 동일하게 입력해 주세요.',
+            '모바일에서 주문한 핸드폰 번호와 비밀번호로 배송조회할 수 있습니다.',
+          ]
+            .filter(Boolean)
+            .join('\n'),
         );
       } else {
         syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
-        setCheckoutMessage('주문이 접수되었습니다. 입금 확인 후 순차 처리됩니다.');
+        setCheckoutMessage(
+          [
+            '계좌이체 주문이 접수되었습니다.',
+            `${BANK_NAME} ${BANK_ACCOUNT_NUMBER}`,
+            `예금주: ${BANK_ACCOUNT_HOLDER}`,
+            '입금자명은 수령인 이름과 동일하게 입력해 주세요.',
+            '입금 확인 후 순차 처리됩니다.',
+          ].join('\n'),
+        );
       }
       clearCart();
       setMode('cart');
@@ -1012,11 +1032,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   <h2 className="mt-3 text-[1.85rem] font-heading font-black uppercase tracking-[0.01em] leading-[1.08] text-white md:text-[2.45rem]">
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
-                  {mode === 'checkout' ? (
-                    <p className="mt-3 text-sm leading-relaxed text-[#8e96a3]">
-                      배송 정보와 결제 수단을 차례대로 입력하면 바로 주문할 수 있습니다.
-                    </p>
-                  ) : null}
                 </div>
                 <button
                   onClick={onClose}
@@ -1066,7 +1081,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
               {(checkoutMessage || checkoutError) && (
                 <div
-                  className={`rounded-[20px] border px-4 py-3 text-sm leading-relaxed ${
+                  className={`rounded-[20px] border px-4 py-3 text-sm leading-relaxed whitespace-pre-line ${
                     checkoutError
                       ? 'border-red-400/30 bg-red-500/10 text-red-200'
                       : 'border-[#c7d2fe]/25 bg-[#c7d2fe]/10 text-[#e7ecff]'
@@ -1140,29 +1155,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   )}
                 </>
               ) : (
-                <div className="space-y-4">
-                  <div className={CHECKOUT_SECTION_CLASS}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Bank Transfer</p>
-                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">계좌이체 안내</h3>
-                      </div>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#b4bcc8]">
-                        Optional
-                      </span>
-                    </div>
-                    <div className="mt-4 rounded-[14px] border border-[#2c323d] bg-[linear-gradient(180deg,#1a1f27_0%,#151920_100%)] px-4 py-4">
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#9ea8b6]">입금 계좌</p>
-                      <p className="mt-3 break-all text-[1.28rem] font-semibold tracking-[0.01em] leading-[1.2] text-white md:text-[1.42rem]">
-                        {BANK_NAME} {BANK_ACCOUNT_NUMBER}
-                      </p>
-                      <p className="mt-2 text-sm text-[#c6ced8]">예금주: {BANK_ACCOUNT_HOLDER}</p>
-                      <p className="mt-4 text-sm leading-relaxed text-[#99a1ad]">
-                        주문 접수 후 위 계좌로 입금해 주세요. 입금자명은 수령인 이름과 동일하게 입력해 주세요.
-                      </p>
-                    </div>
-                  </div>
-
+                <div className="space-y-6">
                   <div className={CHECKOUT_SECTION_CLASS}>
                     <div className="mb-4 flex items-start justify-between gap-3 border-b border-white/8 pb-4">
                       <div>
@@ -1173,7 +1166,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         Required
                       </span>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
                         <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
                           <span className="text-[#d9dfe8]">이메일</span>
@@ -1232,7 +1225,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         Address
                       </span>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
                         <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
                           <span className="text-[#d9dfe8]">구역 (국가)</span>
@@ -1276,24 +1269,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="rounded-[14px] border border-white/8 bg-[#13161c] p-4">
-                      <div className="flex items-start gap-3">
-                        <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#d9e3ff]" />
-                        <p className="text-sm leading-relaxed text-[#a5acb8]">
-                        주문이 접수되면 관리자 메일로 주문자 정보와 주문 금액이 전달됩니다.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="rounded-[14px] border border-white/8 bg-[#13161c] p-4">
-                      <div className="flex items-start gap-3">
-                        <Truck size={18} className="mt-0.5 shrink-0 text-[#d9e3ff]" />
-                        <p className="text-sm leading-relaxed text-[#a5acb8]">
-                        입금 확인 후 배송 절차가 시작되며, 확인 연락은 입력한 이메일로 안내됩니다.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -1335,7 +1310,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     결제로 이동
                   </button>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {!isAuthenticated && (
                       <div className="rounded-[16px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4">
                         <label className="mb-2 block text-[11px] uppercase tracking-[0.2em] text-[#c9d5eb]">
