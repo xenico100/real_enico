@@ -388,7 +388,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     const existingScript = document.getElementById(PAYPAL_SDK_SCRIPT_ID) as HTMLScriptElement | null;
     const scriptUrl = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
       PAYPAL_CLIENT_ID,
-    )}&currency=${encodeURIComponent(PAYPAL_CURRENCY)}&intent=capture&components=buttons`;
+    )}&currency=${encodeURIComponent(PAYPAL_CURRENCY)}&intent=capture&components=buttons&disable-funding=card`;
     const handleLoad = () => {
       if (!window.paypal) {
         setPaypalError('PayPal SDK를 불러왔지만 버튼 초기화에 실패했습니다. 다시 시도해 주세요.');
