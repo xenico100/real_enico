@@ -2226,13 +2226,13 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                 등록된 회원이 없습니다.
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-7">
                 {members.map((member) => {
                   const draft = memberDrafts[member.id] || createMemberDraft(member);
                   return (
                     <div
                       key={member.id}
-                      className="overflow-hidden rounded-[8px] border-2 border-[#d9dee6] bg-[linear-gradient(180deg,#16181c_0%,#101114_100%)] shadow-[0_0_0_1px_rgba(237,242,246,0.18)]"
+                      className="mb-1 overflow-hidden rounded-[8px] border-2 border-[#d9dee6] bg-[linear-gradient(180deg,#16181c_0%,#101114_100%)] shadow-[0_0_0_1px_rgba(237,242,246,0.18)]"
                     >
                       <div className="border-b-2 border-[#b2bbc9] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-4">
                         <div className="mb-2 text-[11px] uppercase tracking-[0.24em] text-[#e0e5ec]">
@@ -2253,8 +2253,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                         </div>
                       </div>
 
-                      <div className="space-y-4 p-5">
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 text-sm">
+                      <div className="space-y-5 p-5">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm">
                           <label className="rounded-[6px] border border-[#bcc5d0] bg-[#0d1015] p-3 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
                             <span className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-[#c9d1dc]">이름</span>
                             <input
@@ -2317,7 +2317,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                           </label>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="mt-2 grid grid-cols-1 gap-3 border-t border-[#aab2be]/35 pt-4 md:grid-cols-2">
                           <button
                             type="button"
                             onClick={() => void handleSaveMember(member.id)}
