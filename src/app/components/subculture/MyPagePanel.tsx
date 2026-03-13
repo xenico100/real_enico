@@ -19,6 +19,7 @@ type MyPageTab =
   | 'adminOrders';
 
 type AdminComposerType = 'products' | 'collections';
+type AdminOrderView = 'new' | 'shipping' | 'cancelled';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const DEFAULT_BANK_ACCOUNT_HOLDER = '백형석';
@@ -420,6 +421,22 @@ function getAdminOrderCancelState(
   };
 }
 
+function isCancelledAdminOrder(order: Pick<OrderRecord, 'paymentStatus'>) {
+  const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
+  return paymentStatus === 'refund_pending' || paymentStatus === 'cancelled' || paymentStatus === 'partialcancelled';
+}
+
+function isShippingAdminOrder(order: Pick<OrderRecord, 'paymentStatus' | 'shippingStatus'>) {
+  if (isCancelledAdminOrder(order)) return false;
+  const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
+  return shippingStatus === 'shipping' || shippingStatus === 'delivered';
+}
+
+function isNewAdminOrder(order: Pick<OrderRecord, 'paymentStatus' | 'shippingStatus'>) {
+  if (isCancelledAdminOrder(order)) return false;
+  return !isShippingAdminOrder(order);
+}
+
 function formatKrw(value: number | string | null | undefined) {
   const amount = typeof value === 'number' ? value : Number(value || 0);
   return `${(Number.isFinite(amount) ? amount : 0).toLocaleString('ko-KR')}원`;
@@ -592,6 +609,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const [adminOrderMessage, setAdminOrderMessage] = useState<string | null>(null);
   const [adminOrderError, setAdminOrderError] = useState<string | null>(null);
   const [cancellingAdminOrderId, setCancellingAdminOrderId] = useState<string | null>(null);
+  const [adminOrderView, setAdminOrderView] = useState<AdminOrderView>('new');
   const [dailyStatsRows, setDailyStatsRows] = useState<DailyStatsRow[]>([]);
   const [dailyStatsSummary, setDailyStatsSummary] = useState<DailyStatsSummary | null>(null);
   const [dailyStatsLoaded, setDailyStatsLoaded] = useState(false);
@@ -676,6 +694,42 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
       },
     );
   }, [adminOrders]);
+  const adminOrderViewCounts = useMemo(
+    () =>
+      adminOrders.reduce(
+        (summary, order) => {
+          if (isCancelledAdminOrder(order)) {
+            summary.cancelled += 1;
+            return summary;
+          }
+
+          if (isShippingAdminOrder(order)) {
+            summary.shipping += 1;
+            return summary;
+          }
+
+          summary.new += 1;
+          return summary;
+        },
+        {
+          new: 0,
+          shipping: 0,
+          cancelled: 0,
+        },
+      ),
+    [adminOrders],
+  );
+  const filteredAdminOrders = useMemo(() => {
+    if (adminOrderView === 'cancelled') {
+      return adminOrders.filter((order) => isCancelledAdminOrder(order));
+    }
+
+    if (adminOrderView === 'shipping') {
+      return adminOrders.filter((order) => isShippingAdminOrder(order));
+    }
+
+    return adminOrders.filter((order) => isNewAdminOrder(order));
+  }, [adminOrderView, adminOrders]);
   const latestDailyStats = dailyStatsRows[0] || null;
   const dailyStatsRangeLabel = `${Math.max(dailyStatsRows.length, 0)}일`;
 
@@ -1866,8 +1920,62 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                   </div>
                 </div>
 
+                <div className="rounded-[8px] border-2 border-[#e2e7ef] bg-[linear-gradient(180deg,#171a1e_0%,#101114_100%)] p-3 shadow-[0_0_0_1px_rgba(244,247,251,0.18)]">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => setAdminOrderView('new')}
+                      className={`rounded-[8px] border-2 px-4 py-4 text-left transition-colors ${
+                        adminOrderView === 'new'
+                          ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-white shadow-[0_0_0_1px_rgba(0,255,209,0.2)]'
+                          : 'border-[#d5dbe4] bg-[#121418] text-[#d9e0e8] hover:border-[#eef2f7]'
+                      }`}
+                    >
+                      <p className="text-[11px] uppercase tracking-[0.22em]">신규 주문</p>
+                      <p className="mt-3 text-2xl font-semibold">{adminOrderViewCounts.new}</p>
+                      <p className="mt-2 text-sm leading-6 text-[#c3cad3]">택배를 아직 보내지 않은 주문</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminOrderView('shipping')}
+                      className={`rounded-[8px] border-2 px-4 py-4 text-left transition-colors ${
+                        adminOrderView === 'shipping'
+                          ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-white shadow-[0_0_0_1px_rgba(0,255,209,0.2)]'
+                          : 'border-[#d5dbe4] bg-[#121418] text-[#d9e0e8] hover:border-[#eef2f7]'
+                      }`}
+                    >
+                      <p className="text-[11px] uppercase tracking-[0.22em]">배송 주문</p>
+                      <p className="mt-3 text-2xl font-semibold">{adminOrderViewCounts.shipping}</p>
+                      <p className="mt-2 text-sm leading-6 text-[#c3cad3]">배송중 / 배송완료 주문</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminOrderView('cancelled')}
+                      className={`rounded-[8px] border-2 px-4 py-4 text-left transition-colors ${
+                        adminOrderView === 'cancelled'
+                          ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-white shadow-[0_0_0_1px_rgba(0,255,209,0.2)]'
+                          : 'border-[#d5dbe4] bg-[#121418] text-[#d9e0e8] hover:border-[#eef2f7]'
+                      }`}
+                    >
+                      <p className="text-[11px] uppercase tracking-[0.22em]">취소 주문</p>
+                      <p className="mt-3 text-2xl font-semibold">{adminOrderViewCounts.cancelled}</p>
+                      <p className="mt-2 text-sm leading-6 text-[#c3cad3]">환불진행중 / 취소완료 주문</p>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="space-y-7">
-                  {adminOrders.map((order) => {
+                  {filteredAdminOrders.length === 0 ? (
+                    <div className="rounded-[8px] border-2 border-dashed border-[#d5dbe4] bg-[#0d0f12] px-5 py-10 text-center text-sm leading-7 text-[#aeb7c2]">
+                      {adminOrderView === 'new'
+                        ? '신규 주문 탭에 표시할 택배 미발송 주문이 없습니다.'
+                        : adminOrderView === 'shipping'
+                          ? '배송 주문 탭에 표시할 배송중 / 배송완료 주문이 없습니다.'
+                          : '취소 주문 탭에 표시할 환불진행중 / 취소완료 주문이 없습니다.'}
+                    </div>
+                  ) : (
+                    <div className="grid gap-7 xl:grid-cols-2">
+                      {filteredAdminOrders.map((order) => {
                     const draft = adminOrderDrafts[order.id] || createAdminOrderDraft(order);
                     const isCancelling = cancellingAdminOrderId === order.id;
                     const cancelState = getAdminOrderCancelState(order);
@@ -1880,11 +1988,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                       selectedPaymentStatus,
                     );
 
-                    return (
-                      <article
-                        key={order.id}
-                        className="overflow-hidden rounded-[8px] border-2 border-[#edf1f6] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(244,247,251,0.22)]"
-                      >
+                        return (
+                          <article
+                            key={order.id}
+                            className="overflow-hidden rounded-[8px] border-2 border-[#edf1f6] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(244,247,251,0.22)]"
+                          >
                         <div className="border-b-2 border-[#d7dde7] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-6 py-5">
                           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                             <div className="min-w-0">
@@ -2170,10 +2278,12 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               </p>
                             ) : null}
                           </div>
-                        </div>
-                      </article>
-                    );
-                  })}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
