@@ -5,6 +5,7 @@ import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
+const DEFAULT_SHIPPING_COMPANY = '우체국';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
 const ORDER_SELECT =
   'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, paypal_order_id, paypal_capture_id, paypal_currency, paypal_value, items, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, raw_payload, created_at, updated_at';
@@ -454,7 +455,7 @@ export async function PATCH(request: Request) {
 
   const updatePayload: Record<string, unknown> = {
     updated_at: nowIso,
-    shipping_company: normalizeNullableText(payload.shippingCompany),
+    shipping_company: normalizeNullableText(payload.shippingCompany) || DEFAULT_SHIPPING_COMPANY,
     tracking_number: normalizeNullableText(payload.trackingNumber),
     shipping_note: normalizeNullableText(payload.shippingNote),
   };

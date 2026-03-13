@@ -1359,28 +1359,26 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </span>
                       </button>
                     </div>
-                    {canUseNicepayCheckout ? (
-                      <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
-                        {nicepayError && (
-                          <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{nicepayError}</p>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => void handleNicepayCheckout()}
-                          disabled={isSubmittingOrder || isStartingNicepay}
-                          className="group w-full min-h-[58px] overflow-hidden rounded-[16px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-4 py-3 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
-                        >
-                          <span className="flex min-h-[34px] items-center justify-between gap-3">
-                            <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-black">
-                              {isStartingNicepay ? '카드결제 준비중...' : '카드결제'}
-                            </span>
-                            <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
-                              →
-                            </span>
+                    <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
+                      {nicepayError && (
+                        <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{nicepayError}</p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void handleNicepayCheckout()}
+                        disabled={isSubmittingOrder || isStartingNicepay}
+                        className="group w-full min-h-[58px] overflow-hidden rounded-[16px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-4 py-3 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
+                      >
+                        <span className="flex min-h-[34px] items-center justify-between gap-3">
+                          <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-black">
+                            {isStartingNicepay ? '카드결제 준비중...' : '카드결제'}
                           </span>
-                        </button>
-                      </div>
-                    ) : null}
+                          <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
+                            →
+                          </span>
+                        </span>
+                      </button>
+                    </div>
                     {shouldShowPaypal ? (
                       <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
                         {paypalError && (
