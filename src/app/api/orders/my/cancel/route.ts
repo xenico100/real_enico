@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import { cancelNicepayOrder } from '@/lib/orders/nicepayCancel';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
+const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
+const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
+
 type OrderRow = {
   id: string;
   order_code: string | null;
@@ -72,6 +75,78 @@ function normalizeItems(value: unknown) {
   }
 
   return [];
+}
+
+function buildCancelledRawPayload(rawPayloadValue: unknown, reason: string, actor: 'member') {
+  const rawPayload =
+    rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
+      ? (rawPayloadValue as Record<string, unknown>)
+      : {};
+  const cancelledAt = new Date().toISOString();
+
+  return {
+    ...rawPayload,
+    cancelledAt,
+    cancelledBy: actor,
+    cancelReason: reason,
+    cancellation: {
+      cancelledAt,
+      cancelledBy: actor,
+      reason,
+    },
+  };
+}
+
+async function sendMemberCancelNotificationEmail(order: OrderRow, reason: string) {
+  const resendApiKey = process.env.RESEND_API_KEY?.trim() || '';
+  if (!resendApiKey) {
+    throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
+  }
+
+  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
+  const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
+  const orderCode = normalizeText(order.order_code) || order.id;
+  const paymentMethod =
+    normalizeText(order.payment_method).toLowerCase() === 'bank_transfer'
+      ? '계좌이체'
+      : normalizeText(order.payment_method) || '-';
+
+  const subject = `[주문취소] 회원 ${orderCode}`;
+  const text = [
+    '[회원 주문 취소 알림]',
+    `주문번호: ${orderCode}`,
+    `취소 요청자: 회원`,
+    `취소 사유: ${reason}`,
+    `결제수단: ${paymentMethod}`,
+    `결제상태: ${normalizeText(order.payment_status) || '-'}`,
+    `주문자: ${normalizeText(order.customer_name) || '-'}`,
+    `이메일: ${normalizeText(order.customer_email) || '-'}`,
+    `연락처: ${normalizeText(order.customer_phone) || '-'}`,
+    `총 결제금액: ${normalizeNumber(order.amount_total).toLocaleString('ko-KR')}원`,
+  ].join('\n');
+
+  const response = await fetch(RESEND_API_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      text,
+      reply_to: normalizeText(order.customer_email) || undefined,
+    }),
+  });
+
+  const responsePayload = (await response.json().catch(() => null)) as
+    | { error?: { message?: string } }
+    | null;
+
+  if (!response.ok) {
+    throw new Error(responsePayload?.error?.message || '취소 메일 발송 API 응답 오류');
+  }
 }
 
 function mapOrderRow(row: OrderRow) {
@@ -174,13 +249,64 @@ export async function POST(request: Request) {
   }
 
   try {
-    const updatedOrder = await cancelNicepayOrder<OrderRow>({
-      serviceClient,
-      order: existing as OrderRow,
-      actor: 'member',
-      reason: normalizeText(payload.reason) || 'member_cancel',
-      selectQuery: ORDER_SELECT,
-    });
+    const paymentMethod = normalizeText(existing.payment_method).toLowerCase();
+    const paymentStatus = normalizeText(existing.payment_status).toLowerCase();
+    const shippingStatus = normalizeText(existing.shipping_status).toLowerCase();
+    const cancelReason = normalizeText(payload.reason) || 'member_cancel';
+    let updatedOrder: OrderRow;
+
+    if (paymentMethod === 'nicepay') {
+      updatedOrder = await cancelNicepayOrder<OrderRow>({
+        serviceClient,
+        order: existing as OrderRow,
+        actor: 'member',
+        reason: cancelReason,
+        selectQuery: ORDER_SELECT,
+      });
+    } else if (paymentMethod === 'bank_transfer') {
+      if (paymentStatus === 'cancelled') {
+        return NextResponse.json({ message: '이미 취소된 주문입니다.' }, { status: 400 });
+      }
+
+      if (shippingStatus && shippingStatus !== 'preparing') {
+        return NextResponse.json(
+          { message: '배송이 시작된 주문은 온라인에서 취소할 수 없습니다.' },
+          { status: 400 },
+        );
+      }
+
+      const { data, error } = await serviceClient
+        .from('orders')
+        .update({
+          payment_status: 'cancelled',
+          updated_at: new Date().toISOString(),
+          raw_payload: buildCancelledRawPayload(existing.raw_payload, cancelReason, 'member'),
+        })
+        .eq('id', orderId)
+        .select(ORDER_SELECT)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!data) {
+        throw new Error('취소 후 주문 정보를 다시 불러오지 못했습니다.');
+      }
+
+      updatedOrder = data as OrderRow;
+
+      try {
+        await sendMemberCancelNotificationEmail(updatedOrder, cancelReason);
+      } catch (error) {
+        console.error('Failed to send member cancel notification email', error);
+      }
+    } else {
+      return NextResponse.json(
+        { message: '회원 주문취소는 NICE Payments와 계좌이체 주문만 지원합니다.' },
+        { status: 400 },
+      );
+    }
 
     return NextResponse.json({
       message: '주문취소가 완료되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.',
