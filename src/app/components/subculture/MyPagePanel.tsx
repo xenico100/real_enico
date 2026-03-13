@@ -1910,6 +1910,12 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                       order.paymentMethod,
                       selectedPaymentStatus,
                     );
+                    const saveButtonLabel =
+                      order.paymentMethod === 'bank_transfer' && selectedPaymentStatus === 'cancelled'
+                        ? '환불완료 저장'
+                        : order.paymentMethod === 'bank_transfer' && selectedPaymentStatus === 'refund_pending'
+                          ? '환불진행 저장'
+                          : '배송정보 저장';
 
                         return (
                           <article
@@ -2180,7 +2186,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                 disabled={isCancelling}
                                 className="rounded-[12px] border border-[#00ffd1] px-4 py-3 text-sm font-medium text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                배송정보 저장
+                                {saveButtonLabel}
                               </button>
                               <button
                                 type="button"

@@ -192,6 +192,33 @@ function mergeRefundPendingRawPayload(rawPayloadValue: unknown, reason: string, 
   };
 }
 
+function mergeRefundCompletedRawPayload(rawPayloadValue: unknown, actor: 'admin') {
+  const rawPayload =
+    rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
+      ? (rawPayloadValue as Record<string, unknown>)
+      : {};
+  const refundCompletedAt = new Date().toISOString();
+  const existingCancellation =
+    rawPayload.cancellation &&
+    typeof rawPayload.cancellation === 'object' &&
+    !Array.isArray(rawPayload.cancellation)
+      ? (rawPayload.cancellation as Record<string, unknown>)
+      : {};
+
+  return {
+    ...rawPayload,
+    refundCompletedAt,
+    refundCompletedBy: actor,
+    refundStatus: 'completed',
+    cancellation: {
+      ...existingCancellation,
+      status: 'completed',
+      refundCompletedAt,
+      refundCompletedBy: actor,
+    },
+  };
+}
+
 function getCancelErrorStatus(error: unknown) {
   const message = error instanceof Error ? error.message : '';
   if (
@@ -405,7 +432,7 @@ export async function PATCH(request: Request) {
 
   const { data: existing, error: existingError } = await auth.serviceClient
     .from('orders')
-    .select('id, shipping_status, shipped_at, delivered_at')
+    .select('id, payment_method, payment_status, shipping_status, shipped_at, delivered_at, raw_payload')
     .eq('id', id)
     .maybeSingle();
 
@@ -422,6 +449,8 @@ export async function PATCH(request: Request) {
 
   const nowIso = new Date().toISOString();
   const nextStatus = requestedShippingStatus;
+  const paymentMethod = normalizeText(existing.payment_method).toLowerCase();
+  const currentPaymentStatus = normalizeText(existing.payment_status).toLowerCase();
 
   const updatePayload: Record<string, unknown> = {
     updated_at: nowIso,
@@ -432,6 +461,18 @@ export async function PATCH(request: Request) {
 
   if (requestedPaymentStatus) {
     updatePayload.payment_status = requestedPaymentStatus;
+
+    if (paymentMethod === 'bank_transfer') {
+      if (requestedPaymentStatus === 'refund_pending') {
+        updatePayload.raw_payload = mergeRefundPendingRawPayload(
+          existing.raw_payload,
+          'admin_manual_refund_pending',
+          'admin',
+        );
+      } else if (requestedPaymentStatus === 'cancelled') {
+        updatePayload.raw_payload = mergeRefundCompletedRawPayload(existing.raw_payload, 'admin');
+      }
+    }
   }
 
   if (nextStatus) {
@@ -480,7 +521,14 @@ export async function PATCH(request: Request) {
   }
 
   return NextResponse.json({
-    message: '주문 상태/배송 정보가 저장되었습니다.',
+    message:
+      paymentMethod === 'bank_transfer' && requestedPaymentStatus === 'cancelled'
+        ? '환불 완료 처리되었습니다.'
+        : paymentMethod === 'bank_transfer' &&
+            requestedPaymentStatus === 'refund_pending' &&
+            currentPaymentStatus !== 'refund_pending'
+          ? '환불 진행중 상태로 저장되었습니다.'
+          : '주문 상태/배송 정보가 저장되었습니다.',
     order: mapOrderRow(data as OrderRow),
   });
 }
