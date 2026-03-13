@@ -75,6 +75,7 @@ type PayPalNamespace = {
       shape?: 'rect' | 'pill';
       color?: 'gold' | 'blue' | 'silver' | 'white' | 'black';
       label?: 'paypal' | 'checkout' | 'buynow' | 'pay' | 'installment';
+      height?: number;
     };
   }) => PayPalButtonsInstance;
 };
@@ -282,7 +283,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [paypalRetryNonce, setPaypalRetryNonce] = useState(0);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const canUseNicepayCheckout = isAuthenticated && isDesignatedAdmin(user?.email);
+  const isAdminCheckoutUser = isDesignatedAdmin(user?.email);
+  const canUseNicepayCheckout = isAuthenticated;
+  const shouldShowPaypal = !isAuthenticated || isAdminCheckoutUser;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -370,7 +373,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   }, [isOpen, isAuthenticated, user, profile?.full_name]);
 
   useEffect(() => {
-    if (!isOpen || mode !== 'checkout') return;
+    if (!isOpen || mode !== 'checkout' || !shouldShowPaypal) return;
     if (!PAYPAL_CLIENT_ID) {
       setPaypalError('PayPal Client ID가 설정되지 않았습니다.');
       return;
@@ -441,7 +444,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       script.removeEventListener('load', handleLoad);
       script.removeEventListener('error', handleError);
     };
-  }, [isOpen, mode, paypalRetryNonce]);
+  }, [isOpen, mode, paypalRetryNonce, shouldShowPaypal]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const canCheckout = cart.length > 0;
@@ -714,7 +717,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     setNicepayError(null);
 
     if (!canUseNicepayCheckout) {
-      const message = 'NICE Payments는 현재 관리자 계정에서만 테스트 중입니다.';
+      const message = '로그인 후 카드결제를 사용할 수 있습니다.';
       setCheckoutMessage(message);
       if (typeof window !== 'undefined') {
         window.alert(message);
@@ -849,6 +852,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
         shape: 'rect',
         color: 'gold',
         label: 'paypal',
+        height: 52,
       },
       onClick: async (_data, actions) => {
         setCheckoutError(null);
@@ -1330,7 +1334,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
                         disabled={isSubmittingOrder}
-                        className={`group relative overflow-hidden rounded-[16px] px-3.5 py-2.5 text-left transition-all duration-200 md:px-3.5 md:py-2.5 ${
+                        className={`group relative min-h-[58px] overflow-hidden rounded-[16px] px-4 py-3 text-left transition-all duration-200 ${
                           isAuthenticated
                             ? 'border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] text-black shadow-[0_10px_22px_rgba(171,190,220,0.16)] hover:brightness-105'
                             : 'border border-white/12 bg-[#151922] text-white hover:border-white/25 hover:bg-[#181d26]'
@@ -1339,9 +1343,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         {isAuthenticated && !isSubmittingOrder ? (
                           <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.28),transparent_55%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                         ) : null}
-                        <span className="relative z-10 flex items-center justify-between gap-2">
+                        <span className="relative z-10 flex min-h-[34px] items-center justify-between gap-3">
                           <span
-                            className={`text-[0.92rem] font-semibold tracking-[-0.02em] leading-snug ${
+                            className={`text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug ${
                               isAuthenticated ? 'text-black' : 'text-white'
                             }`}
                           >
@@ -1356,7 +1360,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </button>
                     </div>
                     {canUseNicepayCheckout ? (
-                      <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3.5 py-3">
+                      <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
                         {nicepayError && (
                           <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{nicepayError}</p>
                         )}
@@ -1364,11 +1368,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           type="button"
                           onClick={() => void handleNicepayCheckout()}
                           disabled={isSubmittingOrder || isStartingNicepay}
-                          className="group w-full overflow-hidden rounded-[16px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-3.5 py-2.5 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
+                          className="group w-full min-h-[58px] overflow-hidden rounded-[16px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-4 py-3 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
                         >
-                          <span className="flex items-center justify-between gap-2.5">
-                            <span className="font-heading text-[0.92rem] uppercase tracking-[0.05em] text-black md:text-[0.98rem]">
-                              {isStartingNicepay ? 'NICE 준비중...' : 'NICE Payments'}
+                          <span className="flex min-h-[34px] items-center justify-between gap-3">
+                            <span className="font-heading text-[0.95rem] uppercase tracking-[0.05em] text-black md:text-[1rem]">
+                              {isStartingNicepay ? '카드결제 준비중...' : '카드결제'}
                             </span>
                             <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                               →
@@ -1377,38 +1381,45 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </button>
                       </div>
                     ) : null}
-                    <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3.5 py-3">
-                      {paypalError && (
-                        <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{paypalError}</p>
-                      )}
-                      <div className="origin-top scale-[0.88]">
-                        <div
-                          ref={paypalContainerRef}
-                          className="min-h-[36px]"
-                          aria-label="paypal-sandbox-button"
-                        />
+                    {shouldShowPaypal ? (
+                      <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
+                        {paypalError && (
+                          <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{paypalError}</p>
+                        )}
+                        <div>
+                          <div
+                            ref={paypalContainerRef}
+                            className="min-h-[58px]"
+                            aria-label="paypal-sandbox-button"
+                          />
+                        </div>
+                        {paypalError && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaypalError(null);
+                              setPaypalSdkReady(false);
+                              setPaypalRetryNonce((value) => value + 1);
+                            }}
+                            className="mt-2.5 w-full rounded-[14px] border border-white/10 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[#d8dee8] transition-colors hover:border-white/20 hover:text-white"
+                          >
+                            PayPal 다시 시도
+                          </button>
+                        )}
                       </div>
-                      {paypalError && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaypalError(null);
-                            setPaypalSdkReady(false);
-                            setPaypalRetryNonce((value) => value + 1);
-                          }}
-                          className="mt-2.5 w-full rounded-[14px] border border-white/10 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-[#d8dee8] transition-colors hover:border-white/20 hover:text-white"
-                        >
-                          PayPal 다시 시도
-                        </button>
-                      )}
-                    </div>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => void submitBankTransferOrder('guest')}
                       disabled={isSubmittingOrder}
-                      className="min-h-[54px] rounded-[16px] border border-white/10 bg-[#171b23] px-3.5 py-2.5 text-center font-heading text-[0.88rem] uppercase tracking-[0.04em] text-white transition-colors hover:border-white/20 hover:bg-[#1c212b] disabled:opacity-50 md:text-[0.92rem]"
+                      className="group relative min-h-[58px] overflow-hidden rounded-[16px] border border-[#8f98a8] bg-[linear-gradient(180deg,#1d222b_0%,#171b23_100%)] px-4 py-3 text-left text-white shadow-[0_8px_18px_rgba(0,0,0,0.2)] transition-colors hover:border-[#d8dee8] hover:bg-[#202631] disabled:opacity-50"
                     >
-                      {isSubmittingOrder ? '처리중...' : '비회원 구매'}
+                      <span className="flex min-h-[34px] items-center justify-between gap-3">
+                        <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-white">
+                          {isSubmittingOrder ? '처리중...' : '비회원 구매'}
+                        </span>
+                        <span className="text-sm font-semibold text-white">→</span>
+                      </span>
                     </button>
                     <button
                       type="button"
