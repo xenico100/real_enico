@@ -652,48 +652,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   }, [initialTab]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-  const adminOrderSummary = useMemo(() => {
-    return adminOrders.reduce(
-      (summary, order) => {
-        summary.total += 1;
-        summary.revenue += Number(order.amountTotal || 0);
-
-        if (order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'pending_transfer') {
-          summary.awaitingPayment += 1;
-        }
-
-        const normalizedPaymentStatus = (order.paymentStatus || '').trim().toLowerCase();
-        const normalizedShippingStatus = (order.shippingStatus || '').trim().toLowerCase();
-        const isPaidOrder =
-          normalizedPaymentStatus === 'paid' ||
-          normalizedPaymentStatus === 'captured' ||
-          normalizedPaymentStatus === 'completed' ||
-          normalizedPaymentStatus === 'transfer_confirmed';
-
-        if (normalizedShippingStatus === 'preparing' && isPaidOrder) {
-          summary.preparing += 1;
-        }
-
-        if (order.shippingStatus === 'shipping') {
-          summary.shipping += 1;
-        }
-
-        if (order.shippingStatus === 'delivered') {
-          summary.delivered += 1;
-        }
-
-        return summary;
-      },
-      {
-        total: 0,
-        awaitingPayment: 0,
-        preparing: 0,
-        shipping: 0,
-        delivered: 0,
-        revenue: 0,
-      },
-    );
-  }, [adminOrders]);
   const adminOrderViewCounts = useMemo(
     () =>
       adminOrders.reduce(
@@ -1850,10 +1808,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             <div className="rounded-[8px] border-2 border-[#e4e8ef] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-6 shadow-[0_0_0_1px_rgba(244,247,251,0.24)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-[#dde3ec]">주문 관리</p>
-                  <p className="mt-3 text-sm leading-7 text-[#c3cad4]">
-                    주문 목록과 배송정보(상태/택배사/운송장번호)를 관리할 수 있습니다.
-                  </p>
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-[#00ffd1]">주문 관리</p>
                 </div>
                 <button
                   type="button"
@@ -1888,38 +1843,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">전체 주문</p>
-                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.total}</p>
-                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">총 주문금액 {formatKrw(adminOrderSummary.revenue)}</p>
-                  </div>
-                  {adminOrderSummary.awaitingPayment > 0 ? (
-                    <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-[#e8bf7a]">입금 대기</p>
-                      <p className="mt-3 text-2xl font-semibold text-white">
-                        {adminOrderSummary.awaitingPayment}
-                      </p>
-                      <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">계좌이체 확인이 필요한 주문</p>
-                    </div>
-                  ) : null}
-                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">배송준비</p>
-                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.preparing}</p>
-                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">결제완료 후 출고 대기 주문</p>
-                  </div>
-                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">배송중</p>
-                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.shipping}</p>
-                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">발송 처리된 주문</p>
-                  </div>
-                  <div className="rounded-[8px] border-2 border-[#dfe4ec] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[inset_0_0_0_1px_rgba(240,244,249,0.08)]">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#dfe5ed]">배송완료</p>
-                    <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.delivered}</p>
-                    <p className="mt-3 text-sm leading-6 text-[#bcc4cf]">수령 완료 처리된 주문</p>
-                  </div>
-                </div>
-
                 <div className="rounded-[8px] border-2 border-[#e2e7ef] bg-[linear-gradient(180deg,#171a1e_0%,#101114_100%)] p-3 shadow-[0_0_0_1px_rgba(244,247,251,0.18)]">
                   <div className="grid gap-3 md:grid-cols-3">
                     <button
@@ -2303,9 +2226,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">회원 관리</p>
-                  <p className="text-xs text-[#9a9a9a] mt-2">
-                    이름, 전화번호, 주소, 이메일, 비밀번호를 수정하고 회원 삭제를 수행할 수 있습니다.
-                  </p>
                 </div>
                 <button
                   type="button"
