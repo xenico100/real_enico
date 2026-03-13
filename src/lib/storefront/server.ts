@@ -118,6 +118,7 @@ async function fetchCollectionsUncached() {
 
 export const getCachedStorefrontProducts = unstable_cache(fetchProductsUncached, ['storefront-products'], {
   revalidate: 300,
+  tags: ['storefront-products'],
 });
 
 export const getCachedStorefrontCollections = unstable_cache(
@@ -125,5 +126,6 @@ export const getCachedStorefrontCollections = unstable_cache(
   ['storefront-collections'],
   {
     revalidate: 300,
+    tags: ['storefront-collections'],
   },
 );

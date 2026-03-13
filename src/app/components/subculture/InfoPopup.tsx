@@ -9,6 +9,7 @@ import { useAuth } from '@/app/context/AuthContext';
 interface InfoPopupProps {
   type: 'about' | 'contact' | 'mypage';
   onClose: () => void;
+  initialMyPageTab?: 'overview' | 'orders' | 'saved' | 'cart' | 'profile' | 'dailyStats' | 'members' | 'adminOrders';
 }
 
 const CONTACT_EMAIL = 'morba9850@gmail.com';
@@ -17,7 +18,7 @@ const DEFAULT_CONTACT_BODY =
   '멤버십 멤버를 위한 맞춤제작 건의를 드립니다.\n\n요청 내용:\n-\n\n예산/일정:\n-\n';
 const DEFAULT_CONTACT_CATEGORY = '멤버십/맞춤제작';
 
-export function InfoPopup({ type, onClose }: InfoPopupProps) {
+export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
   const { isAuthenticated, isAuthReady } = useAuth();
   const [contactCategory, setContactCategory] = useState(DEFAULT_CONTACT_CATEGORY);
   const [contactName, setContactName] = useState('');
@@ -216,7 +217,7 @@ export function InfoPopup({ type, onClose }: InfoPopupProps) {
       </div>
     ),
     mypage: (
-      <MyPagePanel onBack={onClose} />
+      <MyPagePanel onBack={onClose} initialTab={initialMyPageTab} />
     )
   };
 

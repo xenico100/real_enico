@@ -180,6 +180,9 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
   const normalizedMethod = (paymentMethod || '').toLowerCase();
   const normalizedStatus = (status || '').toLowerCase();
 
+  if (normalizedStatus === 'cancelled') return '결제취소';
+  if (normalizedStatus === 'partialcancelled') return '부분취소';
+
   if (normalizedMethod === 'bank_transfer') {
     if (normalizedStatus === 'transfer_confirmed') return '이체확인';
     if (normalizedStatus === 'pending_transfer') return '이체확인중';
@@ -202,6 +205,111 @@ function getPaymentMethodLabel(method: string) {
   if (normalizedMethod === 'paypal') return 'PayPal';
   if (normalizedMethod === 'nicepay') return 'NICE Payments';
   return method || '-';
+}
+
+function getNicepayCancelState(
+  order: Pick<OrderRecord, 'paymentMethod' | 'paymentStatus' | 'shippingStatus'>,
+) {
+  const paymentMethod = (order.paymentMethod || '').trim().toLowerCase();
+  const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
+  const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
+
+  if (paymentMethod !== 'nicepay') {
+    return {
+      visible: false,
+      enabled: false,
+      label: '',
+      description: '',
+    };
+  }
+
+  if (paymentStatus === 'cancelled') {
+    return {
+      visible: true,
+      enabled: false,
+      label: '결제취소 완료',
+      description: '이미 NICE 결제취소가 완료된 주문입니다.',
+    };
+  }
+
+  if (shippingStatus && shippingStatus !== 'preparing') {
+    return {
+      visible: true,
+      enabled: false,
+      label: '배송 시작 후 취소불가',
+      description: '배송준비중 상태의 NICE 카드결제 주문만 온라인 취소할 수 있습니다.',
+    };
+  }
+
+  if (paymentStatus === 'paid' || paymentStatus === 'completed') {
+    return {
+      visible: true,
+      enabled: true,
+      label: '주문취소',
+      description: 'NICE 결제 승인 취소와 관리자 메일 전송을 함께 처리합니다.',
+    };
+  }
+
+  return {
+    visible: false,
+    enabled: false,
+    label: '',
+    description: '',
+  };
+}
+
+function getAdminOrderCancelState(
+  order: Pick<OrderRecord, 'paymentMethod' | 'paymentStatus' | 'shippingStatus'>,
+) {
+  const paymentMethod = (order.paymentMethod || '').trim().toLowerCase();
+  const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
+  const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
+
+  if (paymentStatus === 'cancelled') {
+    return {
+      visible: true,
+      enabled: false,
+      label: '주문취소 완료',
+      description: '이미 취소가 완료된 주문입니다.',
+    };
+  }
+
+  if (shippingStatus && shippingStatus !== 'preparing') {
+    return {
+      visible: true,
+      enabled: false,
+      label: '배송 시작 후 취소불가',
+      description: '배송준비중 상태의 주문만 관리자 화면에서 취소할 수 있습니다.',
+    };
+  }
+
+  if (paymentMethod === 'nicepay' && (paymentStatus === 'paid' || paymentStatus === 'completed')) {
+    return {
+      visible: true,
+      enabled: true,
+      label: '주문취소',
+      description: 'NICE 카드 승인 취소와 관리자 메일 전송을 함께 처리합니다.',
+    };
+  }
+
+  if (
+    paymentMethod === 'bank_transfer' &&
+    (paymentStatus === 'pending_transfer' || paymentStatus === 'transfer_confirmed')
+  ) {
+    return {
+      visible: true,
+      enabled: true,
+      label: '주문취소',
+      description: '계좌이체 주문을 취소 상태로 바꾸고 관리자 메일로 기록을 보냅니다.',
+    };
+  }
+
+  return {
+    visible: false,
+    enabled: false,
+    label: '',
+    description: '',
+  };
 }
 
 function getChannelLabel(channel: string) {
@@ -325,8 +433,15 @@ function createMemberDraft(member: MemberRecord): MemberDraft {
 }
 
 function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
+  const fallbackPaymentStatus =
+    order.paymentMethod === 'nicepay'
+      ? 'paid'
+      : order.paymentMethod === 'paypal'
+        ? 'captured'
+        : 'pending_transfer';
+
   return {
-    paymentStatus: order.paymentStatus || 'pending_transfer',
+    paymentStatus: order.paymentStatus || fallbackPaymentStatus,
     shippingStatus: order.shippingStatus || 'preparing',
     shippingCompany: order.shippingCompany || '',
     trackingNumber: order.trackingNumber || '',
@@ -336,9 +451,10 @@ function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
 
 type MyPagePanelProps = {
   onBack?: () => void;
+  initialTab?: MyPageTab;
 };
 
-export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
+export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const {
     session,
     isAuthenticated,
@@ -350,7 +466,7 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     updateAccountProfile,
   } = useAuth();
   const { cart } = useFashionCart();
-  const [activeTab, setActiveTab] = useState<MyPageTab>('profile');
+  const [activeTab, setActiveTab] = useState<MyPageTab>(initialTab || 'profile');
   const [accountPhone, setAccountPhone] = useState('');
   const [accountAddress, setAccountAddress] = useState('');
   const [accountProfileMessage, setAccountProfileMessage] = useState<string | null>(null);
@@ -367,13 +483,14 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
   const [isLoadingMemberOrders, setIsLoadingMemberOrders] = useState(false);
   const [memberOrderMessage, setMemberOrderMessage] = useState<string | null>(null);
   const [memberOrderError, setMemberOrderError] = useState<string | null>(null);
+  const [cancellingMemberOrderId, setCancellingMemberOrderId] = useState<string | null>(null);
   const [adminOrders, setAdminOrders] = useState<AdminOrderRecord[]>([]);
   const [adminOrderDrafts, setAdminOrderDrafts] = useState<Record<string, AdminOrderDraft>>({});
   const [adminOrdersLoaded, setAdminOrdersLoaded] = useState(false);
   const [isLoadingAdminOrders, setIsLoadingAdminOrders] = useState(false);
   const [adminOrderMessage, setAdminOrderMessage] = useState<string | null>(null);
   const [adminOrderError, setAdminOrderError] = useState<string | null>(null);
-  const [deletingAdminOrderId, setDeletingAdminOrderId] = useState<string | null>(null);
+  const [cancellingAdminOrderId, setCancellingAdminOrderId] = useState<string | null>(null);
   const [dailyStatsRows, setDailyStatsRows] = useState<DailyStatsRow[]>([]);
   const [dailyStatsSummary, setDailyStatsSummary] = useState<DailyStatsSummary | null>(null);
   const [dailyStatsLoaded, setDailyStatsLoaded] = useState(false);
@@ -409,6 +526,11 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     setAccountPhone(userPhone);
     setAccountAddress(userAddress);
   }, [userAddress, userPhone]);
+
+  useEffect(() => {
+    if (!initialTab) return;
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const adminOrderSummary = useMemo(() => {
@@ -740,6 +862,8 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
         const normalized =
           value === 'pending_transfer' ||
           value === 'transfer_confirmed' ||
+          value === 'paid' ||
+          value === 'cancelled' ||
           value === 'captured' ||
           value === 'completed'
             ? value
@@ -810,52 +934,116 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
     }
   };
 
-  const handleDeleteAdminOrder = async (order: AdminOrderRecord) => {
+  const handleCancelMemberOrder = async (order: MemberOrderRecord) => {
     if (!session?.access_token) return;
+
+    const cancelState = getNicepayCancelState(order);
+    if (!cancelState.enabled) return;
 
     const orderIdentifier = order.orderCode || order.guestOrderNumber || order.id;
     const confirmed =
       typeof window === 'undefined'
         ? true
         : window.confirm(
-            `주문 ${orderIdentifier}를 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`,
+            `주문 ${orderIdentifier}의 NICE 카드결제를 취소할까요?\n배송 시작 전 주문만 온라인에서 취소됩니다.`,
           );
-
     if (!confirmed) return;
 
-    resetAdminOrderMessages();
-    setDeletingAdminOrderId(order.id);
+    resetMemberOrderMessages();
+    setCancellingMemberOrderId(order.id);
 
     try {
-      const response = await fetch(
-        `/api/admin/orders?id=${encodeURIComponent(order.id)}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
+      const response = await fetch('/api/orders/my/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
         },
-      );
+        body: JSON.stringify({
+          id: order.id,
+          reason: 'member_requested_cancel',
+        }),
+      });
 
       const payload = (await response.json()) as {
         message?: string;
+        order?: MemberOrderRecord;
       };
 
       if (!response.ok) {
-        throw new Error(payload.message || '주문 삭제 실패');
+        throw new Error(payload.message || '주문취소 실패');
       }
 
-      setAdminOrders((prev) => prev.filter((target) => target.id !== order.id));
-      setAdminOrderDrafts((prev) => {
-        const next = { ...prev };
-        delete next[order.id];
-        return next;
-      });
-      setAdminOrderMessage(payload.message || '주문이 삭제되었습니다.');
+      if (payload.order) {
+        setMemberOrders((prev) =>
+          prev.map((target) => (target.id === order.id ? payload.order || target : target)),
+        );
+      }
+
+      setMemberOrderMessage(payload.message || '주문취소가 완료되었습니다.');
     } catch (error) {
-      setAdminOrderError(error instanceof Error ? error.message : '주문 삭제 실패');
+      setMemberOrderError(error instanceof Error ? error.message : '주문취소 실패');
     } finally {
-      setDeletingAdminOrderId(null);
+      setCancellingMemberOrderId(null);
+    }
+  };
+
+  const handleCancelAdminOrder = async (order: AdminOrderRecord) => {
+    if (!session?.access_token) return;
+
+    const cancelState = getNicepayCancelState(order);
+    if (!cancelState.enabled) return;
+
+    const orderIdentifier = order.orderCode || order.guestOrderNumber || order.id;
+    const confirmed =
+      typeof window === 'undefined'
+        ? true
+        : window.confirm(
+            `주문 ${orderIdentifier}를 취소할까요?\nNICE 결제는 승인 취소로 처리되고, 계좌이체 주문은 취소 상태로 변경됩니다.`,
+          );
+    if (!confirmed) return;
+
+    resetAdminOrderMessages();
+    setCancellingAdminOrderId(order.id);
+
+    try {
+      const response = await fetch('/api/admin/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          id: order.id,
+          action: 'cancel_payment',
+          reason: 'admin_requested_cancel',
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        message?: string;
+        order?: AdminOrderRecord;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message || '결제취소 실패');
+      }
+
+      if (payload.order) {
+        setAdminOrders((prev) =>
+          prev.map((target) => (target.id === order.id ? payload.order || target : target)),
+        );
+        setAdminOrderDrafts((prev) => ({
+          ...prev,
+          [order.id]: payload.order ? createAdminOrderDraft(payload.order) : prev[order.id],
+        }));
+      }
+
+      setAdminOrderMessage(payload.message || '결제취소가 완료되었습니다.');
+    } catch (error) {
+      setAdminOrderError(error instanceof Error ? error.message : '결제취소 실패');
+    } finally {
+      setCancellingAdminOrderId(null);
     }
   };
 
@@ -1004,9 +1192,6 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">내 주문 / 배송조회</p>
-              <p className="text-xs text-[#9a9a9a] mt-2">
-                배송상태, 택배사, 운송장번호를 확인할 수 있습니다.
-              </p>
             </div>
             <button
               type="button"
@@ -1041,96 +1226,116 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {memberOrders.map((order) => (
-              <article
-                key={order.id}
-                className="overflow-hidden rounded-[22px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
-              >
-                <div className="border-b border-[#1f2d2a] bg-[#101816] px-4 py-4">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#76b7aa]">
-                    Order Card
-                  </div>
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="text-xs text-[#e5e5e5] break-all">
-                        주문번호: {order.orderCode || order.guestOrderNumber || order.id}
-                      </p>
-                      <p className="text-[10px] text-[#9b9b9b] mt-1">
-                        생성일: {formatDate(order.createdAt || undefined)}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
-                      <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
-                        {getShippingStatusLabel(order.shippingStatus)}
-                      </span>
-                      <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                        {getPaymentMethodLabel(order.paymentMethod)}
-                      </span>
-                      <span className="px-2 py-1 border border-[#333] bg-black text-[#d8d8d8]">
-                        {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            {memberOrders.map((order) => {
+              const cancelState = getNicepayCancelState(order);
+              const isCancelling = cancellingMemberOrderId === order.id;
 
-                <div className="space-y-3 p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                    <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                      <p className="text-[#9b9b9b] mb-1">주문 금액</p>
-                      <p className="text-[#00ffd1] font-bold">
-                        {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
-                      </p>
-                      <p className="text-[#c6c6c6] mt-1">항목 {order.items.length}개</p>
+              return (
+                <article
+                  key={order.id}
+                  className="overflow-hidden rounded-[22px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                >
+                  <div className="border-b border-[#1f2d2a] bg-[#101816] px-4 py-4">
+                    <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#76b7aa]">
+                      Order Card
                     </div>
-                    <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                      <p className="text-[#9b9b9b] mb-1">택배사</p>
-                      <p className="text-[#e5e5e5]">{order.shippingCompany || '-'}</p>
-                      <p className="text-[#c6c6c6] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
-                    </div>
-                    <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                      <p className="text-[#9b9b9b] mb-1">운송장번호</p>
-                      <p className="text-[#e5e5e5] break-all">{order.trackingNumber || '-'}</p>
-                      <p className="text-[#c6c6c6] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
-                    <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
-                    <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
-                  </div>
-
-                  <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
-                    <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송 메모</p>
-                    <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
-                  </div>
-
-                  {order.paymentReceiptUrl ? (
-                    <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
-                          이체확인 사진
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-xs text-[#e5e5e5] break-all">
+                          주문번호: {order.orderCode || order.guestOrderNumber || order.id}
                         </p>
-                        <a
-                          href={order.paymentReceiptUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
-                        >
-                          새 탭에서 보기
-                        </a>
+                        <p className="text-[10px] text-[#9b9b9b] mt-1">
+                          생성일: {formatDate(order.createdAt || undefined)}
+                        </p>
                       </div>
-                      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-[#333] bg-black">
-                        <img
-                          src={order.paymentReceiptUrl}
-                          alt="이체확인 사진"
-                          className="h-full w-full object-contain bg-black"
-                        />
+                      <div className="flex flex-col items-start gap-2 md:items-end">
+                        <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
+                          <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                            {getShippingStatusLabel(order.shippingStatus)}
+                          </span>
+                        </div>
+                        {cancelState.visible ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleCancelMemberOrder(order)}
+                            disabled={!cancelState.enabled || isCancelling}
+                            className="rounded-xl border border-red-700 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.18em] text-red-200 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-[#3a3a3a] disabled:text-[#747474]"
+                          >
+                            {isCancelling ? '취소 처리중...' : cancelState.label}
+                          </button>
+                        ) : null}
                       </div>
                     </div>
-                  ) : null}
-                </div>
-              </article>
-            ))}
+                  </div>
+
+                  <div className="space-y-3 p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                      <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                        <p className="text-[#9b9b9b] mb-1">주문 금액</p>
+                        <p className="text-[#00ffd1] font-bold">
+                          {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
+                        </p>
+                        <p className="text-[#c6c6c6] mt-1">항목 {order.items.length}개</p>
+                      </div>
+                      <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                        <p className="text-[#9b9b9b] mb-1">택배사</p>
+                        <p className="text-[#e5e5e5]">{order.shippingCompany || '-'}</p>
+                        <p className="text-[#c6c6c6] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
+                      </div>
+                      <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
+                        <p className="text-[#9b9b9b] mb-1">운송장번호</p>
+                        <p className="text-[#e5e5e5] break-all">{order.trackingNumber || '-'}</p>
+                        <p className="text-[#c6c6c6] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
+                      <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
+                    </div>
+
+                    <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
+                      <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송 메모</p>
+                      <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
+                    </div>
+
+                    {cancelState.visible ? (
+                      <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
+                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">카드결제 취소</p>
+                        <p className="mt-2 text-xs leading-relaxed text-[#94b7b1]">
+                          {cancelState.description}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {order.paymentReceiptUrl ? (
+                      <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                            이체확인 사진
+                          </p>
+                          <a
+                            href={order.paymentReceiptUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
+                          >
+                            새 탭에서 보기
+                          </a>
+                        </div>
+                        <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-[#333] bg-black">
+                          <img
+                            src={order.paymentReceiptUrl}
+                            alt="이체확인 사진"
+                            className="h-full w-full object-contain bg-black"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1506,7 +1711,8 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                 <div className="space-y-5">
                   {adminOrders.map((order) => {
                     const draft = adminOrderDrafts[order.id] || createAdminOrderDraft(order);
-                    const isDeleting = deletingAdminOrderId === order.id;
+                    const isCancelling = cancellingAdminOrderId === order.id;
+                    const cancelState = getAdminOrderCancelState(order);
 
                     return (
                       <article
@@ -1699,6 +1905,8 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                                     >
                                       <option value="pending_transfer">이체확인중</option>
                                       <option value="transfer_confirmed">이체확인</option>
+                                      <option value="paid">결제완료(paid)</option>
+                                      <option value="cancelled">결제취소(cancelled)</option>
                                       <option value="captured">결제완료(captured)</option>
                                       <option value="completed">결제완료(completed)</option>
                                     </select>
@@ -1776,20 +1984,29 @@ export function MyPagePanel({ onBack }: MyPagePanelProps = {}) {
                               <button
                                 type="button"
                                 onClick={() => void handleSaveOrderShipping(order.id)}
-                                disabled={isDeleting}
+                                disabled={isCancelling}
                                 className="rounded-2xl border border-[#00ffd1] px-4 py-3 text-sm font-medium text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 배송정보 저장
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void handleDeleteAdminOrder(order)}
-                                disabled={isDeleting}
-                                className="rounded-2xl border border-red-700 px-4 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                onClick={() => void handleCancelAdminOrder(order)}
+                                disabled={isCancelling || !cancelState.visible || !cancelState.enabled}
+                                className="rounded-2xl border border-red-700 px-4 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-[#3a3a3a] disabled:text-[#747474]"
                               >
-                                {isDeleting ? '주문 삭제 중...' : '주문 삭제'}
+                                {isCancelling
+                                  ? '취소 처리중...'
+                                  : cancelState.visible
+                                    ? cancelState.label
+                                    : '온라인 취소 미지원'}
                               </button>
                             </div>
+                            {cancelState.visible ? (
+                              <p className="text-xs leading-relaxed text-[#8ba49d]">
+                                {cancelState.description}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </article>

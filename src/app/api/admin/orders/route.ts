@@ -1,13 +1,22 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { cancelNicepayOrder } from '@/lib/orders/nicepayCancel';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
+const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
+const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
 const ORDER_SELECT =
   'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, paypal_order_id, paypal_capture_id, paypal_currency, paypal_value, items, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, raw_payload, created_at, updated_at';
 
 type ShippingStatus = 'preparing' | 'shipping' | 'delivered';
-type PaymentStatus = 'pending_transfer' | 'transfer_confirmed' | 'captured' | 'completed';
+type PaymentStatus =
+  | 'pending_transfer'
+  | 'transfer_confirmed'
+  | 'captured'
+  | 'completed'
+  | 'paid'
+  | 'cancelled';
 
 type AdminAuthResult =
   | {
@@ -112,8 +121,10 @@ function normalizePaymentStatus(value: unknown): PaymentStatus | null {
   if (
     normalized === 'pending_transfer' ||
     normalized === 'transfer_confirmed' ||
+    normalized === 'paid' ||
     normalized === 'captured' ||
-    normalized === 'completed'
+    normalized === 'completed' ||
+    normalized === 'cancelled'
   ) {
     return normalized;
   }
@@ -155,6 +166,78 @@ function mapOrderRow(row: OrderRow) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function mergeCancelledRawPayload(rawPayloadValue: unknown, reason: string, actor: 'admin') {
+  const rawPayload =
+    rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
+      ? (rawPayloadValue as Record<string, unknown>)
+      : {};
+  const cancelledAt = new Date().toISOString();
+
+  return {
+    ...rawPayload,
+    cancelledAt,
+    cancelledBy: actor,
+    cancelReason: reason,
+    cancellation: {
+      cancelledAt,
+      cancelledBy: actor,
+      reason,
+    },
+  };
+}
+
+async function sendAdminCancelNotificationEmail(order: OrderRow, reason: string) {
+  const resendApiKey = process.env.RESEND_API_KEY?.trim() || '';
+  if (!resendApiKey) {
+    throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
+  }
+
+  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
+  const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
+  const orderCode = normalizeText(order.order_code) || order.id;
+  const paymentMethod =
+    normalizeText(order.payment_method).toLowerCase() === 'bank_transfer'
+      ? '계좌이체'
+      : normalizeText(order.payment_method) || '-';
+
+  const subject = `[주문취소] 관리자 ${orderCode}`;
+  const text = [
+    '[관리자 주문 취소 알림]',
+    `주문번호: ${orderCode}`,
+    `취소 요청자: 관리자`,
+    `취소 사유: ${reason}`,
+    `결제수단: ${paymentMethod}`,
+    `결제상태: ${normalizeText(order.payment_status) || '-'}`,
+    `주문자: ${normalizeText(order.customer_name) || '-'}`,
+    `이메일: ${normalizeText(order.customer_email) || '-'}`,
+    `연락처: ${normalizeText(order.customer_phone) || '-'}`,
+    `총 결제금액: ${normalizeNumber(order.amount_total).toLocaleString('ko-KR')}원`,
+  ].join('\n');
+
+  const response = await fetch(RESEND_API_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      text,
+      reply_to: normalizeText(order.customer_email) || undefined,
+    }),
+  });
+
+  const responsePayload = (await response.json().catch(() => null)) as
+    | { error?: { message?: string } }
+    | null;
+
+  if (!response.ok) {
+    throw new Error(responsePayload?.error?.message || '취소 메일 발송 API 응답 오류');
+  }
 }
 
 async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
@@ -283,7 +366,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(
       {
         message:
-          'paymentStatus는 pending_transfer/transfer_confirmed/captured/completed 중 하나여야 합니다.',
+          'paymentStatus는 pending_transfer/transfer_confirmed/paid/captured/completed/cancelled 중 하나여야 합니다.',
       },
       { status: 400 },
     );
@@ -381,6 +464,125 @@ export async function PATCH(request: Request) {
     message: '주문 상태/배송 정보가 저장되었습니다.',
     order: mapOrderRow(data as OrderRow),
   });
+}
+
+export async function POST(request: Request) {
+  const auth = await authenticateAdmin(request);
+  if (!auth.ok) return auth.response;
+
+  let payload: {
+    id?: string;
+    action?: string;
+    reason?: string;
+  } = {};
+
+  try {
+    payload = (await request.json()) as typeof payload;
+  } catch {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+  }
+
+  const id = normalizeText(payload.id);
+  const action = normalizeText(payload.action).toLowerCase();
+  const reason = normalizeText(payload.reason) || 'admin_cancel';
+
+  if (!id) {
+    return NextResponse.json({ message: '취소 대상 id가 필요합니다.' }, { status: 400 });
+  }
+
+  if (action !== 'cancel_payment') {
+    return NextResponse.json({ message: '지원하지 않는 관리자 주문 액션입니다.' }, { status: 400 });
+  }
+
+  const { data: existing, error: existingError } = await auth.serviceClient
+    .from('orders')
+    .select(ORDER_SELECT)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (existingError) {
+    return NextResponse.json(
+      { message: `주문 조회 실패: ${existingError.message}` },
+      { status: 500 },
+    );
+  }
+
+  if (!existing) {
+    return NextResponse.json({ message: '대상 주문이 없습니다.' }, { status: 404 });
+  }
+
+  try {
+    const paymentMethod = normalizeText(existing.payment_method).toLowerCase();
+    const paymentStatus = normalizeText(existing.payment_status).toLowerCase();
+    const shippingStatus = normalizeText(existing.shipping_status).toLowerCase();
+    let updatedOrder: OrderRow;
+
+    if (paymentMethod === 'nicepay') {
+      updatedOrder = await cancelNicepayOrder<OrderRow>({
+        serviceClient: auth.serviceClient,
+        order: existing as OrderRow,
+        actor: 'admin',
+        reason,
+        selectQuery: ORDER_SELECT,
+      });
+    } else if (paymentMethod === 'bank_transfer') {
+      if (paymentStatus === 'cancelled') {
+        return NextResponse.json({ message: '이미 취소된 주문입니다.' }, { status: 400 });
+      }
+
+      if (shippingStatus && shippingStatus !== 'preparing') {
+        return NextResponse.json(
+          { message: '배송이 시작된 주문은 취소할 수 없습니다.' },
+          { status: 400 },
+        );
+      }
+
+      const { data, error } = await auth.serviceClient
+        .from('orders')
+        .update({
+          payment_status: 'cancelled',
+          updated_at: new Date().toISOString(),
+          raw_payload: mergeCancelledRawPayload(existing.raw_payload, reason, 'admin'),
+        })
+        .eq('id', id)
+        .select(ORDER_SELECT)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!data) {
+        throw new Error('취소 후 주문 정보를 다시 불러오지 못했습니다.');
+      }
+
+      updatedOrder = data as OrderRow;
+
+      try {
+        await sendAdminCancelNotificationEmail(updatedOrder, reason);
+      } catch (error) {
+        console.error('Failed to send admin cancel notification email', error);
+      }
+    } else {
+      return NextResponse.json(
+        { message: '관리자 주문취소는 NICE Payments와 계좌이체 주문만 지원합니다.' },
+        { status: 400 },
+      );
+    }
+
+    return NextResponse.json({
+      message: '주문취소가 완료되고 관리자 메일로도 정보가 전송됩니다.',
+      order: mapOrderRow(updatedOrder),
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        message:
+          error instanceof Error ? error.message : '관리자 결제 취소 처리 중 오류가 발생했습니다.',
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function DELETE(request: Request) {
