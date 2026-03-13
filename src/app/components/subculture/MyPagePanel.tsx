@@ -23,6 +23,7 @@ type AdminOrderView = 'new' | 'shipping' | 'cancelled';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const DEFAULT_BANK_ACCOUNT_HOLDER = '백형석';
+const DEFAULT_SHIPPING_COMPANY = '우체국';
 
 type VisitSourceBreakdown = {
   instagram: number;
@@ -561,7 +562,7 @@ function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
   return {
     paymentStatus: order.paymentStatus || fallbackPaymentStatus,
     shippingStatus: order.shippingStatus || 'preparing',
-    shippingCompany: order.shippingCompany || '',
+    shippingCompany: order.shippingCompany || DEFAULT_SHIPPING_COMPANY,
     trackingNumber: order.trackingNumber || '',
     shippingNote: order.shippingNote || '',
   };
@@ -1900,6 +1901,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     <div className="grid gap-7 xl:grid-cols-2">
                       {filteredAdminOrders.map((order) => {
                     const draft = adminOrderDrafts[order.id] || createAdminOrderDraft(order);
+                    const visibleShippingCompany =
+                      draft.shippingCompany || order.shippingCompany || DEFAULT_SHIPPING_COMPANY;
                     const isCancelling = cancellingAdminOrderId === order.id;
                     const cancelState = getAdminOrderCancelState(order);
                     const selectedPaymentStatus = getEditablePaymentStatusValue(
@@ -2092,6 +2095,10 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                 </span>
                               </div>
 
+                              <p className="mt-3 text-sm text-[#d0d8e1]">
+                                기본 택배사: {visibleShippingCompany}
+                              </p>
+
                               <div className="mt-5 space-y-5">
                                 <div className="grid gap-5 md:grid-cols-2">
                                   <div>
@@ -2128,12 +2135,12 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                     <label className="mb-3 block text-sm text-[#b5beca]">택배사</label>
                                     <input
                                       type="text"
-                                      value={draft.shippingCompany || ''}
+                                      value={draft.shippingCompany}
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
                                       }
                                       className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
-                                      placeholder="예: 우체국, CJ대한통운"
+                                      placeholder={DEFAULT_SHIPPING_COMPANY}
                                     />
                                   </div>
                                   <div>
