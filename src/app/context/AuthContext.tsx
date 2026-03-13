@@ -288,6 +288,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Sign-up complete. Check your email for the confirmation link.',
         );
       }
+
+      void fetch('/api/auth/signup-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          fullName,
+          phone,
+          provider: 'email',
+        }),
+      }).catch((notifyError) => {
+        console.error('Signup notification failed', notifyError);
+      });
     });
   };
 
