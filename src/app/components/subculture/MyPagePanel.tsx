@@ -21,6 +21,7 @@ type MyPageTab =
 type AdminComposerType = 'products' | 'collections';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
+const DEFAULT_BANK_ACCOUNT_HOLDER = '백형석';
 
 type VisitSourceBreakdown = {
   instagram: number;
@@ -1425,6 +1426,19 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                       <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8] mb-2">배송 메모</p>
                       <p className="text-sm leading-7 text-[#d8dde4] break-all">{order.shippingNote || '-'}</p>
                     </div>
+
+                    {order.paymentMethod === 'bank_transfer' ? (
+                      <div className="rounded-[8px] border border-[#bcc5d0] bg-[linear-gradient(180deg,#15181c_0%,#101215_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
+                        <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">계좌이체 안내</p>
+                        <p className="break-all text-lg font-semibold text-white">
+                          {order.bankName || '카카오뱅크'} {order.bankAccountNumber || '3333-09-2834969'}
+                        </p>
+                        <p className="mt-2 text-sm text-[#d7dde4]">예금주: {DEFAULT_BANK_ACCOUNT_HOLDER}</p>
+                        <p className="mt-3 text-sm leading-7 text-[#ccd2da]">
+                          입금자명은 수령인 이름과 동일하게 입력해 주세요.
+                        </p>
+                      </div>
+                    ) : null}
 
                     {cancelState.visible ? (
                       <div className="rounded-[8px] border border-[#bcc5d0] bg-[linear-gradient(180deg,#15181c_0%,#101215_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">

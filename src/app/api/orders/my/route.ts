@@ -19,6 +19,8 @@ type OrderRow = {
   customer_phone: string | null;
   customer_country: string | null;
   customer_address: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
   items: unknown;
   raw_payload: unknown;
   shipping_status: string | null;
@@ -111,7 +113,7 @@ export async function GET(request: Request) {
   const { data, error } = await serviceClient
     .from('orders')
     .select(
-      'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, items, raw_payload, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at',
+      'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, items, raw_payload, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at',
     )
     .ilike('customer_email', targetEmail)
     .neq('payment_status', 'pending_payment')
@@ -154,6 +156,8 @@ export async function GET(request: Request) {
     customerPhone: normalizeText(row.customer_phone),
     customerCountry: normalizeText(row.customer_country),
     customerAddress: normalizeText(row.customer_address),
+    bankName: normalizeText(row.bank_name),
+    bankAccountNumber: normalizeText(row.bank_account_number),
     paymentReceiptUrl: extractPaymentReceiptUrl(row.raw_payload),
     items: normalizeItems(row.items),
     shippingStatus: normalizeText(row.shipping_status || 'preparing'),
