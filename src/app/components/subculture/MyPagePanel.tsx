@@ -218,6 +218,7 @@ function getMemberOrderCancelState(
     return {
       visible: true,
       enabled: false,
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
       label: '주문취소 완료',
       description: '이미 취소가 완료된 주문입니다.',
     };
@@ -227,6 +228,7 @@ function getMemberOrderCancelState(
     return {
       visible: true,
       enabled: false,
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
       label: '배송 시작 후 취소불가',
       description: '배송준비중 상태의 주문만 온라인에서 취소할 수 있습니다.',
     };
@@ -236,7 +238,8 @@ function getMemberOrderCancelState(
     return {
       visible: true,
       enabled: true,
-      label: '주문취소',
+      title: '카드결제 취소',
+      label: '카드결제 취소',
       description: 'NICE 결제 승인 취소와 관리자 메일 전송을 함께 처리합니다.',
     };
   }
@@ -248,6 +251,7 @@ function getMemberOrderCancelState(
     return {
       visible: true,
       enabled: true,
+      title: '주문취소',
       label: '주문취소',
       description: '계좌이체 주문을 취소 상태로 변경하고 관리자 메일로 기록을 보냅니다.',
     };
@@ -256,6 +260,7 @@ function getMemberOrderCancelState(
   return {
     visible: false,
     enabled: false,
+    title: '',
     label: '',
     description: '',
   };
@@ -272,6 +277,7 @@ function getAdminOrderCancelState(
     return {
       visible: true,
       enabled: false,
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
       label: '주문취소 완료',
       description: '이미 취소가 완료된 주문입니다.',
     };
@@ -281,6 +287,7 @@ function getAdminOrderCancelState(
     return {
       visible: true,
       enabled: false,
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
       label: '배송 시작 후 취소불가',
       description: '배송준비중 상태의 주문만 관리자 화면에서 취소할 수 있습니다.',
     };
@@ -290,7 +297,8 @@ function getAdminOrderCancelState(
     return {
       visible: true,
       enabled: true,
-      label: '주문취소',
+      title: '카드결제 취소',
+      label: '카드결제 취소',
       description: 'NICE 카드 승인 취소와 관리자 메일 전송을 함께 처리합니다.',
     };
   }
@@ -302,6 +310,7 @@ function getAdminOrderCancelState(
     return {
       visible: true,
       enabled: true,
+      title: '주문취소',
       label: '주문취소',
       description: '계좌이체 주문을 취소 상태로 바꾸고 관리자 메일로 기록을 보냅니다.',
     };
@@ -310,6 +319,7 @@ function getAdminOrderCancelState(
   return {
     visible: false,
     enabled: false,
+    title: '',
     label: '',
     description: '',
   };
@@ -1310,7 +1320,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
                     {cancelState.visible ? (
                       <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
-                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">카드결제 취소</p>
+                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                          {cancelState.title}
+                        </p>
                         <p className="mt-2 text-xs leading-relaxed text-[#94b7b1]">
                           {cancelState.description}
                         </p>
