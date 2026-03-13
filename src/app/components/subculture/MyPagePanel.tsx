@@ -180,7 +180,10 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
   const normalizedMethod = (paymentMethod || '').toLowerCase();
   const normalizedStatus = (status || '').toLowerCase();
 
-  if (normalizedStatus === 'cancelled') return '결제취소';
+  if (normalizedStatus === 'refund_pending') return '환불진행중';
+  if (normalizedStatus === 'cancelled') {
+    return normalizedMethod === 'bank_transfer' ? '환불완료' : '결제취소';
+  }
   if (normalizedStatus === 'partialcancelled') return '부분취소';
 
   if (normalizedMethod === 'bank_transfer') {
@@ -211,10 +214,13 @@ function getEditablePaymentStatusValue(paymentMethod: string, status: string) {
   const normalizedMethod = (paymentMethod || '').trim().toLowerCase();
   const normalizedStatus = (status || '').trim().toLowerCase();
 
+  if (normalizedStatus === 'refund_pending') return 'refund_pending';
   if (normalizedStatus === 'cancelled') return 'cancelled';
 
   if (normalizedMethod === 'bank_transfer') {
-    return normalizedStatus === 'transfer_confirmed' ? 'transfer_confirmed' : 'pending_transfer';
+    if (normalizedStatus === 'transfer_confirmed') return 'transfer_confirmed';
+    if (normalizedStatus === 'cancelled') return 'cancelled';
+    return normalizedStatus === 'refund_pending' ? 'refund_pending' : 'pending_transfer';
   }
 
   if (normalizedMethod === 'nicepay') {
@@ -236,7 +242,8 @@ function getPaymentStatusSelectOptions(paymentMethod: string, currentStatus: str
     return [
       { value: 'pending_transfer', label: '이체확인중' },
       { value: 'transfer_confirmed', label: '이체확인' },
-      { value: 'cancelled', label: '주문취소' },
+      { value: 'refund_pending', label: '환불진행중' },
+      { value: 'cancelled', label: '환불완료' },
     ];
   }
 
@@ -275,13 +282,26 @@ function getMemberOrderCancelState(
   const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
   const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
 
+  if (paymentStatus === 'refund_pending') {
+    return {
+      visible: true,
+      enabled: false,
+      title: '환불진행중',
+      label: '환불진행중',
+      description: '취소 요청은 접수됐고 현재 환불/취소 확인이 진행 중입니다.',
+    };
+  }
+
   if (paymentStatus === 'cancelled') {
     return {
       visible: true,
       enabled: false,
-      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
-      label: '주문취소 완료',
-      description: '이미 취소가 완료된 주문입니다.',
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '환불완료',
+      label: paymentMethod === 'nicepay' ? '결제취소 완료' : '환불완료',
+      description:
+        paymentMethod === 'nicepay'
+          ? '이미 카드결제 취소가 완료된 주문입니다.'
+          : '이미 환불 완료 처리된 주문입니다.',
     };
   }
 
@@ -305,6 +325,19 @@ function getMemberOrderCancelState(
     };
   }
 
+  if (
+    paymentMethod === 'bank_transfer' &&
+    (paymentStatus === 'pending_transfer' || paymentStatus === 'transfer_confirmed')
+  ) {
+    return {
+      visible: true,
+      enabled: true,
+      title: '주문취소 / 환불요청',
+      label: '주문취소 요청',
+      description: '계좌이체 주문 취소 요청을 접수하고 관리자 확인 후 환불 상태로 진행합니다.',
+    };
+  }
+
   return {
     visible: false,
     enabled: false,
@@ -321,13 +354,26 @@ function getAdminOrderCancelState(
   const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
   const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
 
+  if (paymentStatus === 'refund_pending') {
+    return {
+      visible: true,
+      enabled: false,
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '환불진행중',
+      label: '환불진행중',
+      description: '이미 환불/취소 확인이 진행 중인 주문입니다.',
+    };
+  }
+
   if (paymentStatus === 'cancelled') {
     return {
       visible: true,
       enabled: false,
-      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
-      label: '주문취소 완료',
-      description: '이미 취소가 완료된 주문입니다.',
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '환불완료',
+      label: paymentMethod === 'nicepay' ? '결제취소 완료' : '환불완료',
+      description:
+        paymentMethod === 'nicepay'
+          ? '이미 카드결제 취소가 완료된 주문입니다.'
+          : '이미 환불 완료 처리된 주문입니다.',
     };
   }
 
@@ -358,9 +404,9 @@ function getAdminOrderCancelState(
     return {
       visible: true,
       enabled: true,
-      title: '주문취소',
-      label: '주문취소',
-      description: '계좌이체 주문을 취소 상태로 바꾸고 관리자 메일로 기록을 보냅니다.',
+      title: '주문취소 / 환불요청',
+      label: '주문취소 요청',
+      description: '계좌이체 주문을 환불 진행중 상태로 바꾸고 관리자 메일로 기록을 보냅니다.',
     };
   }
 
@@ -929,6 +975,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         const normalized =
           value === 'pending_transfer' ||
           value === 'transfer_confirmed' ||
+          value === 'refund_pending' ||
           value === 'paid' ||
           value === 'cancelled' ||
           value === 'captured' ||
@@ -1008,11 +1055,14 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     if (!cancelState.enabled) return;
 
     const orderIdentifier = order.orderCode || order.guestOrderNumber || order.id;
+    const isNicepayOrder = (order.paymentMethod || '').trim().toLowerCase() === 'nicepay';
     const confirmed =
       typeof window === 'undefined'
         ? true
         : window.confirm(
-            `주문 ${orderIdentifier}의 NICE 카드결제를 취소할까요?\n배송 시작 전 주문만 온라인에서 취소됩니다.`,
+            isNicepayOrder
+              ? `주문 ${orderIdentifier}의 NICE 카드결제를 취소할까요?\n배송 시작 전 주문만 온라인에서 취소됩니다.`
+              : `주문 ${orderIdentifier}의 취소 요청을 접수할까요?\n현재 단계에서는 환불 진행중 상태로 전환되고 관리자 확인 후 처리됩니다.`,
           );
     if (!confirmed) return;
 
@@ -1058,15 +1108,18 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const handleCancelAdminOrder = async (order: AdminOrderRecord) => {
     if (!session?.access_token) return;
 
-    const cancelState = getMemberOrderCancelState(order);
+    const cancelState = getAdminOrderCancelState(order);
     if (!cancelState.enabled) return;
 
     const orderIdentifier = order.orderCode || order.guestOrderNumber || order.id;
+    const isNicepayOrder = (order.paymentMethod || '').trim().toLowerCase() === 'nicepay';
     const confirmed =
       typeof window === 'undefined'
         ? true
         : window.confirm(
-            `주문 ${orderIdentifier}를 취소할까요?\nNICE 결제는 승인 취소로 처리되고, 계좌이체 주문은 취소 상태로 변경됩니다.`,
+            isNicepayOrder
+              ? `주문 ${orderIdentifier}를 취소할까요?\nNICE 결제는 실제 승인 취소로 처리됩니다.`
+              : `주문 ${orderIdentifier}를 취소 요청 상태로 전환할까요?\n계좌이체 주문은 환불 진행중 상태로 변경됩니다.`,
           );
     if (!confirmed) return;
 
@@ -1255,16 +1308,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     ),
     orders: (
       <div className="space-y-4">
-        <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
+        <div className="rounded-[22px] border border-[#7a808a] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">내 주문 / 배송조회</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[#c7ced8]">내 주문 / 배송조회</p>
+              <p className="mt-2 text-sm text-[#a8afb9]">주문 카드, 배송 정보, 취소 상태를 더 크게 나눠서 보여줍니다.</p>
             </div>
             <button
               type="button"
               onClick={() => void loadMemberOrders()}
               disabled={isLoadingMemberOrders}
-              className="px-3 py-2 border border-[#333] bg-[#111] text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors disabled:opacity-50"
+              className="rounded-2xl border border-[#7a808a] bg-[#15181c] px-4 py-3 text-sm font-medium text-[#eef2f7] hover:border-[#c4cad3] transition-colors disabled:opacity-50"
             >
               {isLoadingMemberOrders ? '새로고침 중...' : '주문 새로고침'}
             </button>
@@ -1300,24 +1354,30 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               return (
                 <article
                   key={order.id}
-                  className="overflow-hidden rounded-[22px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                  className="overflow-hidden rounded-[26px] border border-[#7a808a] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                 >
-                  <div className="border-b border-[#1f2d2a] bg-[#101816] px-4 py-4">
-                    <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#76b7aa]">
+                  <div className="border-b border-[#6d7480] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-5">
+                    <div className="mb-3 text-[11px] uppercase tracking-[0.24em] text-[#c7ced8]">
                       Order Card
                     </div>
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <p className="text-xs text-[#e5e5e5] break-all">
+                        <p className="text-sm font-medium text-[#e9edf2] break-all">
                           주문번호: {order.orderCode || order.guestOrderNumber || order.id}
                         </p>
-                        <p className="text-[10px] text-[#9b9b9b] mt-1">
+                        <p className="mt-2 text-xs text-[#a4abb5]">
                           생성일: {formatDate(order.createdAt || undefined)}
                         </p>
                       </div>
                       <div className="flex flex-col items-start gap-2 md:items-end">
-                        <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
-                          <span className="px-2 py-1 border border-[#00ffd1]/50 bg-[#00ffd1]/10 text-[#00ffd1]">
+                        <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em]">
+                          <span className="rounded-full border border-[#c2c8d1] bg-[#d8dde5]/10 px-3 py-1.5 text-[#f4f7fb]">
+                            {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
+                          </span>
+                          <span className="rounded-full border border-[#7a808a] bg-black/25 px-3 py-1.5 text-[#d4dae2]">
+                            {getPaymentMethodLabel(order.paymentMethod)}
+                          </span>
+                          <span className="rounded-full border border-[#7a808a] bg-black/25 px-3 py-1.5 text-[#d4dae2]">
                             {getShippingStatusLabel(order.shippingStatus)}
                           </span>
                         </div>
@@ -1326,7 +1386,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             type="button"
                             onClick={() => void handleCancelMemberOrder(order)}
                             disabled={!cancelState.enabled || isCancelling}
-                            className="rounded-xl border border-red-700 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.18em] text-red-200 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-[#3a3a3a] disabled:text-[#747474]"
+                            className="rounded-2xl border border-red-600/80 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-red-100 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-[#4b4f55] disabled:text-[#7c8188]"
                           >
                             {isCancelling ? '취소 처리중...' : cancelState.label}
                           </button>
@@ -1335,64 +1395,64 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     </div>
                   </div>
 
-                  <div className="space-y-3 p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                      <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                        <p className="text-[#9b9b9b] mb-1">주문 금액</p>
-                        <p className="text-[#00ffd1] font-bold">
+                  <div className="space-y-4 p-5">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 text-sm">
+                      <div className="rounded-[22px] border border-[#7a808a] bg-[#111316] p-4">
+                        <p className="text-[#a7aeb8]">주문 금액</p>
+                        <p className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-white">
                           {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
                         </p>
-                        <p className="text-[#c6c6c6] mt-1">항목 {order.items.length}개</p>
+                        <p className="mt-2 text-sm text-[#d7dde4]">항목 {order.items.length}개</p>
                       </div>
-                      <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                        <p className="text-[#9b9b9b] mb-1">택배사</p>
-                        <p className="text-[#e5e5e5]">{order.shippingCompany || '-'}</p>
-                        <p className="text-[#c6c6c6] mt-1">발송: {formatDateTime(order.shippedAt)}</p>
+                      <div className="rounded-[22px] border border-[#7a808a] bg-[#111316] p-4">
+                        <p className="text-[#a7aeb8]">택배사</p>
+                        <p className="mt-2 text-lg font-medium text-white">{order.shippingCompany || '-'}</p>
+                        <p className="mt-2 text-sm text-[#d7dde4]">발송: {formatDateTime(order.shippedAt)}</p>
                       </div>
-                      <div className="rounded-xl border border-[#2b2b2b] bg-black p-3">
-                        <p className="text-[#9b9b9b] mb-1">운송장번호</p>
-                        <p className="text-[#e5e5e5] break-all">{order.trackingNumber || '-'}</p>
-                        <p className="text-[#c6c6c6] mt-1">완료: {formatDateTime(order.deliveredAt)}</p>
+                      <div className="rounded-[22px] border border-[#7a808a] bg-[#111316] p-4">
+                        <p className="text-[#a7aeb8]">운송장번호</p>
+                        <p className="mt-2 break-all text-lg font-medium text-white">{order.trackingNumber || '-'}</p>
+                        <p className="mt-2 text-sm text-[#d7dde4]">완료: {formatDateTime(order.deliveredAt)}</p>
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
-                      <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송지</p>
-                      <p className="text-xs text-[#9a9a9a] break-all">{order.customerAddress || '-'}</p>
+                    <div className="rounded-[22px] border border-[#7a808a] bg-[#111316] p-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8] mb-2">배송지</p>
+                      <p className="text-sm leading-7 text-[#f0f3f6] break-all">{order.customerAddress || '-'}</p>
                     </div>
 
-                    <div className="rounded-xl border border-[#262626] bg-[#0b0b0b] p-3">
-                      <p className="text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-2">배송 메모</p>
-                      <p className="text-xs text-[#9a9a9a] break-all">{order.shippingNote || '-'}</p>
+                    <div className="rounded-[22px] border border-[#7a808a] bg-[#111316] p-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8] mb-2">배송 메모</p>
+                      <p className="text-sm leading-7 text-[#d8dde4] break-all">{order.shippingNote || '-'}</p>
                     </div>
 
                     {cancelState.visible ? (
-                      <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
-                        <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                      <div className="rounded-[22px] border border-[#7a808a] bg-[linear-gradient(180deg,#15181c_0%,#101215_100%)] p-4">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
                           {cancelState.title}
                         </p>
-                        <p className="mt-2 text-xs leading-relaxed text-[#94b7b1]">
+                        <p className="mt-3 text-sm leading-7 text-[#ccd2da]">
                           {cancelState.description}
                         </p>
                       </div>
                     ) : null}
 
                     {order.paymentReceiptUrl ? (
-                      <div className="rounded-xl border border-[#2a433e] bg-[#0b1211] p-3">
+                      <div className="rounded-[22px] border border-[#7a808a] bg-[linear-gradient(180deg,#15181c_0%,#101215_100%)] p-4">
                         <div className="mb-3 flex items-center justify-between gap-3">
-                          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
                             이체확인 사진
                           </p>
                           <a
                             href={order.paymentReceiptUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[10px] uppercase tracking-widest text-[#bafff0] hover:text-[#00ffd1]"
+                            className="text-[11px] uppercase tracking-[0.18em] text-[#e8edf5] hover:text-white"
                           >
                             새 탭에서 보기
                           </a>
                         </div>
-                        <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-[#333] bg-black">
+                        <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] border border-[#7a808a] bg-black">
                           <img
                             src={order.paymentReceiptUrl}
                             alt="이체확인 사진"
@@ -1711,11 +1771,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
         ) : (
           <>
-            <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
+            <div className="rounded-[22px] border border-[#7a808a] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">주문 관리</p>
-                  <p className="text-xs text-[#9a9a9a] mt-2">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-[#c7ced8]">주문 관리</p>
+                  <p className="mt-2 text-sm text-[#a8afb9]">
                     주문 목록과 배송정보(상태/택배사/운송장번호)를 관리할 수 있습니다.
                   </p>
                 </div>
@@ -1723,7 +1783,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                   type="button"
                   onClick={() => void loadAdminOrders()}
                   disabled={isLoadingAdminOrders}
-                  className="px-3 py-2 border border-[#333] bg-[#111] text-xs uppercase tracking-widest hover:border-[#00ffd1] hover:text-[#00ffd1] transition-colors disabled:opacity-50"
+                  className="rounded-2xl border border-[#7a808a] bg-[#15181c] px-4 py-3 text-sm font-medium text-[#eef2f7] hover:border-[#c4cad3] transition-colors disabled:opacity-50"
                 >
                   {isLoadingAdminOrders ? '새로고침 중...' : '주문 새로고침'}
                 </button>
@@ -1753,34 +1813,34 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             ) : (
               <div className="space-y-5">
                 <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-                  <div className="rounded-[20px] border border-[#2a4a43] bg-[#0e1615] p-4">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#7fb9ae]">전체 주문</p>
+                  <div className="rounded-[20px] border border-[#7a808a] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">전체 주문</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.total}</p>
-                    <p className="mt-2 text-sm text-[#8da39e]">총 주문금액 {formatKrw(adminOrderSummary.revenue)}</p>
+                    <p className="mt-2 text-sm text-[#a9afb8]">총 주문금액 {formatKrw(adminOrderSummary.revenue)}</p>
                   </div>
                   {adminOrderSummary.awaitingPayment > 0 ? (
-                    <div className="rounded-[20px] border border-[#4f3b23] bg-[#17120d] p-4">
+                    <div className="rounded-[20px] border border-[#7a808a] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4">
                       <p className="text-[11px] uppercase tracking-[0.2em] text-[#e8bf7a]">입금 대기</p>
                       <p className="mt-3 text-2xl font-semibold text-white">
                         {adminOrderSummary.awaitingPayment}
                       </p>
-                      <p className="mt-2 text-sm text-[#ad9c84]">계좌이체 확인이 필요한 주문</p>
+                      <p className="mt-2 text-sm text-[#a9afb8]">계좌이체 확인이 필요한 주문</p>
                     </div>
                   ) : null}
-                  <div className="rounded-[20px] border border-[#335846] bg-[#101714] p-4">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#8ff3dc]">배송준비</p>
+                  <div className="rounded-[20px] border border-[#7a808a] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">배송준비</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.preparing}</p>
-                    <p className="mt-2 text-sm text-[#8da39a]">결제완료 후 출고 대기 주문</p>
+                    <p className="mt-2 text-sm text-[#a9afb8]">결제완료 후 출고 대기 주문</p>
                   </div>
-                  <div className="rounded-[20px] border border-[#214960] bg-[#0c141a] p-4">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#87cfff]">배송중</p>
+                  <div className="rounded-[20px] border border-[#7a808a] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">배송중</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.shipping}</p>
-                    <p className="mt-2 text-sm text-[#8aa3b2]">발송 처리된 주문</p>
+                    <p className="mt-2 text-sm text-[#a9afb8]">발송 처리된 주문</p>
                   </div>
-                  <div className="rounded-[20px] border border-[#244a35] bg-[#0d1510] p-4">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#89d7a6]">배송완료</p>
+                  <div className="rounded-[20px] border border-[#7a808a] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#d6dde6]">배송완료</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{adminOrderSummary.delivered}</p>
-                    <p className="mt-2 text-sm text-[#8da39a]">수령 완료 처리된 주문</p>
+                    <p className="mt-2 text-sm text-[#a9afb8]">수령 완료 처리된 주문</p>
                   </div>
                 </div>
 
@@ -1801,19 +1861,25 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     return (
                       <article
                         key={order.id}
-                        className="overflow-hidden rounded-[26px] border border-[#24443e] bg-[#0f0f0f] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                        className="overflow-hidden rounded-[26px] border border-[#7a808a] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                       >
-                        <div className="border-b border-[#1f2d2a] bg-[linear-gradient(135deg,#12211f_0%,#0f1515_55%,#0a0a0a_100%)] px-5 py-5">
+                        <div className="border-b border-[#6d7480] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-5">
                           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                             <div className="min-w-0">
-                              <p className="text-[11px] uppercase tracking-[0.24em] text-[#76b7aa]">
+                              <p className="text-[11px] uppercase tracking-[0.24em] text-[#c7ced8]">
                                 Shipping Console
                               </p>
                               <h3 className="mt-3 break-all text-lg font-semibold text-white md:text-2xl">
                                 {order.orderCode || order.guestOrderNumber || order.id}
                               </h3>
                               <div className="mt-3 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em]">
-                                <span className="rounded-full border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-1 text-[#00ffd1]">
+                                <span className="rounded-full border border-[#c2c8d1] bg-[#d8dde5]/10 px-3 py-1 text-[#f4f7fb]">
+                                  {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
+                                </span>
+                                <span className="rounded-full border border-[#7a808a] bg-black/25 px-3 py-1 text-[#d4dae2]">
+                                  {getPaymentMethodLabel(order.paymentMethod)}
+                                </span>
+                                <span className="rounded-full border border-[#7a808a] bg-black/25 px-3 py-1 text-[#d4dae2]">
                                   {getShippingStatusLabel(order.shippingStatus)}
                                 </span>
                               </div>
@@ -2330,14 +2396,14 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-2xl border px-3 py-3 text-center transition-all ${
+                    className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-[22px] border px-4 py-4 text-center transition-all ${
                       active
-                        ? 'border-[#7bb8ff]/70 bg-[#7bb8ff]/15 text-[#eef6ff] shadow-[0_0_0_1px_rgba(123,184,255,0.2)]'
-                        : 'border-white/15 bg-[#171717] text-[#d3d3d3] hover:border-white/30 hover:bg-[#1d1d1d]'
+                        ? 'border-[#c4cad3] bg-[linear-gradient(180deg,rgba(196,202,211,0.18),rgba(255,255,255,0.04))] text-white shadow-[0_0_0_1px_rgba(196,202,211,0.22)]'
+                        : 'border-[#6c727b] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] text-[#e6e6e6] hover:border-[#b8bec8] hover:bg-[#1b1d20]'
                     }`}
                   >
-                    <span className="text-sm font-semibold">{tab.label}</span>
-                    <span className={`text-[11px] ${active ? 'text-[#bdd8ff]' : 'text-[#868686]'}`}>
+                    <span className="text-base font-semibold tracking-[-0.01em]">{tab.label}</span>
+                    <span className={`text-xs ${active ? 'text-[#d8dde5]' : 'text-[#9ea4ad]'}`}>
                       {typeof tab.count === 'number' ? `${tab.count}건` : '메뉴'}
                     </span>
                   </button>
@@ -2346,31 +2412,31 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             </div>
 
             {isPrimaryAdmin && (
-              <div className="rounded-2xl border border-white/10 bg-[#161616] p-3 md:p-4">
+              <div className="rounded-[24px] border border-[#727884] bg-[linear-gradient(180deg,#17191c_0%,#101113_100%)] p-4 md:p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#8ea8c7]">관리자 빠른 메뉴</p>
-                    <p className="mt-1 text-xs text-[#979797]">게시물 목록과 배송관리를 바로 열 수 있습니다.</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#c5ccd7]">관리자 빠른 메뉴</p>
+                    <p className="mt-1 text-sm text-[#a9afb8]">게시물 목록과 배송관리를 바로 열 수 있습니다.</p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:min-w-[520px]">
                     <button
                       type="button"
                       onClick={() => openAdminComposer('products')}
-                      className="rounded-xl border border-[#7bb8ff]/40 bg-[#7bb8ff]/10 px-3 py-3 text-center text-sm text-[#e6f2ff] hover:bg-[#7bb8ff]/20 transition-colors"
+                      className="rounded-2xl border border-[#8a93a2] bg-[#15181c] px-4 py-3 text-center text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
                     >
                       의류 게시물 목록
                     </button>
                     <button
                       type="button"
                       onClick={() => openAdminComposer('collections')}
-                      className="rounded-xl border border-[#00ffd1]/40 bg-[#00ffd1]/10 px-3 py-3 text-center text-sm text-[#e9fff9] hover:bg-[#00ffd1]/20 transition-colors"
+                      className="rounded-2xl border border-[#8a93a2] bg-[#15181c] px-4 py-3 text-center text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
                     >
                       컬렉션 게시물 목록
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveTab('adminOrders')}
-                      className="rounded-xl border border-white/15 bg-[#1c1c1c] px-3 py-3 text-center text-sm text-[#ededed] hover:bg-[#232323] transition-colors"
+                      className="rounded-2xl border border-[#8a93a2] bg-[#15181c] px-4 py-3 text-center text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
                     >
                       배송관리 열기
                     </button>
@@ -2381,15 +2447,15 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
         </div>
 
-        <section className="mt-4 min-h-0 flex flex-1 flex-col rounded-[24px] border border-white/10 bg-[#101010] p-4 md:p-6">
-          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-white/10 bg-[#171717] px-4 py-3 text-center md:flex-row md:items-center md:justify-between md:text-left">
+        <section className="mt-4 min-h-0 flex flex-1 flex-col rounded-[28px] border border-[#727884] bg-[linear-gradient(180deg,#121416_0%,#0b0c0e_100%)] p-4 md:p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+          <div className="mb-4 flex flex-col gap-2 rounded-[22px] border border-[#727884] bg-[linear-gradient(180deg,#1a1c20_0%,#121316_100%)] px-5 py-4 text-center md:flex-row md:items-center md:justify-between md:text-left">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-[#7f7f7f]">Current Tab</p>
-              <p className="mt-1 text-sm text-[#f5f5f5]">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#b9c0ca]">Current Tab</p>
+              <p className="mt-1 text-lg font-semibold text-white">
                 {tabs.find((tab) => tab.id === activeTab)?.label || '계정'}
               </p>
             </div>
-            <p className="text-xs text-[#969696]">버튼은 위에서 바로 선택할 수 있습니다.</p>
+            <p className="text-sm text-[#a9afb8]">실버 라인으로 카드 구역을 다시 나눴습니다.</p>
           </div>
           <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
             {tabContent[activeTab]}

@@ -294,26 +294,30 @@ export async function POST(request: Request) {
       throw new Error(deletePendingResult.error.message);
     }
 
-    const insertResult = await serviceClient.from('orders').insert({
-      order_code: payload.transactionId,
-      channel: payload.channel,
-      payment_method: 'nicepay',
-      payment_status: 'pending_payment',
-      currency: payload.pricing.currency,
-      amount_subtotal: Math.round(payload.pricing.subtotal),
-      amount_shipping: Math.round(payload.pricing.shipping),
-      amount_tax: Math.round(payload.pricing.tax),
-      amount_total: Math.round(payload.pricing.total),
-      customer_name: payload.customer.name,
-      customer_email: payload.customer.email,
-      customer_phone: payload.customer.phone,
-      customer_country: payload.customer.country,
-      customer_address: payload.customer.address,
-      guest_password_hash: pendingOrder.guestPasswordHash,
-      shipping_status: 'preparing',
-      items: payload.items,
-      raw_payload: buildPendingRawPayload(pendingOrder),
-    });
+    const insertResult = await serviceClient
+      .from('orders')
+      .insert({
+        order_code: payload.transactionId,
+        channel: payload.channel,
+        payment_method: 'nicepay',
+        payment_status: 'pending_payment',
+        currency: payload.pricing.currency,
+        amount_subtotal: Math.round(payload.pricing.subtotal),
+        amount_shipping: Math.round(payload.pricing.shipping),
+        amount_tax: Math.round(payload.pricing.tax),
+        amount_total: Math.round(payload.pricing.total),
+        customer_name: payload.customer.name,
+        customer_email: payload.customer.email,
+        customer_phone: payload.customer.phone,
+        customer_country: payload.customer.country,
+        customer_address: payload.customer.address,
+        guest_password_hash: pendingOrder.guestPasswordHash,
+        shipping_status: 'preparing',
+        items: payload.items,
+        raw_payload: buildPendingRawPayload(pendingOrder),
+      })
+      .select('id')
+      .maybeSingle();
 
     if (insertResult.error) {
       if (insertResult.error.code === '42P01') {
@@ -333,6 +337,10 @@ export async function POST(request: Request) {
         );
       }
       throw new Error(insertResult.error.message);
+    }
+
+    if (!insertResult.data?.id) {
+      throw new Error('NICE 결제 준비 주문을 저장하지 못했습니다.');
     }
 
     const response = NextResponse.json({

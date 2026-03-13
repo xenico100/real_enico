@@ -136,6 +136,7 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
   }
 
   const normalizedItems: OrderItem[] = [];
+  let subtotalFromItems = 0;
   for (const item of items) {
     if (!item || typeof item !== 'object') return null;
     const target = item as Partial<OrderItem>;
@@ -156,8 +157,14 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
       Number.isNaN(unitPrice) ||
       Number.isNaN(lineTotal) ||
       quantity <= 0 ||
-      quantity > 1
+      quantity > 99 ||
+      unitPrice < 0 ||
+      lineTotal < 0
     ) {
+      return null;
+    }
+
+    if (Math.round(unitPrice * quantity) !== Math.round(lineTotal)) {
       return null;
     }
 
@@ -170,6 +177,19 @@ function validatePayload(body: unknown): PayPalOrderPayload | null {
       unitPrice,
       lineTotal,
     });
+    subtotalFromItems += Math.round(lineTotal);
+  }
+
+  if (
+    subtotal < 0 ||
+    shipping < 0 ||
+    tax < 0 ||
+    total < 0 ||
+    Math.round(subtotal) !== subtotalFromItems ||
+    Math.round(subtotal + shipping + tax) !== Math.round(total) ||
+    pricing.currency.trim().toUpperCase() !== paypal.currency.trim().toUpperCase()
+  ) {
+    return null;
   }
 
   return {
