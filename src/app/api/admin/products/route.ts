@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -333,6 +334,7 @@ export async function POST(request: Request) {
       auth.serviceClient,
       sanitizeProductPayload(payload, true),
     );
+    revalidateTag('storefront-products', 'max');
     return NextResponse.json({
       message:
         result.strippedColumns.length > 0
@@ -386,6 +388,7 @@ export async function PATCH(request: Request) {
       id,
       sanitizeProductPayload(payload, false),
     );
+    revalidateTag('storefront-products', 'max');
     return NextResponse.json({
       message:
         result.strippedColumns.length > 0
@@ -432,5 +435,6 @@ export async function DELETE(request: Request) {
     );
   }
 
+  revalidateTag('storefront-products', 'max');
   return NextResponse.json({ message: '상품 삭제 완료' });
 }

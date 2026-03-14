@@ -504,6 +504,14 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
 
 function sortProductsByCsvLatest(products: Product[]) {
   return [...products].sort((a, b) => {
+    const aTime = new Date(a.updatedAt || 0).getTime();
+    const bTime = new Date(b.updatedAt || 0).getTime();
+    const timeDiff = bTime - aTime;
+
+    if (timeDiff !== 0) {
+      return timeDiff;
+    }
+
     const aIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(a.name));
     const bIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(b.name));
 
@@ -516,10 +524,7 @@ function sortProductsByCsvLatest(products: Product[]) {
 
     if (aHasCsv && !bHasCsv) return -1;
     if (!aHasCsv && bHasCsv) return 1;
-
-    const aTime = new Date(a.updatedAt || 0).getTime();
-    const bTime = new Date(b.updatedAt || 0).getTime();
-    return bTime - aTime;
+    return 0;
   });
 }
 
