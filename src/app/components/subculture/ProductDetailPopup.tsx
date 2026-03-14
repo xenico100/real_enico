@@ -24,7 +24,16 @@ function NaverIcon() {
   );
 }
 
-function getDefaultActiveImageIndex() {
+function getDefaultActiveImageIndex(images: string[]) {
+  if (images.length <= 1) {
+    return 0;
+  }
+
+  const firstImage = images[0]?.toLowerCase() || '';
+  if (firstImage.includes('/thumb/')) {
+    return 1;
+  }
+
   return 0;
 }
 
@@ -32,7 +41,13 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   const { cart, addToCart } = useFashionCart();
   const [imageState, setImageState] = useState(() => ({
     productId: product.id,
-    index: getDefaultActiveImageIndex(),
+    index: getDefaultActiveImageIndex(
+      Array.isArray(product.images)
+        ? product.images.filter((item): item is string => typeof item === 'string')
+        : typeof product.image === 'string' && product.image
+          ? [product.image]
+          : [],
+    ),
   }));
   const touchStartX = useRef<number | null>(null);
   const isInCart = cart.some(
@@ -58,7 +73,9 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   }, [product.image, product.images]);
 
   const canSlide = productImages.length > 1;
-  const activeImageIndex = imageState.productId === product.id ? imageState.index : 0;
+  const defaultActiveImageIndex = getDefaultActiveImageIndex(productImages);
+  const activeImageIndex =
+    imageState.productId === product.id ? imageState.index : defaultActiveImageIndex;
   const activeImage = productImages[activeImageIndex] || '';
   const detailImages = productImages
     .map((image, index) => ({ image, index }))
