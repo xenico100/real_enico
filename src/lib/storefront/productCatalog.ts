@@ -510,6 +510,11 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
 
 function sortProductsByCsvLatest(products: Product[]) {
   return [...products].sort((a, b) => {
+    const soldOutDiff = Number(Boolean(a.isSoldOut)) - Number(Boolean(b.isSoldOut));
+    if (soldOutDiff !== 0) {
+      return soldOutDiff;
+    }
+
     const aTime = new Date(a.updatedAt || 0).getTime();
     const bTime = new Date(b.updatedAt || 0).getTime();
     const timeDiff = bTime - aTime;
