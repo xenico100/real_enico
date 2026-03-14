@@ -116,11 +116,6 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     window.open(smartstoreUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const specs = (product.apparelSpecs || '')
-    .split(/\r?\n|,/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
   return (
     <AnimatePresence>
       <motion.div
@@ -319,10 +314,6 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 </div>
               </div>
 
-              <div className="font-mono text-xs md:text-sm text-[#888] mb-8 leading-relaxed pr-1">
-                <p>{product.description || '상세 설명이 없습니다.'}</p>
-              </div>
-
               {/* Extended Detail Sections (scrollable) */}
               <div className="mb-10 space-y-6 border-t border-[#333] pt-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-[11px]">
@@ -339,28 +330,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 <section className="border border-[#333] bg-[#0f0f0f]">
                   <div className="px-4 py-2 border-b border-[#333] bg-[#111]">
                     <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#00ffd1]">
-                      의류 사양
-                    </h3>
-                  </div>
-                  <div className="p-4 font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed">
-                    {specs.length > 0 ? (
-                      <ul className="space-y-2">
-                        {specs.map((line, index) => (
-                          <li key={`${line}-${index}`} className="border border-[#222] bg-[#111] px-3 py-2">
-                            {line}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>등록된 의류 사양이 없습니다.</p>
-                    )}
-                  </div>
-                </section>
-
-                <section className="border border-[#333] bg-[#0f0f0f]">
-                  <div className="px-4 py-2 border-b border-[#333] bg-[#111]">
-                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#00ffd1]">
-                      구조 상세설명
+                      상세설명
                     </h3>
                   </div>
                   <div className="p-4 font-mono text-xs md:text-sm text-[#9a9a9a] leading-relaxed whitespace-pre-wrap">

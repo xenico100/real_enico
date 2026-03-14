@@ -3,6 +3,7 @@ import {
   isProductCategory,
   type ProductCategory,
 } from '@/app/constants/productCategories';
+import { buildUnifiedProductDescription } from '@/lib/storefront/productDescription';
 import { isProductMarkedSoldOut } from '@/lib/storefront/productAvailability';
 import type { StorefrontProductRow } from '@/lib/storefront/shared';
 
@@ -14,7 +15,6 @@ export interface Product {
   image: string;
   images: string[];
   description: string;
-  apparelSpecs?: string;
   updatedAt?: string | null;
   isSoldOut?: boolean;
   smartstoreUrl?: string;
@@ -32,7 +32,6 @@ const NICEPAY_TEST_PRODUCT: Product = {
   images: ['https://dummyimage.com/600x800/031a17/00ffd1&text=NICE+1000WON+TEST'],
   description:
     '1000원 결제창 동작 확인용 테스트 상품입니다. 실제 운영 상품이 아니라 NICE Payments 승인 흐름만 점검할 때 사용합니다.',
-  apparelSpecs: 'TEST ITEM, PRICE 1000 KRW, NICEPAY CHECKOUT ONLY',
   updatedAt: '2026-03-11T15:25:00.000Z',
 };
 
@@ -481,10 +480,11 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
   const title = row.title?.trim() || `상품 ${row.id}`;
   const numericPrice = Number(row.price);
   const price = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const description =
-    explicitDescription || plainDetail || rawDescription || `${title} 상세 페이지`;
-  const apparelSpecs =
-    (typeof row.specs === 'string' ? row.specs.trim() : '') || rawSpecs;
+  const storedSpecs = typeof row.specs === 'string' ? row.specs.trim() : '';
+  const description = buildUnifiedProductDescription(
+    [explicitDescription, plainDetail, rawDescription, storedSpecs, rawSpecs],
+    { title },
+  );
 
   return {
     id: row.id,
@@ -494,7 +494,6 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     image: images[0] || FALLBACK_IMAGE_URL,
     images: images.length > 0 ? images : [FALLBACK_IMAGE_URL],
     description,
-    apparelSpecs: apparelSpecs || undefined,
     updatedAt: row.updated_at ?? row.created_at ?? null,
     isSoldOut:
       SOLD_OUT_PRODUCT_KEY_SET.has(normalizeCategoryHintKey(title)) ||

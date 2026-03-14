@@ -11,6 +11,7 @@ import {
   isProductCategory,
   type ProductCategory,
 } from '@/app/constants/productCategories';
+import { buildUnifiedProductDescription } from '@/lib/storefront/productDescription';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type ProductRow = {
@@ -31,7 +32,6 @@ type ProductFormState = {
   title: string;
   category: ProductCategory;
   description: string;
-  specs: string;
   price: string;
   currency: string;
   isPublished: boolean;
@@ -74,7 +74,6 @@ const emptyForm: ProductFormState = {
   title: '',
   category: DEFAULT_PRODUCT_CATEGORY,
   description: '',
-  specs: '',
   price: '',
   currency: 'KRW',
   isPublished: true,
@@ -284,7 +283,13 @@ function AdminConsoleInner() {
           id: String(row.id ?? ''),
           title: typeof row.title === 'string' ? row.title : null,
           category: resolvedCategory,
-          description: typeof row.description === 'string' ? row.description : null,
+          description: buildUnifiedProductDescription(
+            [
+              typeof row.description === 'string' ? row.description : null,
+              typeof row.specs === 'string' ? row.specs : null,
+            ],
+            { title: typeof row.title === 'string' ? row.title : null },
+          ) || null,
           specs: typeof row.specs === 'string' ? row.specs : null,
           price: parsedPrice,
           currency: typeof row.currency === 'string' ? row.currency : 'KRW',
@@ -432,7 +437,6 @@ function AdminConsoleInner() {
       title: product.title ?? '',
       category: isProductCategory(categoryValue) ? categoryValue : DEFAULT_PRODUCT_CATEGORY,
       description: product.description ?? '',
-      specs: product.specs ?? '',
       price: product.price === null || product.price === undefined ? '' : String(product.price),
       currency: product.currency ?? 'KRW',
       isPublished: Boolean(product.is_published),
@@ -536,7 +540,7 @@ function AdminConsoleInner() {
         title: form.title.trim(),
         category: form.category,
         description: form.description.trim() || null,
-        specs: form.specs.trim() || null,
+        specs: null,
         price: parsedPrice,
         currency: form.currency.trim().toUpperCase() || 'KRW',
         images: form.images,
@@ -892,21 +896,6 @@ function AdminConsoleInner() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block font-mono text-[10px] uppercase text-[#9b9b9b] mb-2">
-                      의류 사양
-                    </label>
-                    <textarea
-                      value={form.specs}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, specs: e.target.value }))
-                      }
-                      rows={5}
-                      className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1] resize-y"
-                      placeholder={'소재: 코튼 100%\n핏: 오버핏\n세탁: 찬물 단독세탁'}
-                    />
-                  </div>
-
                   <label className="flex items-center gap-3 p-3 border border-[#333] bg-[#111] cursor-pointer">
                     <input
                       type="checkbox"
@@ -1170,10 +1159,6 @@ function AdminConsoleInner() {
                           <p className="min-h-[72px] font-mono text-xs leading-relaxed text-[#b2b2b2] line-clamp-4">
                             {product.description || '설명이 없습니다.'}
                           </p>
-                          <p className="font-mono text-xs leading-relaxed text-[#7fded0] line-clamp-2">
-                            {product.specs || '의류 사양 없음'}
-                          </p>
-
                           <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-3 text-[10px] font-mono text-[#9b9b9b]">
                             <div>
                               <p className="mb-1">Created</p>
