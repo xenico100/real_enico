@@ -99,22 +99,6 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function extractMissingProductsColumn(error: unknown) {
-  const message = getErrorMessage(error, '');
-  if (!message) return null;
-
-  const schemaCacheMatch = message.match(/'([^']+)' column/i);
-  if (schemaCacheMatch?.[1]) return schemaCacheMatch[1];
-
-  const productsColumnMatch = message.match(/products\.([a-zA-Z0-9_]+)/i);
-  if (productsColumnMatch?.[1]) return productsColumnMatch[1];
-
-  const genericColumnMatch = message.match(/column\s+\"?([a-zA-Z0-9_]+)\"?\s+does not exist/i);
-  if (genericColumnMatch?.[1]) return genericColumnMatch[1];
-
-  return null;
-}
-
 function normalizeImages(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === 'string');
@@ -166,6 +150,44 @@ function resolveProductCategory(category: string | null): ProductCategory {
   return DEFAULT_PRODUCT_CATEGORY;
 }
 
+function mapProductRow(row: Record<string, unknown>): ProductRow {
+  const categoryValue = typeof row.category === 'string' ? row.category : null;
+  const categoryNameRaw =
+    typeof row.category_name_raw === 'string' ? row.category_name_raw : null;
+  const resolvedCategory =
+    (categoryValue && isProductCategory(categoryValue) && categoryValue) ||
+    (categoryNameRaw && isProductCategory(categoryNameRaw) && categoryNameRaw) ||
+    DEFAULT_PRODUCT_CATEGORY;
+  const rawPrice = row.price;
+  const parsedPrice =
+    typeof rawPrice === 'number'
+      ? rawPrice
+      : typeof rawPrice === 'string'
+        ? rawPrice
+        : null;
+
+  return {
+    id: String(row.id ?? ''),
+    title: typeof row.title === 'string' ? row.title : null,
+    category: resolvedCategory,
+    description: buildUnifiedProductDescription(
+      [
+        typeof row.description === 'string' ? row.description : null,
+        typeof row.specs === 'string' ? row.specs : null,
+      ],
+      { title: typeof row.title === 'string' ? row.title : null },
+    ) || null,
+    specs: typeof row.specs === 'string' ? row.specs : null,
+    price: parsedPrice,
+    currency: typeof row.currency === 'string' ? row.currency : 'KRW',
+    images: row.images,
+    is_published:
+      typeof row.is_published === 'boolean' ? row.is_published : true,
+    created_at: typeof row.created_at === 'string' ? row.created_at : null,
+    updated_at: typeof row.updated_at === 'string' ? row.updated_at : null,
+  };
+}
+
 function AdminConsoleInner() {
   const [isEmbedded, setIsEmbedded] = useState(false);
   const { isConfigured, isAuthReady, isAuthenticated, session, user } = useAuth();
@@ -186,6 +208,7 @@ function AdminConsoleInner() {
   const [dailyStatsSummary, setDailyStatsSummary] = useState<DailyStatsSummary | null>(null);
   const [isLoadingDailyStats, setIsLoadingDailyStats] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
 
   const canManageProducts = isAuthenticated && isAdmin;
   const sortedProducts = useMemo(
@@ -246,16 +269,51 @@ function AdminConsoleInner() {
     }
   };
 
+  const focusTitleInput = () => {
+    requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+    });
+  };
+
+  const startNewProduct = () => {
+    clearMessages();
+    resetForm();
+    setWorkspaceView('editor');
+    focusTitleInput();
+  };
+
   const loadProducts = async (opts?: { forcePublishedOnly?: boolean }) => {
     if (!isConfigured) return;
 
     clearMessages();
     setIsLoadingProducts(true);
     try {
+      const publishedOnly = opts?.forcePublishedOnly ?? !canManageProducts;
+
+      if (canManageProducts && !publishedOnly && session?.access_token) {
+        const response = await fetch('/api/admin/products?limit=500', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        const payload = (await response.json()) as {
+          products?: Array<Record<string, unknown>>;
+          message?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.message || '상품 목록을 불러오지 못했습니다.');
+        }
+
+        const mapped = (Array.isArray(payload.products) ? payload.products : []).map(mapProductRow);
+        setProducts(mapped);
+        return;
+      }
+
       const supabase = getSupabaseOrThrow();
       let query = supabase.from('products').select('*');
-
-      const publishedOnly = opts?.forcePublishedOnly ?? !canManageProducts;
       if (publishedOnly) {
         query = query.eq('is_published', true);
       }
@@ -263,43 +321,7 @@ function AdminConsoleInner() {
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
-      const mapped = ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
-        const categoryValue = typeof row.category === 'string' ? row.category : null;
-        const categoryNameRaw =
-          typeof row.category_name_raw === 'string' ? row.category_name_raw : null;
-        const resolvedCategory =
-          (categoryValue && isProductCategory(categoryValue) && categoryValue) ||
-          (categoryNameRaw && isProductCategory(categoryNameRaw) && categoryNameRaw) ||
-          DEFAULT_PRODUCT_CATEGORY;
-        const rawPrice = row.price;
-        const parsedPrice =
-          typeof rawPrice === 'number'
-            ? rawPrice
-            : typeof rawPrice === 'string'
-              ? rawPrice
-              : null;
-
-        return {
-          id: String(row.id ?? ''),
-          title: typeof row.title === 'string' ? row.title : null,
-          category: resolvedCategory,
-          description: buildUnifiedProductDescription(
-            [
-              typeof row.description === 'string' ? row.description : null,
-              typeof row.specs === 'string' ? row.specs : null,
-            ],
-            { title: typeof row.title === 'string' ? row.title : null },
-          ) || null,
-          specs: typeof row.specs === 'string' ? row.specs : null,
-          price: parsedPrice,
-          currency: typeof row.currency === 'string' ? row.currency : 'KRW',
-          images: row.images,
-          is_published:
-            typeof row.is_published === 'boolean' ? row.is_published : true,
-          created_at: typeof row.created_at === 'string' ? row.created_at : null,
-          updated_at: typeof row.updated_at === 'string' ? row.updated_at : null,
-        } satisfies ProductRow;
-      });
+      const mapped = ((data ?? []) as Array<Record<string, unknown>>).map(mapProductRow);
 
       setProducts(mapped);
     } catch (error) {
@@ -386,7 +408,7 @@ function AdminConsoleInner() {
     if (isCheckingAdmin) return;
     void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConfigured, isAuthReady, isCheckingAdmin, canManageProducts]);
+  }, [isConfigured, isAuthReady, isCheckingAdmin, canManageProducts, session?.access_token]);
 
   useEffect(() => {
     if (!isAuthenticated || !isAdmin || !session?.access_token) {
@@ -443,6 +465,7 @@ function AdminConsoleInner() {
       images: normalizeImages(product.images),
     });
     setManualImageUrl('');
+    focusTitleInput();
   };
 
   const handleAddManualImage = () => {
@@ -534,70 +557,42 @@ function AdminConsoleInner() {
     clearMessages();
 
     try {
-      const supabase = getSupabaseOrThrow();
-      const now = new Date().toISOString();
-      const payload: Record<string, unknown> = {
+      if (!session?.access_token) {
+        throw new Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+      }
+
+      const payload = {
         title: form.title.trim(),
         category: form.category,
         description: form.description.trim() || null,
         specs: null,
         price: parsedPrice,
         currency: form.currency.trim().toUpperCase() || 'KRW',
-        images: form.images,
+        images: form.images.map((item) => item.trim()).filter(Boolean),
         is_published: form.isPublished,
-        updated_at: now,
       };
 
-      const workingPayload: Record<string, unknown> = editingProductId
-        ? { ...payload }
-        : { ...payload, created_at: now };
-      const strippedColumns: string[] = [];
+      const response = await fetch('/api/admin/products', {
+        method: editingProductId ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(editingProductId ? { id: editingProductId, ...payload } : payload),
+      });
 
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        let saveError: unknown = null;
-
-        if (editingProductId) {
-          const result = await supabase
-            .from('products')
-            .update(workingPayload)
-            .eq('id', editingProductId);
-          saveError = result.error;
-        } else {
-          const result = await supabase.from('products').insert(workingPayload);
-          saveError = result.error;
-        }
-
-        if (!saveError) {
-          break;
-        }
-
-        const missingColumn = extractMissingProductsColumn(saveError);
-        if (!missingColumn || !(missingColumn in workingPayload)) {
-          throw saveError;
-        }
-
-        delete workingPayload[missingColumn];
-        if (!strippedColumns.includes(missingColumn)) {
-          strippedColumns.push(missingColumn);
-        }
+      const result = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(result.message || '상품 저장 실패');
       }
 
-      if (editingProductId) {
-        setPageMessage(
-          strippedColumns.length > 0
-            ? `상품 수정 완료 (누락 컬럼 제외: ${strippedColumns.join(', ')})`
-            : '상품 수정 완료',
-        );
-      } else {
-        setPageMessage(
-          strippedColumns.length > 0
-            ? `상품 등록 완료 (누락 컬럼 제외: ${strippedColumns.join(', ')})`
-            : '상품 등록 완료',
-        );
-      }
-
+      const successMessage =
+        result.message || (editingProductId ? '상품 수정 완료' : '상품 등록 완료');
       resetForm();
+      setWorkspaceView('list');
+      setListCategoryFilter('전체');
       await loadProducts({ forcePublishedOnly: false });
+      setPageMessage(successMessage);
     } catch (error) {
       setPageError(getErrorMessage(error, '상품 저장 실패'));
     } finally {
@@ -613,15 +608,29 @@ function AdminConsoleInner() {
     clearMessages();
 
     try {
-      const supabase = getSupabaseOrThrow();
-      const { error } = await supabase.from('products').delete().eq('id', productId);
-      if (error) throw error;
+      if (!session?.access_token) {
+        throw new Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+      }
+
+      const response = await fetch('/api/admin/products', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ id: productId }),
+      });
+
+      const result = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(result.message || '상품 삭제 실패');
+      }
 
       setProducts((prev) => prev.filter((product) => product.id !== productId));
       if (editingProductId === productId) {
         resetForm();
       }
-      setPageMessage('상품 삭제 완료');
+      setPageMessage(result.message || '상품 삭제 완료');
     } catch (error) {
       setPageError(getErrorMessage(error, '상품 삭제 실패'));
     }
@@ -656,7 +665,7 @@ function AdminConsoleInner() {
             </button>
             <button
               type="button"
-              onClick={resetForm}
+              onClick={startNewProduct}
               className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-[#7bb8ff]/35 bg-[#7bb8ff]/10 px-3 py-3 font-mono text-sm text-[#e8f3ff] transition-colors hover:bg-[#7bb8ff]/20"
             >
               <Plus size={14} />
@@ -691,6 +700,17 @@ function AdminConsoleInner() {
 
         {isConfigured && (
           <div className="space-y-4">
+            {(pageMessage || pageError) && (
+              <div
+                className={`border p-4 font-mono text-xs ${
+                  pageError
+                    ? 'border-red-700 bg-red-950/20 text-red-300'
+                    : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+                }`}
+              >
+                {pageError || pageMessage}
+              </div>
+            )}
             {canManageProducts && (
               <div className="border border-[#00ffd1]/35 bg-[#00ffd1]/5 p-3 md:p-4">
                 <div className="flex flex-col gap-3">
@@ -803,7 +823,7 @@ function AdminConsoleInner() {
                     {editingProductId && (
                       <button
                         type="button"
-                        onClick={resetForm}
+                        onClick={startNewProduct}
                         className="rounded-xl border border-white/15 px-3 py-2 font-mono text-xs text-[#d9d9d9] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] uppercase"
                       >
                         Reset
@@ -816,6 +836,7 @@ function AdminConsoleInner() {
                       Title
                     </label>
                     <input
+                      ref={titleInputRef}
                       type="text"
                       value={form.title}
                       onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
@@ -1013,18 +1034,6 @@ function AdminConsoleInner() {
             </div>
 
             <div className={`space-y-4 ${workspaceView === 'editor' ? 'hidden' : ''}`}>
-              {(pageMessage || pageError) && (
-                <div
-                  className={`border p-4 font-mono text-xs ${
-                    pageError
-                      ? 'border-red-700 bg-red-950/20 text-red-300'
-                      : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
-                  }`}
-                >
-                  {pageError || pageMessage}
-                </div>
-              )}
-
               <div className="rounded-[24px] border border-white/10 bg-[#111] p-4 md:p-5">
                 <div>
                   <p className="font-mono text-[11px] uppercase tracking-widest text-[#9b9b9b]">
