@@ -14,8 +14,11 @@ import {
 } from '@/lib/orders/nicepay';
 import {
   extractPersistentProductIds,
-  isProductMarkedSoldOut,
 } from '@/lib/storefront/productAvailability';
+import {
+  fetchProductAvailabilitySnapshot,
+  isProductUnavailable,
+} from '@/lib/storefront/productAvailabilityDb';
 
 type NicepayPreparePayload = {
   transactionId: string;
@@ -78,21 +81,14 @@ async function ensureItemsAvailable(
   const productIds = extractPersistentProductIds(items);
   if (productIds.length === 0) return;
 
-  const { data, error } = await serviceClient
-    .from('products')
-    .select('id, title, raw')
-    .in('id', productIds);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as Array<{ id: string; title?: string | null; raw?: unknown }>;
+  const { rows } = await fetchProductAvailabilitySnapshot(serviceClient, productIds, {
+    includeTitle: true,
+  });
   if (rows.length !== productIds.length) {
     throw new Error('이미 판매 완료되었거나 더 이상 구매할 수 없는 상품이 포함되어 있습니다.');
   }
 
-  const soldOutProduct = rows.find((row) => isProductMarkedSoldOut(row.raw));
+  const soldOutProduct = rows.find((row) => isProductUnavailable(row));
   if (soldOutProduct) {
     throw new Error(
       `${soldOutProduct.title?.trim() || '선택한 상품'}은 이미 품절되어 결제를 진행할 수 없습니다.`,

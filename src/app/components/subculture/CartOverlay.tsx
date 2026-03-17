@@ -29,8 +29,6 @@ const DOMESTIC_REGION = '대한민국';
 const DOMESTIC_SHIPPING_FEE = 3000;
 const INTERNATIONAL_SHIPPING_FEE = 40000;
 const PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY = 'enicoveck_pending_account_profile_sync';
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
-const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
   'overflow-hidden rounded-[16px] border border-white/8 bg-[linear-gradient(180deg,#16191f_0%,#111319_100%)] px-4 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-5 md:py-5';
@@ -204,12 +202,6 @@ function getNicepayErrorMessage(result: NicepayErrorResult | unknown) {
   return message || (code ? `NICE Payments 결제창 실행에 실패했습니다. (${code})` : 'NICE Payments 결제창 실행에 실패했습니다.');
 }
 
-function isDesignatedAdmin(email: string | null | undefined) {
-  const normalized = (email || '').trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
-}
-
 async function ensureNicepaySdkLoaded() {
   if (typeof window === 'undefined') {
     throw new Error('브라우저 환경에서만 NICE Payments를 실행할 수 있습니다.');
@@ -283,9 +275,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [paypalRetryNonce, setPaypalRetryNonce] = useState(0);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const isAdminCheckoutUser = isDesignatedAdmin(user?.email);
   const canUseNicepayCheckout = isAuthenticated;
-  const shouldShowPaypal = !isAuthenticated || isAdminCheckoutUser;
+  const shouldShowPaypal = true;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1371,7 +1362,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       >
                         <span className="flex min-h-[34px] items-center justify-between gap-3">
                           <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-black">
-                            {isStartingNicepay ? '카드결제 준비중...' : '카드결제'}
+                            {isStartingNicepay
+                              ? '카드결제 준비중... (나이스페이먼츠)'
+                              : '카드결제 (나이스페이먼츠)'}
                           </span>
                           <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                             →
