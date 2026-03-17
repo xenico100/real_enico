@@ -33,9 +33,11 @@ const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호
 const CHECKOUT_SECTION_CLASS =
   'overflow-hidden rounded-none border border-[#cfd6df]/18 bg-[linear-gradient(180deg,#171b22_0%,#11141a_100%)] px-5 py-5 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-6 md:py-6';
 const CHECKOUT_FIELD_GROUP_CLASS =
-  'rounded-none border border-[#cdd5df]/28 bg-[linear-gradient(180deg,#1b1f27_0%,#151922_100%)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]';
+  'rounded-none border border-[#cdd5df]/28 bg-[linear-gradient(180deg,#1b1f27_0%,#151922_100%)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] md:px-6 md:py-6';
 const CHECKOUT_FIELD_CLASS =
   'w-full rounded-none border border-[#4a5361] bg-[#11151c] px-4 py-3.5 text-[15px] leading-[1.55] text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#d8dee8] focus:outline-none focus:ring-2 focus:ring-[#d8dee8]/15';
+const CHECKOUT_FIELD_HEADER_CLASS = 'border-b border-[#d3dae3]/12 pb-4';
+const CHECKOUT_FIELD_BODY_CLASS = 'pt-4';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -1150,50 +1152,62 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   )}
                 </>
               ) : (
-                <div className="space-y-7">
+                <div className="space-y-8">
                   <div className={CHECKOUT_SECTION_CLASS}>
                     <div className="mb-5 border-b border-[#d3dae3]/12 pb-4">
                       <h3 className="text-xl font-semibold tracking-[-0.03em] text-white">주문자 정보</h3>
                     </div>
-                    <div className="space-y-5">
+                    <div className="space-y-6">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
-                          이메일
-                        </label>
-                        <input
-                          ref={checkoutEmailInputRef}
-                          type="email"
-                          value={checkoutEmail}
-                          onChange={(e) => setCheckoutEmail(e.target.value)}
-                          placeholder="example@email.com"
-                          className={CHECKOUT_FIELD_CLASS}
-                        />
+                        <div className={CHECKOUT_FIELD_HEADER_CLASS}>
+                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                            이메일
+                          </label>
+                        </div>
+                        <div className={CHECKOUT_FIELD_BODY_CLASS}>
+                          <input
+                            ref={checkoutEmailInputRef}
+                            type="email"
+                            value={checkoutEmail}
+                            onChange={(e) => setCheckoutEmail(e.target.value)}
+                            placeholder="example@email.com"
+                            className={CHECKOUT_FIELD_CLASS}
+                          />
+                        </div>
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
-                          핸드폰 번호
-                        </label>
-                        <input
-                          ref={checkoutPhoneInputRef}
-                          type="tel"
-                          value={checkoutPhone}
-                          onChange={(e) => setCheckoutPhone(e.target.value)}
-                          placeholder="010-0000-0000"
-                          className={CHECKOUT_FIELD_CLASS}
-                        />
+                        <div className={CHECKOUT_FIELD_HEADER_CLASS}>
+                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                            핸드폰 번호
+                          </label>
+                        </div>
+                        <div className={CHECKOUT_FIELD_BODY_CLASS}>
+                          <input
+                            ref={checkoutPhoneInputRef}
+                            type="tel"
+                            value={checkoutPhone}
+                            onChange={(e) => setCheckoutPhone(e.target.value)}
+                            placeholder="010-0000-0000"
+                            className={CHECKOUT_FIELD_CLASS}
+                          />
+                        </div>
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
-                          수령인 이름
-                        </label>
-                        <input
-                          ref={checkoutNameInputRef}
-                          type="text"
-                          value={checkoutName}
-                          onChange={(e) => setCheckoutName(e.target.value)}
-                          placeholder="수령인 이름 입력"
-                          className={CHECKOUT_FIELD_CLASS}
-                        />
+                        <div className={CHECKOUT_FIELD_HEADER_CLASS}>
+                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                            수령인 이름
+                          </label>
+                        </div>
+                        <div className={CHECKOUT_FIELD_BODY_CLASS}>
+                          <input
+                            ref={checkoutNameInputRef}
+                            type="text"
+                            value={checkoutName}
+                            onChange={(e) => setCheckoutName(e.target.value)}
+                            placeholder="수령인 이름 입력"
+                            className={CHECKOUT_FIELD_CLASS}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1202,44 +1216,52 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     <div className="mb-5 border-b border-[#d3dae3]/12 pb-4">
                       <h3 className="text-xl font-semibold tracking-[-0.03em] text-white">배송 정보</h3>
                     </div>
-                    <div className="space-y-5">
+                    <div className="space-y-6">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
-                          구역 (국가)
-                        </label>
-                        <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
-                          {isNicepayTestOrder
-                            ? 'NICE 1000원 테스트 상품은 배송비 없이 결제됩니다.'
-                            : '대한민국 배송비 3,000원 / 해외 배송비 40,000원'}
-                        </p>
-                        <select
-                          ref={checkoutRegionSelectRef}
-                          value={checkoutCountry}
-                          onChange={(e) => setCheckoutCountry(e.target.value)}
-                          className={CHECKOUT_FIELD_CLASS}
-                        >
-                          {CHECKOUT_REGIONS.map((region) => (
-                            <option key={region} value={region}>
-                              {region}
-                            </option>
-                          ))}
-                        </select>
+                        <div className={CHECKOUT_FIELD_HEADER_CLASS}>
+                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                            구역 (국가)
+                          </label>
+                          <p className="mt-3 text-xs leading-relaxed text-[#8e96a3]">
+                            {isNicepayTestOrder
+                              ? 'NICE 1000원 테스트 상품은 배송비 없이 결제됩니다.'
+                              : '대한민국 배송비 3,000원 / 해외 배송비 40,000원'}
+                          </p>
+                        </div>
+                        <div className={CHECKOUT_FIELD_BODY_CLASS}>
+                          <select
+                            ref={checkoutRegionSelectRef}
+                            value={checkoutCountry}
+                            onChange={(e) => setCheckoutCountry(e.target.value)}
+                            className={CHECKOUT_FIELD_CLASS}
+                          >
+                            {CHECKOUT_REGIONS.map((region) => (
+                              <option key={region} value={region}>
+                                {region}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
-                          상세 주소
-                        </label>
-                        <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
-                          수령지 주소를 상세하게 입력하세요. 도로명, 건물명, 호수까지 적어야 합니다.
-                        </p>
-                        <textarea
-                          ref={checkoutAddressInputRef}
-                          value={checkoutAddress}
-                          onChange={(e) => setCheckoutAddress(e.target.value)}
-                          rows={4}
-                          placeholder="수령지 / 도로명 / 건물명 / 도시 / 우편번호"
-                          className={`${CHECKOUT_FIELD_CLASS} resize-none`}
-                        />
+                        <div className={CHECKOUT_FIELD_HEADER_CLASS}>
+                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                            상세 주소
+                          </label>
+                          <p className="mt-3 text-xs leading-relaxed text-[#8e96a3]">
+                            수령지 주소를 상세하게 입력하세요. 도로명, 건물명, 호수까지 적어야 합니다.
+                          </p>
+                        </div>
+                        <div className={CHECKOUT_FIELD_BODY_CLASS}>
+                          <textarea
+                            ref={checkoutAddressInputRef}
+                            value={checkoutAddress}
+                            onChange={(e) => setCheckoutAddress(e.target.value)}
+                            rows={4}
+                            placeholder="수령지 / 도로명 / 건물명 / 도시 / 우편번호"
+                            className={`${CHECKOUT_FIELD_CLASS} resize-none`}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
