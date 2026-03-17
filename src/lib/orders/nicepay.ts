@@ -41,9 +41,31 @@ export type NicepayPendingOrder = {
 
 export const NICEPAY_PENDING_ORDER_COOKIE = 'nicepay_pending_order';
 export const NICEPAY_PENDING_ORDER_MAX_AGE = 15 * 60;
+const NICEPAY_MAX_GOODS_NAME_LENGTH = 40;
+const NICEPAY_DEFAULT_GOODS_NAME = 'ENICO VECK ORDER';
 
 export function getNicepayPendingOrderCookieSameSite() {
   return process.env.NODE_ENV === 'production' ? 'none' : 'lax';
+}
+
+function normalizeNicepayText(value: string) {
+  return value
+    .normalize('NFKC')
+    .replace(/[^0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateNicepayText(value: string, maxLength: number) {
+  return Array.from(value).slice(0, maxLength).join('').trim();
+}
+
+function sanitizeNicepayGoodsLabel(value: string) {
+  const normalized = truncateNicepayText(
+    normalizeNicepayText(value),
+    NICEPAY_MAX_GOODS_NAME_LENGTH,
+  );
+  return normalized || NICEPAY_DEFAULT_GOODS_NAME;
 }
 
 function toBase64Url(value: string) {
@@ -55,12 +77,20 @@ function fromBase64Url(value: string) {
 }
 
 export function buildNicepayGoodsName(items: OrderItem[]) {
-  const firstItem = items[0]?.name?.trim() || 'ENICO VECK ORDER';
-  return items.length > 1 ? `${firstItem} 외 ${items.length - 1}건` : firstItem;
+  const firstItem = sanitizeNicepayGoodsLabel(items[0]?.name?.trim() || NICEPAY_DEFAULT_GOODS_NAME);
+  if (items.length <= 1) return firstItem;
+
+  const suffix = ` 외 ${items.length - 1}건`;
+  const maxBaseLength = Math.max(1, NICEPAY_MAX_GOODS_NAME_LENGTH - suffix.length);
+  const baseName =
+    truncateNicepayText(firstItem, maxBaseLength) ||
+    truncateNicepayText(NICEPAY_DEFAULT_GOODS_NAME, maxBaseLength);
+
+  return `${baseName}${suffix}`;
 }
 
 export function generateNicepayOrderId() {
-  return `nicepay-${Date.now()}-${randomBytes(4).toString('hex')}`;
+  return `NP${Date.now()}${randomBytes(4).toString('hex').toUpperCase()}`;
 }
 
 export function getNicepayApiBaseUrl(clientKey: string) {
