@@ -13,9 +13,12 @@ import {
   verifyNicepayPendingOrder,
 } from '@/lib/orders/nicepay';
 import {
-  buildSoldOutRaw,
   extractPersistentProductIds,
 } from '@/lib/storefront/productAvailability';
+import {
+  fetchProductAvailabilitySnapshot,
+  markProductsSoldOut,
+} from '@/lib/storefront/productAvailabilityDb';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -240,34 +243,12 @@ async function markPurchasedItemsSoldOut(
   const productIds = extractPersistentProductIds(pendingOrder.items);
   if (productIds.length === 0) return;
 
-  const { data, error } = await serviceClient
-    .from('products')
-    .select('id, raw')
-    .in('id', productIds);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as Array<{ id: string; raw: unknown }>;
-  const updateResults = await Promise.all(
-    rows.map((row) =>
-      serviceClient
-        .from('products')
-        .update({
-          raw: buildSoldOutRaw(row.raw, {
-            orderCode: pendingOrder.transactionId,
-            paymentMethod: 'nicepay',
-          }),
-        })
-        .eq('id', row.id),
-    ),
-  );
-
-  const failedUpdate = updateResults.find((result) => result.error);
-  if (failedUpdate?.error) {
-    throw new Error(failedUpdate.error.message);
-  }
+  const snapshot = await fetchProductAvailabilitySnapshot(serviceClient, productIds);
+  await markProductsSoldOut(serviceClient, snapshot.rows, {
+    hasRawColumn: snapshot.hasRawColumn,
+    orderCode: pendingOrder.transactionId,
+    paymentMethod: 'nicepay',
+  });
 
   revalidateTag('storefront-products', 'max');
 }

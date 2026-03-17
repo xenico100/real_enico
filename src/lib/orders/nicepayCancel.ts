@@ -6,9 +6,12 @@ import { revalidateTag } from 'next/cache';
 import { getNicepayApiBaseUrl } from '@/lib/orders/nicepay';
 import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
 import {
-  buildAvailableRaw,
   extractPersistentProductIds,
 } from '@/lib/storefront/productAvailability';
+import {
+  fetchProductAvailabilitySnapshot,
+  restoreProductsAvailability,
+} from '@/lib/storefront/productAvailabilityDb';
 
 type CancelActor = 'member' | 'admin';
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
@@ -264,34 +267,12 @@ async function restorePurchasedProducts(
 
   if (productIds.length === 0) return;
 
-  const { data, error } = await serviceClient
-    .from('products')
-    .select('id, raw')
-    .in('id', productIds);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as Array<{ id: string; raw: unknown }>;
-  const updateResults = await Promise.all(
-    rows.map((row) =>
-      serviceClient
-        .from('products')
-        .update({
-          raw: buildAvailableRaw(row.raw, {
-            orderCode,
-            paymentMethod: 'nicepay',
-          }),
-        })
-        .eq('id', row.id),
-    ),
-  );
-
-  const failedUpdate = updateResults.find((result) => result.error);
-  if (failedUpdate?.error) {
-    throw new Error(failedUpdate.error.message);
-  }
+  const snapshot = await fetchProductAvailabilitySnapshot(serviceClient, productIds);
+  await restoreProductsAvailability(serviceClient, snapshot.rows, {
+    hasRawColumn: snapshot.hasRawColumn,
+    orderCode,
+    paymentMethod: 'nicepay',
+  });
 
   revalidateTag('storefront-products', 'max');
 }
