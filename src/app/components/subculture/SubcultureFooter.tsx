@@ -4,6 +4,7 @@ const FOOTER_FIELDS = [
   { label: '상호', value: '몽상인' },
   { label: '대표자', value: '백형석' },
   { label: '사업자등록번호', value: '445-03-04118' },
+  { label: '통신판매업신고번호', value: '2026-서울강서-0900호' },
   { label: '연락처', value: '010-9850-7214' },
   { label: '사업장 주소', value: '서울특별시 강서구 강서로17다길 16-5 (화곡동)' },
 ] as const;
