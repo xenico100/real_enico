@@ -31,11 +31,11 @@ const INTERNATIONAL_SHIPPING_FEE = 40000;
 const PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY = 'enicoveck_pending_account_profile_sync';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
-  'overflow-hidden rounded-[18px] border border-[#cfd6df]/18 bg-[linear-gradient(180deg,#171b22_0%,#11141a_100%)] px-5 py-5 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-6 md:py-6';
+  'overflow-hidden rounded-none border border-[#cfd6df]/18 bg-[linear-gradient(180deg,#171b22_0%,#11141a_100%)] px-5 py-5 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-6 md:py-6';
 const CHECKOUT_FIELD_GROUP_CLASS =
-  'rounded-[16px] border border-[#cdd5df]/28 bg-[linear-gradient(180deg,#1b1f27_0%,#151922_100%)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]';
+  'rounded-none border border-[#cdd5df]/28 bg-[linear-gradient(180deg,#1b1f27_0%,#151922_100%)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]';
 const CHECKOUT_FIELD_CLASS =
-  'w-full rounded-[12px] border border-[#4a5361] bg-[#11151c] px-4 py-3.5 text-[15px] leading-[1.55] text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#d8dee8] focus:outline-none focus:ring-2 focus:ring-[#d8dee8]/15';
+  'w-full rounded-none border border-[#4a5361] bg-[#11151c] px-4 py-3.5 text-[15px] leading-[1.55] text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#d8dee8] focus:outline-none focus:ring-2 focus:ring-[#d8dee8]/15';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
