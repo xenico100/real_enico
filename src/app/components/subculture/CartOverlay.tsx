@@ -31,11 +31,11 @@ const INTERNATIONAL_SHIPPING_FEE = 40000;
 const PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY = 'enicoveck_pending_account_profile_sync';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
-  'overflow-hidden rounded-[16px] border border-white/8 bg-[linear-gradient(180deg,#16191f_0%,#111319_100%)] px-4 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-5 md:py-5';
+  'overflow-hidden rounded-[18px] border border-[#cfd6df]/18 bg-[linear-gradient(180deg,#171b22_0%,#11141a_100%)] px-5 py-5 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-6 md:py-6';
 const CHECKOUT_FIELD_GROUP_CLASS =
-  'rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,#1a1d24_0%,#151820_100%)] px-4 py-4';
+  'rounded-[16px] border border-[#cdd5df]/28 bg-[linear-gradient(180deg,#1b1f27_0%,#151922_100%)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]';
 const CHECKOUT_FIELD_CLASS =
-  'w-full rounded-[12px] border border-[#313641] bg-[#101319] px-4 py-3.5 text-[15px] leading-[1.55] text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#c7d2fe] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe]/20';
+  'w-full rounded-[12px] border border-[#4a5361] bg-[#11151c] px-4 py-3.5 text-[15px] leading-[1.55] text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#d8dee8] focus:outline-none focus:ring-2 focus:ring-[#d8dee8]/15';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -1150,26 +1150,16 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   )}
                 </>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-7">
                   <div className={CHECKOUT_SECTION_CLASS}>
-                    <div className="mb-4 flex items-start justify-between gap-3 border-b border-white/8 pb-4">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Contact</p>
-                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">주문자 정보</h3>
-                      </div>
-                      <span className="rounded-full border border-[#c7d2fe]/20 bg-[#c7d2fe]/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#dce5ff]">
-                        Required
-                      </span>
+                    <div className="mb-5 border-b border-[#d3dae3]/12 pb-4">
+                      <h3 className="text-xl font-semibold tracking-[-0.03em] text-white">주문자 정보</h3>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
-                          <span className="text-[#d9dfe8]">이메일</span>
-                          <span className="text-[#79808b]">order reply</span>
+                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          이메일
                         </label>
-                        <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
-                          주문 확인과 배송 안내를 받을 메일 주소를 입력하세요.
-                        </p>
                         <input
                           ref={checkoutEmailInputRef}
                           type="email"
@@ -1180,9 +1170,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         />
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
-                          <span className="text-[#d9dfe8]">핸드폰 번호</span>
-                          <span className="text-[#79808b]">contact</span>
+                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          핸드폰 번호
                         </label>
                         <input
                           ref={checkoutPhoneInputRef}
@@ -1194,9 +1183,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         />
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
-                          <span className="text-[#d9dfe8]">수령인 이름</span>
-                          <span className="text-[#79808b]">receiver</span>
+                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          수령인 이름
                         </label>
                         <input
                           ref={checkoutNameInputRef}
@@ -1211,20 +1199,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </div>
 
                   <div className={CHECKOUT_SECTION_CLASS}>
-                    <div className="mb-4 flex items-start justify-between gap-3 border-b border-white/8 pb-4">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Shipping</p>
-                        <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">배송 정보</h3>
-                      </div>
-                      <span className="rounded-full border border-[#c7d2fe]/20 bg-[#c7d2fe]/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#dce5ff]">
-                        Address
-                      </span>
+                    <div className="mb-5 border-b border-[#d3dae3]/12 pb-4">
+                      <h3 className="text-xl font-semibold tracking-[-0.03em] text-white">배송 정보</h3>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
-                          <span className="text-[#d9dfe8]">구역 (국가)</span>
-                          <span className="text-[#79808b]">shipping zone</span>
+                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          구역 (국가)
                         </label>
                         <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
                           {isNicepayTestOrder
@@ -1245,9 +1226,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </select>
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
-                        <label className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em]">
-                          <span className="text-[#d9dfe8]">상세 주소</span>
-                          <span className="text-[#79808b]">required</span>
+                        <label className="mb-3 block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          상세 주소
                         </label>
                         <p className="mb-3 text-xs leading-relaxed text-[#8e96a3]">
                           수령지 주소를 상세하게 입력하세요. 도로명, 건물명, 호수까지 적어야 합니다.
