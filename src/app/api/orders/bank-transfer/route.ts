@@ -5,6 +5,7 @@ import {
   hashGuestLookupPassword,
 } from '@/lib/orders/guestLookup';
 import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
+import { getSingleStockOrderViolation } from '@/lib/storefront/productAvailability';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -366,6 +367,11 @@ export async function POST(request: Request) {
         { message: '주문 요청 형식이 올바르지 않습니다.' },
         { status: 400 },
       );
+    }
+
+    const singleStockViolation = getSingleStockOrderViolation(payload.items);
+    if (singleStockViolation) {
+      return NextResponse.json({ message: singleStockViolation }, { status: 409 });
     }
 
     const guestOrderNumber =

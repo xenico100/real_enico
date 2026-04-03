@@ -14,6 +14,7 @@ import {
 } from '@/lib/orders/nicepay';
 import {
   extractPersistentProductIds,
+  getSingleStockOrderViolation,
 } from '@/lib/storefront/productAvailability';
 import {
   fetchProductAvailabilitySnapshot,
@@ -247,6 +248,11 @@ export async function POST(request: Request) {
         { message: 'NICE Payments 요청 형식이 올바르지 않습니다.' },
         { status: 400 },
       );
+    }
+
+    const singleStockViolation = getSingleStockOrderViolation(payload.items);
+    if (singleStockViolation) {
+      return NextResponse.json({ message: singleStockViolation }, { status: 409 });
     }
 
     const orderId = generateNicepayOrderId();

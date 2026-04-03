@@ -2,6 +2,10 @@ type ProductLike = {
   id: string;
 };
 
+type OrderItemLike = ProductLike & {
+  quantity: number;
+};
+
 type SoldOutMeta = {
   orderCode: string;
   paymentMethod: string;
@@ -39,6 +43,27 @@ export function extractPersistentProductIds(items: ProductLike[]) {
         .filter((id) => id.length > 0 && isUuidLike(id)),
     ),
   );
+}
+
+export function getSingleStockOrderViolation(items: OrderItemLike[]) {
+  const seenProductIds = new Set<string>();
+
+  for (const item of items) {
+    const normalizedId = item.id.trim().toLowerCase();
+    if (!normalizedId) continue;
+
+    if (!Number.isFinite(item.quantity) || item.quantity !== 1) {
+      return '모든 상품은 재고 1개만 판매하므로 수량은 1개만 주문할 수 있습니다.';
+    }
+
+    if (seenProductIds.has(normalizedId)) {
+      return '같은 상품은 중복 주문할 수 없습니다.';
+    }
+
+    seenProductIds.add(normalizedId);
+  }
+
+  return null;
 }
 
 export function isProductMarkedSoldOut(raw: unknown) {
