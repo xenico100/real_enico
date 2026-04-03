@@ -239,7 +239,7 @@ export function ProductShowcase({
                     : 'border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black'
               }`}
             >
-              {isSoldOut ? '품절' : isInCart ? '장바구니 담김 (재고 1개)' : '장바구니 담기'}
+              {isSoldOut ? '품절' : isInCart ? '장바구니 담김' : '장바구니 담기'}
             </button>
           </div>
         </div>

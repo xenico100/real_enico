@@ -545,12 +545,21 @@ function injectManualProducts(products: Product[]) {
 }
 
 export function buildProductCatalog(rows: StorefrontProductRow[]) {
+  const seen = new Set<string>();
+
   return injectManualProducts(
     sortProductsByCsvLatest(
       rows
         .map(mapDbRowToProduct)
         .filter((item): item is Product => Boolean(item)),
-    ),
+    ).filter((product) => {
+      const key = normalizeCategoryHintKey(product.name);
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    }),
   );
 }
 

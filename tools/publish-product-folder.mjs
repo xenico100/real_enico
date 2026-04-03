@@ -362,15 +362,16 @@ async function main() {
 
   const { data: existingRows, error: existingError } = await supabase
     .from('products')
-    .select('id,title')
+    .select('id,title,updated_at')
     .eq('title', title)
-    .limit(1);
+    .order('updated_at', { ascending: false });
 
   if (existingError) {
     throw new Error(`Failed to check existing product: ${existingError.message}`);
   }
 
   const existing = existingRows?.[0];
+  const duplicates = existingRows?.slice(1) ?? [];
   if (existing) {
     const updatePayload = { ...basePayload };
     delete updatePayload.created_at;
@@ -386,7 +387,26 @@ async function main() {
       throw new Error(`Failed to update product: ${error.message}`);
     }
 
-    console.log(JSON.stringify({ mode: 'updated', product: data, imageCount: uploadedUrls.length }, null, 2));
+    if (duplicates.length > 0) {
+      const duplicateIds = duplicates.map((item) => item.id);
+      const { error: deleteError } = await supabase.from('products').delete().in('id', duplicateIds);
+      if (deleteError) {
+        throw new Error(`Failed to remove duplicate products: ${deleteError.message}`);
+      }
+    }
+
+    console.log(
+      JSON.stringify(
+        {
+          mode: 'updated',
+          product: data,
+          imageCount: uploadedUrls.length,
+          removedDuplicateIds: duplicates.map((item) => item.id),
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
