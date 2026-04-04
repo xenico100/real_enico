@@ -36,6 +36,10 @@ interface SignUpCredentials extends EmailCredentials {
   address?: string;
 }
 
+interface SignUpResult {
+  requiresEmailConfirmation: boolean;
+}
+
 interface AccountProfileUpdate {
   phone?: string;
   address?: string;
@@ -59,7 +63,7 @@ interface AuthContextValue {
   errorMessage: string | null;
   clearMessages: () => void;
   signInWithEmail: (credentials: EmailCredentials) => Promise<void>;
-  signUpWithEmail: (credentials: SignUpCredentials) => Promise<void>;
+  signUpWithEmail: (credentials: SignUpCredentials) => Promise<SignUpResult | undefined>;
   signInWithGoogle: () => Promise<void>;
   updatePassword: (nextPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -217,13 +221,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runAction = async (fn: () => Promise<void>) => {
+  const runAction = async <T,>(fn: () => Promise<T>) => {
     clearMessages();
     setIsBusy(true);
     try {
-      await fn();
+      return await fn();
     } catch (error) {
       setErrorMessage(getFriendlyErrorMessage(error));
+      return undefined;
     } finally {
       if (isMountedRef.current) {
         setIsBusy(false);
@@ -263,7 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     phone,
     address,
   }: SignUpCredentials) => {
-    await runAction(async () => {
+    return runAction(async () => {
       const supabase = requireClient();
       const emailRedirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent('/')}`;
       const { data, error } = await supabase.auth.signUp({
@@ -301,6 +306,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }).catch((notifyError) => {
         console.error('Signup notification failed', notifyError);
       });
+
+      return {
+        requiresEmailConfirmation: !data.session,
+      };
     });
   };
 

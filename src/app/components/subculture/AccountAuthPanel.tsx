@@ -169,12 +169,19 @@ export function AccountAuthPanel() {
       return;
     }
 
-    await signUpWithEmail({
+    const result = await signUpWithEmail({
       email,
       password,
       fullName,
       phone,
     });
+
+    if (result?.requiresEmailConfirmation) {
+      window.alert('회원가입이 완료되었습니다. 메일함에서 인증 메일을 확인해 주세요.');
+      setSignupPassword('');
+      setSignupPasswordConfirm('');
+      openLoginTab();
+    }
   };
 
   const handleFindEmail = async (event: React.FormEvent) => {
