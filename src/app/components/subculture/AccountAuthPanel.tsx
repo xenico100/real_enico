@@ -400,15 +400,15 @@ export function AccountAuthPanel() {
   }
 
   return (
-    <div className="space-y-4 font-mono">
-      <div className="grid grid-cols-1 gap-3 rounded-[1.75rem] border border-[#5e5e5e] bg-[#0b0b0b] p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] sm:grid-cols-3">
+    <div className="mx-auto max-w-3xl space-y-5 font-mono">
+      <div className="grid grid-cols-1 gap-2 rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,#111214_0%,#090909_100%)] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.04)] sm:grid-cols-3">
         <button
           type="button"
           onClick={openLoginTab}
-          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
+          className={`min-h-[64px] rounded-[1.2rem] border px-4 py-4 text-center text-[13px] font-semibold leading-tight transition-all duration-200 ${
             activeTab === 'login'
-              ? 'border-[#d2d2d2] bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_10px_24px_rgba(255,255,255,0.06)]'
-              : 'border-[#8d8d8d] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] text-[#d8d8d8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#cfcfcf] hover:text-white'
+              ? 'border-[#d6dce4] bg-[linear-gradient(180deg,#252a33_0%,#181b21_100%)] text-white shadow-[0_0_0_1px_rgba(240,244,248,0.12),0_14px_34px_rgba(0,0,0,0.34)]'
+              : 'border-[#717985] bg-[linear-gradient(180deg,#14171b_0%,#0e1014_100%)] text-[#c7ced8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#d2d9e2] hover:text-white'
           }`}
         >
           로그인
@@ -420,10 +420,10 @@ export function AccountAuthPanel() {
             clearMessages();
             setSignupError(null);
           }}
-          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
+          className={`min-h-[64px] rounded-[1.2rem] border px-4 py-4 text-center text-[13px] font-semibold leading-tight transition-all duration-200 ${
             activeTab === 'signup'
-              ? 'border-[#d2d2d2] bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_10px_24px_rgba(255,255,255,0.06)]'
-              : 'border-[#8d8d8d] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] text-[#d8d8d8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#cfcfcf] hover:text-white'
+              ? 'border-[#d6dce4] bg-[linear-gradient(180deg,#252a33_0%,#181b21_100%)] text-white shadow-[0_0_0_1px_rgba(240,244,248,0.12),0_14px_34px_rgba(0,0,0,0.34)]'
+              : 'border-[#717985] bg-[linear-gradient(180deg,#14171b_0%,#0e1014_100%)] text-[#c7ced8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#d2d9e2] hover:text-white'
           }`}
         >
           회원가입
@@ -434,10 +434,10 @@ export function AccountAuthPanel() {
             setActiveTab('recover');
             clearMessages();
           }}
-          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
+          className={`min-h-[64px] rounded-[1.2rem] border px-4 py-4 text-center text-[13px] font-semibold leading-tight transition-all duration-200 ${
             activeTab === 'recover'
-              ? 'border-[#d2d2d2] bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_10px_24px_rgba(255,255,255,0.06)]'
-              : 'border-[#8d8d8d] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] text-[#d8d8d8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#cfcfcf] hover:text-white'
+              ? 'border-[#d6dce4] bg-[linear-gradient(180deg,#252a33_0%,#181b21_100%)] text-white shadow-[0_0_0_1px_rgba(240,244,248,0.12),0_14px_34px_rgba(0,0,0,0.34)]'
+              : 'border-[#717985] bg-[linear-gradient(180deg,#14171b_0%,#0e1014_100%)] text-[#c7ced8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#d2d9e2] hover:text-white'
           }`}
         >
           아이디/비번 찾기
@@ -445,38 +445,43 @@ export function AccountAuthPanel() {
       </div>
 
       {activeTab === 'login' && (
-        <div className="border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
-          <div className="md:flex md:justify-end">
+        <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_38%),linear-gradient(180deg,#111214_0%,#090909_100%)] p-4 md:p-6">
+          <div className="flex justify-center">
             <form
               onSubmit={handleEmailAuth}
-              className="w-full space-y-3 rounded-2xl border border-[#6f6f6f] bg-[#0e0e0e] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:max-w-[560px]"
+              className="w-full max-w-[560px] space-y-5 rounded-[1.9rem] border border-[#cfd5de]/20 bg-[linear-gradient(180deg,#16191e_0%,#0d0f13_100%)] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.05)] md:p-7"
             >
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">이메일 로그인</p>
-                <p className="mt-2 text-sm text-[#f2f2f2]">이메일과 비밀번호로 로그인</p>
+              <div className="space-y-2 border-b border-white/10 pb-4">
+                <p className="text-[11px] font-semibold tracking-[0.24em] text-[#00ffd1]">이메일 로그인</p>
+                <div className="space-y-1">
+                  <h4 className="text-xl font-semibold text-[#f4f7fb]">로그인 / 주문조회</h4>
+                  <p className="text-sm leading-6 text-[#b8c0cb]">
+                    이메일과 비밀번호를 입력하고 로그인하세요.
+                  </p>
+                </div>
               </div>
               <div className="space-y-2">
-                  <label className="block text-[11px] font-semibold text-[#f0f0f0]">이메일</label>
-              <input
-                type="email"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full rounded-xl bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                placeholder="이메일 주소"
-                autoComplete="email"
-                required
-              />
+                <label className="block text-[12px] font-semibold text-[#eef2f7]">이메일</label>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="min-h-[58px] w-full rounded-2xl border border-[#65707d] bg-[#0a0c10] px-4 text-base text-[#f3f6fa] placeholder:text-[#7f8996] focus:border-[#dce3eb] focus:outline-none"
+                  placeholder="이메일 주소"
+                  autoComplete="email"
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
-                  <label className="block text-[11px] font-semibold text-[#f0f0f0]">비밀번호</label>
+                  <label className="block text-[12px] font-semibold text-[#eef2f7]">비밀번호</label>
                   <button
                     type="button"
                     onClick={() => {
                       setActiveTab('recover');
                       clearMessages();
                     }}
-                    className="text-[11px] font-medium text-[#6bb3ff] transition-colors hover:text-white"
+                    className="text-[12px] font-medium text-[#9fcaFF] transition-colors hover:text-white"
                   >
                     아이디/비번 찾기
                   </button>
@@ -485,7 +490,7 @@ export function AccountAuthPanel() {
                   type="password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full rounded-xl bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                  className="min-h-[58px] w-full rounded-2xl border border-[#65707d] bg-[#0a0c10] px-4 text-base text-[#f3f6fa] placeholder:text-[#7f8996] focus:border-[#dce3eb] focus:outline-none"
                   placeholder="비밀번호"
                   autoComplete="current-password"
                   required
@@ -494,22 +499,22 @@ export function AccountAuthPanel() {
               <button
                 type="submit"
                 disabled={isBusy}
-                className="min-h-[56px] w-full rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,#f2f2f2,#cfcfcf)] px-4 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition-colors hover:border-white hover:bg-[linear-gradient(180deg,#ffffff,#dddddd)] disabled:opacity-50"
+                className="min-h-[60px] w-full rounded-2xl border border-[#46b45f] bg-[linear-gradient(180deg,#2faa4d_0%,#248b3d_100%)] px-4 py-3 text-base font-bold text-white transition-all hover:-translate-y-[1px] hover:border-[#6bda84] hover:bg-[linear-gradient(180deg,#35bf57_0%,#2a9946_100%)] disabled:opacity-50"
               >
                 {isBusy ? '처리중...' : '이메일 로그인'}
               </button>
-              <div className="flex items-center gap-3 py-1">
-                <div className="h-px flex-1 bg-[#3b3f46]" />
-                <span className="text-[11px] tracking-[0.2em] text-[#8a8f98]">또는</span>
-                <div className="h-px flex-1 bg-[#3b3f46]" />
+              <div className="flex items-center gap-3 py-1.5">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[11px] tracking-[0.22em] text-[#8f98a4]">또는</span>
+                <div className="h-px flex-1 bg-white/10" />
               </div>
               <button
                 type="button"
                 onClick={() => void handleGoogleAuth()}
                 disabled={isBusy}
-                className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] px-4 py-3 text-sm font-semibold tracking-[0.16em] text-white transition-colors hover:border-white hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))] disabled:opacity-50"
+                className="inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-2xl border border-[#8b94a3] bg-[linear-gradient(180deg,#20242b_0%,#16191f_100%)] px-4 py-3 text-base font-semibold text-[#eef3f9] transition-all hover:-translate-y-[1px] hover:border-[#dbe2eb] hover:bg-[linear-gradient(180deg,#2a2f38_0%,#1a1e25_100%)] disabled:opacity-50"
               >
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
                   <GoogleIcon />
                 </span>
                 <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
@@ -520,7 +525,7 @@ export function AccountAuthPanel() {
                   setActiveTab('guestOrder');
                   clearMessages();
                 }}
-                className="inline-flex min-h-[56px] w-full items-center justify-center rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] px-4 py-3 text-sm font-semibold tracking-[0.16em] text-white transition-colors hover:border-white hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))]"
+                className="inline-flex min-h-[60px] w-full items-center justify-center rounded-2xl border border-[#8b94a3] bg-[linear-gradient(180deg,#20242b_0%,#16191f_100%)] px-4 py-3 text-base font-semibold text-[#eef3f9] transition-all hover:-translate-y-[1px] hover:border-[#dbe2eb] hover:bg-[linear-gradient(180deg,#2a2f38_0%,#1a1e25_100%)]"
               >
                 비회원 주문조회
               </button>
