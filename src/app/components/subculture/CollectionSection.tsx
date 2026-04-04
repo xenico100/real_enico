@@ -49,13 +49,15 @@ export function CollectionSection({
           .from('collections')
           .select(STOREFRONT_COLLECTION_SELECT)
           .eq('is_published', true)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .returns<StorefrontCollectionRow[]>();
 
         if (error?.message?.toLowerCase().includes('is_published')) {
           const fallback = await supabase
             .from('collections')
             .select(STOREFRONT_COLLECTION_SELECT)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .returns<StorefrontCollectionRow[]>();
           data = fallback.data;
           error = fallback.error;
         }

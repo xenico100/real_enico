@@ -115,14 +115,16 @@ export function ProductShowcase({
           .from('products')
           .select(STOREFRONT_PRODUCT_SELECT)
           .eq('is_published', true)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .returns<StorefrontProductRow[]>();
 
         if (error?.message?.toLowerCase().includes('created_at')) {
           const updatedAtFallback = await supabase
             .from('products')
             .select(STOREFRONT_PRODUCT_SELECT)
             .eq('is_published', true)
-            .order('updated_at', { ascending: false });
+            .order('updated_at', { ascending: false })
+            .returns<StorefrontProductRow[]>();
           data = updatedAtFallback.data;
           error = updatedAtFallback.error;
         }
@@ -131,7 +133,8 @@ export function ProductShowcase({
           const fallbackQuery = await supabase
             .from('products')
             .select(STOREFRONT_PRODUCT_SELECT)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .returns<StorefrontProductRow[]>();
           data = fallbackQuery.data;
           error = fallbackQuery.error;
 
@@ -139,7 +142,8 @@ export function ProductShowcase({
             const updatedAtFallback = await supabase
               .from('products')
               .select(STOREFRONT_PRODUCT_SELECT)
-              .order('updated_at', { ascending: false });
+              .order('updated_at', { ascending: false })
+              .returns<StorefrontProductRow[]>();
             data = updatedAtFallback.data;
             error = updatedAtFallback.error;
           }

@@ -11,8 +11,11 @@ const paypalCurrency =
   "USD";
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
+  reactCompiler: false,
   outputFileTracingRoot: path.resolve(__dirname),
+  experimental: {
+    webpackBuildWorker: false,
+  },
   env: {
     NEXT_PUBLIC_PAYPAL_CLIENT_ID: paypalClientId,
     NEXT_PUBLIC_PAYPAL_CURRENCY: paypalCurrency,
