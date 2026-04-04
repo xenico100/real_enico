@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { startTransition, useDeferredValue, useEffect, useState } from 'react';
 import {
   PRODUCT_CATEGORIES,
   type ProductCategory,
@@ -75,12 +75,13 @@ export function ProductShowcase({
   const activeProducts = visibleCatalogProducts.filter((product) => !product.isSoldOut);
   const soldOutProducts = visibleCatalogProducts.filter((product) => Boolean(product.isSoldOut));
   const categories = [ALL_CATEGORY, ...PRODUCT_CATEGORIES, SOLD_OUT_CATEGORY] as const;
+  const deferredActiveCategory = useDeferredValue(activeCategory);
   const filteredProducts =
-    activeCategory === ALL_CATEGORY
+    deferredActiveCategory === ALL_CATEGORY
       ? activeProducts
-      : activeCategory === SOLD_OUT_CATEGORY
+      : deferredActiveCategory === SOLD_OUT_CATEGORY
         ? soldOutProducts
-        : activeProducts.filter((product) => product.category === activeCategory);
+        : activeProducts.filter((product) => product.category === deferredActiveCategory);
   const categoryCounts = categories.reduce<Record<string, number>>((accumulator, category) => {
     accumulator[category] =
       category === ALL_CATEGORY
@@ -114,33 +115,33 @@ export function ProductShowcase({
           .from('products')
           .select(STOREFRONT_PRODUCT_SELECT)
           .eq('is_published', true)
-          .order('updated_at', { ascending: false });
+          .order('created_at', { ascending: false });
 
-        if (error?.message?.toLowerCase().includes('updated_at')) {
-          const createdAtFallback = await supabase
+        if (error?.message?.toLowerCase().includes('created_at')) {
+          const updatedAtFallback = await supabase
             .from('products')
             .select(STOREFRONT_PRODUCT_SELECT)
             .eq('is_published', true)
-            .order('created_at', { ascending: false });
-          data = createdAtFallback.data;
-          error = createdAtFallback.error;
+            .order('updated_at', { ascending: false });
+          data = updatedAtFallback.data;
+          error = updatedAtFallback.error;
         }
 
         if (error?.message?.toLowerCase().includes('is_published')) {
           const fallbackQuery = await supabase
             .from('products')
             .select(STOREFRONT_PRODUCT_SELECT)
-            .order('updated_at', { ascending: false });
+            .order('created_at', { ascending: false });
           data = fallbackQuery.data;
           error = fallbackQuery.error;
 
-          if (error?.message?.toLowerCase().includes('updated_at')) {
-            const createdAtFallback = await supabase
+          if (error?.message?.toLowerCase().includes('created_at')) {
+            const updatedAtFallback = await supabase
               .from('products')
               .select(STOREFRONT_PRODUCT_SELECT)
-              .order('created_at', { ascending: false });
-            data = createdAtFallback.data;
-            error = createdAtFallback.error;
+              .order('updated_at', { ascending: false });
+            data = updatedAtFallback.data;
+            error = updatedAtFallback.error;
           }
         }
 
@@ -289,7 +290,11 @@ export function ProductShowcase({
                       <button
                         key={category}
                         type="button"
-                        onClick={() => setActiveCategory(category)}
+                        onClick={() => {
+                          startTransition(() => {
+                            setActiveCategory(category);
+                          });
+                        }}
                         className={`group relative overflow-hidden border px-3 py-3 text-left transition-all duration-200 ${
                           isActive
                             ? 'border-[#00ffd1] bg-[#00ffd1] text-black shadow-[0_0_24px_rgba(0,255,209,0.18)]'

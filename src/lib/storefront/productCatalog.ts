@@ -91,7 +91,11 @@ const IMAGE_PATH_CATEGORY_HINTS: Array<{ markers: string[]; category: ProductCat
   { markers: ['/manual-upload/dresses/'], category: '드레스' },
 ];
 
-const CSV_LATEST_TITLE_ORDER = [
+const EDITORIAL_PRODUCT_ORDER = [
+  'Re: Chainsaw Coat',
+  'Re: Femto jacket',
+  'Re: Gantz pants',
+  'Re: rem two-piece dress',
   'Re: flower of evil jacket',
   'Re: kevin shirts',
   "Re: kevin's pants",
@@ -199,8 +203,8 @@ const UPLOAD_HINT_KEYWORDS = UPLOAD_TITLE_CATEGORY_HINTS.map(({ title, category 
   category,
 })).sort((a, b) => b.key.length - a.key.length);
 
-const CSV_LATEST_ORDER_INDEX = new Map(
-  CSV_LATEST_TITLE_ORDER.map((title, index) => [normalizeCategoryHintKey(title), index] as const),
+const EDITORIAL_PRODUCT_ORDER_INDEX = new Map(
+  EDITORIAL_PRODUCT_ORDER.map((title, index) => [normalizeCategoryHintKey(title), index] as const),
 );
 
 const SOLD_OUT_PRODUCT_KEY_SET = new Set(
@@ -512,7 +516,7 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
   };
 }
 
-function sortProductsByCsvLatest(products: Product[]) {
+function sortProductsByLatest(products: Product[]) {
   return [...products].sort((a, b) => {
     const soldOutDiff = Number(Boolean(a.isSoldOut)) - Number(Boolean(b.isSoldOut));
     if (soldOutDiff !== 0) {
@@ -527,6 +531,13 @@ function sortProductsByCsvLatest(products: Product[]) {
       return createdTimeDiff;
     }
 
+    const aEditorialIdx = EDITORIAL_PRODUCT_ORDER_INDEX.get(normalizeCategoryHintKey(a.name));
+    const bEditorialIdx = EDITORIAL_PRODUCT_ORDER_INDEX.get(normalizeCategoryHintKey(b.name));
+
+    if (typeof aEditorialIdx === 'number' && typeof bEditorialIdx === 'number') {
+      return aEditorialIdx - bEditorialIdx;
+    }
+
     const aUpdatedTime = new Date(a.updatedAt || 0).getTime();
     const bUpdatedTime = new Date(b.updatedAt || 0).getTime();
     const updatedTimeDiff = bUpdatedTime - aUpdatedTime;
@@ -535,19 +546,7 @@ function sortProductsByCsvLatest(products: Product[]) {
       return updatedTimeDiff;
     }
 
-    const aIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(a.name));
-    const bIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(b.name));
-
-    const aHasCsv = typeof aIdx === 'number';
-    const bHasCsv = typeof bIdx === 'number';
-
-    if (aHasCsv && bHasCsv) {
-      return (aIdx as number) - (bIdx as number);
-    }
-
-    if (aHasCsv && !bHasCsv) return -1;
-    if (!aHasCsv && bHasCsv) return 1;
-    return 0;
+    return a.name.localeCompare(b.name, 'ko');
   });
 }
 
@@ -560,7 +559,7 @@ export function buildProductCatalog(rows: StorefrontProductRow[]) {
   const seen = new Set<string>();
 
   return injectManualProducts(
-    sortProductsByCsvLatest(
+    sortProductsByLatest(
       rows
         .map(mapDbRowToProduct)
         .filter((item): item is Product => Boolean(item)),

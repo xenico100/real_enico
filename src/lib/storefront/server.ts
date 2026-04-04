@@ -44,16 +44,16 @@ async function fetchProductsUncached() {
     .from('products')
     .select(STOREFRONT_PRODUCT_SELECT)
     .eq('is_published', true)
-    .order('updated_at', { ascending: false });
+    .order('created_at', { ascending: false });
 
   let { data, error } = await query.returns<StorefrontProductRow[]>();
 
-  if (error?.message?.toLowerCase().includes('updated_at')) {
+  if (error?.message?.toLowerCase().includes('created_at')) {
     const fallback = await client
       .from('products')
       .select(STOREFRONT_PRODUCT_SELECT)
       .eq('is_published', true)
-      .order('created_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .returns<StorefrontProductRow[]>();
     data = fallback.data;
     error = fallback.error;
@@ -63,19 +63,19 @@ async function fetchProductsUncached() {
     const fallback = await client
       .from('products')
       .select(STOREFRONT_PRODUCT_SELECT)
-      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .returns<StorefrontProductRow[]>();
     data = fallback.data;
     error = fallback.error;
 
-    if (error?.message?.toLowerCase().includes('updated_at')) {
-      const createdAtFallback = await client
+    if (error?.message?.toLowerCase().includes('created_at')) {
+      const updatedAtFallback = await client
         .from('products')
         .select(STOREFRONT_PRODUCT_SELECT)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .returns<StorefrontProductRow[]>();
-      data = createdAtFallback.data;
-      error = createdAtFallback.error;
+      data = updatedAtFallback.data;
+      error = updatedAtFallback.error;
     }
   }
 
