@@ -449,30 +449,10 @@ export function AccountAuthPanel() {
 
       {activeTab === 'login' && (
         <div className="border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-2xl border border-[#6f6f6f] bg-[#111] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <div className="mb-4">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">
-                  Quick Login
-                </p>
-                <p className="mt-2 text-sm text-[#f2f2f2]">구글 계정으로 바로 로그인</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleGoogleAuth()}
-                disabled={isBusy}
-                className="inline-flex min-h-[54px] w-full items-center justify-center gap-3 rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] px-4 py-3 text-sm font-semibold tracking-[0.16em] text-white transition-colors hover:border-white hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))] disabled:opacity-50"
-              >
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
-                  <GoogleIcon />
-                </span>
-                <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
-              </button>
-            </div>
-
+          <div className="md:flex md:justify-end">
             <form
               onSubmit={handleEmailAuth}
-              className="space-y-3 rounded-2xl border border-[#6f6f6f] bg-[#0e0e0e] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+              className="w-full space-y-3 rounded-2xl border border-[#6f6f6f] bg-[#0e0e0e] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:max-w-[560px]"
             >
               <div>
                 <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">이메일 로그인</p>
@@ -499,9 +479,20 @@ export function AccountAuthPanel() {
               <button
                 type="submit"
                 disabled={isBusy}
-                className="min-h-[54px] w-full rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,#f2f2f2,#cfcfcf)] px-4 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition-colors hover:border-white hover:bg-[linear-gradient(180deg,#ffffff,#dddddd)] disabled:opacity-50"
+                className="min-h-[56px] w-full rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,#f2f2f2,#cfcfcf)] px-4 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition-colors hover:border-white hover:bg-[linear-gradient(180deg,#ffffff,#dddddd)] disabled:opacity-50"
               >
                 {isBusy ? '처리중...' : '이메일 로그인'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGoogleAuth()}
+                disabled={isBusy}
+                className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] px-4 py-3 text-sm font-semibold tracking-[0.16em] text-white transition-colors hover:border-white hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))] disabled:opacity-50"
+              >
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+                  <GoogleIcon />
+                </span>
+                <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
               </button>
             </form>
           </div>
