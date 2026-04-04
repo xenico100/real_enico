@@ -16,6 +16,8 @@ interface ProductDetailPopupProps {
   onClose: () => void;
 }
 
+const SMARTSTORE_HOME_URL = 'https://smartstore.naver.com/xenicolack';
+
 function NaverIcon() {
   return (
     <span className="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-[#03c75a] text-[11px] font-black text-white">
@@ -35,7 +37,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     (item) => getFashionCartItemKey(item.id, item.selectedSize) === getFashionCartItemKey(product.id, null),
   );
   const isSoldOut = Boolean(product.isSoldOut);
-  const smartstoreUrl = typeof product.smartstoreUrl === 'string' ? product.smartstoreUrl : '';
+  const smartstoreUrl = SMARTSTORE_HOME_URL;
 
   const productImages = useMemo(() => {
     const normalized = Array.isArray(product.images)
@@ -294,12 +296,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                   <button
                     type="button"
                     onClick={handleSmartstorePurchase}
-                    disabled={!smartstoreUrl}
-                    className={`min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-colors text-left ${
-                      smartstoreUrl
-                        ? 'border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a] hover:text-black'
-                        : 'border-[#2b4b36] text-[#4c7f5f] cursor-not-allowed'
-                    }`}
+                    className="min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-colors text-left border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a] hover:text-black"
                   >
                     <span className="flex h-full items-center justify-between gap-3">
                       <span className="inline-flex items-center gap-2 leading-tight">
