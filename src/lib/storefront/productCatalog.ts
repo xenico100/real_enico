@@ -15,6 +15,7 @@ export interface Product {
   image: string;
   images: string[];
   description: string;
+  createdAt?: string | null;
   updatedAt?: string | null;
   isSoldOut?: boolean;
   smartstoreUrl?: string;
@@ -32,6 +33,7 @@ const NICEPAY_TEST_PRODUCT: Product = {
   images: ['https://dummyimage.com/600x800/031a17/00ffd1&text=NICE+1000WON+TEST'],
   description:
     '1000원 결제창 동작 확인용 테스트 상품입니다. 실제 운영 상품이 아니라 NICE Payments 승인 흐름만 점검할 때 사용합니다.',
+  createdAt: '2026-03-11T15:25:00.000Z',
   updatedAt: '2026-03-11T15:25:00.000Z',
 };
 
@@ -500,6 +502,7 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     image: images[0] || FALLBACK_IMAGE_URL,
     images: images.length > 0 ? images : [FALLBACK_IMAGE_URL],
     description,
+    createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? row.created_at ?? null,
     isSoldOut:
       SOLD_OUT_PRODUCT_KEY_SET.has(normalizeCategoryHintKey(title)) ||
@@ -515,12 +518,20 @@ function sortProductsByCsvLatest(products: Product[]) {
       return soldOutDiff;
     }
 
-    const aTime = new Date(a.updatedAt || 0).getTime();
-    const bTime = new Date(b.updatedAt || 0).getTime();
-    const timeDiff = bTime - aTime;
+    const aCreatedTime = new Date(a.createdAt || 0).getTime();
+    const bCreatedTime = new Date(b.createdAt || 0).getTime();
+    const createdTimeDiff = bCreatedTime - aCreatedTime;
 
-    if (timeDiff !== 0) {
-      return timeDiff;
+    if (createdTimeDiff !== 0) {
+      return createdTimeDiff;
+    }
+
+    const aUpdatedTime = new Date(a.updatedAt || 0).getTime();
+    const bUpdatedTime = new Date(b.updatedAt || 0).getTime();
+    const updatedTimeDiff = bUpdatedTime - aUpdatedTime;
+
+    if (updatedTimeDiff !== 0) {
+      return updatedTimeDiff;
     }
 
     const aIdx = CSV_LATEST_ORDER_INDEX.get(normalizeCategoryHintKey(a.name));
@@ -541,7 +552,7 @@ function sortProductsByCsvLatest(products: Product[]) {
 
 function injectManualProducts(products: Product[]) {
   const filteredProducts = products.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID);
-  return [NICEPAY_TEST_PRODUCT, ...filteredProducts];
+  return [...filteredProducts, NICEPAY_TEST_PRODUCT];
 }
 
 export function buildProductCatalog(rows: StorefrontProductRow[]) {

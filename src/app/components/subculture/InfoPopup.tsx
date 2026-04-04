@@ -240,7 +240,9 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
                 ? 'max-w-[min(1080px,92vw)]'
                 : 'max-w-[min(940px,92vw)]'
               : 'max-w-2xl'
-          } flex max-h-[92vh] flex-col bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
+          } flex ${
+            type === 'mypage' ? 'h-[92vh] max-h-[92vh]' : 'max-h-[92vh]'
+          } flex-col bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
