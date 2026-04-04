@@ -240,7 +240,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
                 ? 'max-w-[min(1080px,92vw)]'
                 : 'max-w-[min(940px,92vw)]'
               : 'max-w-2xl'
-          } bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
+          } flex max-h-[92vh] flex-col bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -272,7 +272,13 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
           </div>
 
           {/* Content Body */}
-          <div className={`${type === 'mypage' ? 'p-3 md:p-5 max-h-[82vh]' : 'p-4 md:p-8 max-h-[70vh]'} overflow-y-auto`}>
+          <div
+            className={`min-h-0 ${
+              type === 'mypage'
+                ? 'flex-1 overflow-hidden p-3 md:p-5'
+                : 'max-h-[70vh] overflow-y-auto p-4 md:p-8'
+            }`}
+          >
             {content[type]}
           </div>
 
