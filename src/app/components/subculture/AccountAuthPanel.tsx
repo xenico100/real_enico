@@ -404,6 +404,17 @@ export function AccountAuthPanel() {
       <div className="grid grid-cols-1 gap-3 rounded-[1.75rem] border border-[#5e5e5e] bg-[#0b0b0b] p-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] sm:grid-cols-3">
         <button
           type="button"
+          onClick={openLoginTab}
+          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
+            activeTab === 'login'
+              ? 'border-[#d2d2d2] bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_10px_24px_rgba(255,255,255,0.06)]'
+              : 'border-[#8d8d8d] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] text-[#d8d8d8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#cfcfcf] hover:text-white'
+          }`}
+        >
+          로그인
+        </button>
+        <button
+          type="button"
           onClick={() => {
             setActiveTab('signup');
             clearMessages();
@@ -431,20 +442,6 @@ export function AccountAuthPanel() {
         >
           아이디/비번 찾기
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('guestOrder');
-            clearMessages();
-          }}
-          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
-            activeTab === 'guestOrder'
-              ? 'border-[#d2d2d2] bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_10px_24px_rgba(255,255,255,0.06)]'
-              : 'border-[#8d8d8d] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] text-[#d8d8d8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:-translate-y-[1px] hover:border-[#cfcfcf] hover:text-white'
-          }`}
-        >
-          비회원 주문조회
-        </button>
       </div>
 
       {activeTab === 'login' && (
@@ -458,6 +455,8 @@ export function AccountAuthPanel() {
                 <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">이메일 로그인</p>
                 <p className="mt-2 text-sm text-[#f2f2f2]">이메일과 비밀번호로 로그인</p>
               </div>
+              <div className="space-y-2">
+                  <label className="block text-[11px] font-semibold text-[#f0f0f0]">이메일</label>
               <input
                 type="email"
                 value={loginEmail}
@@ -467,15 +466,31 @@ export function AccountAuthPanel() {
                 autoComplete="email"
                 required
               />
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full rounded-xl bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
-                placeholder="비밀번호"
-                autoComplete="current-password"
-                required
-              />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-[11px] font-semibold text-[#f0f0f0]">비밀번호</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('recover');
+                      clearMessages();
+                    }}
+                    className="text-[11px] font-medium text-[#6bb3ff] transition-colors hover:text-white"
+                  >
+                    아이디/비번 찾기
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full rounded-xl bg-[#050505] border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                  placeholder="비밀번호"
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
               <button
                 type="submit"
                 disabled={isBusy}
@@ -483,6 +498,11 @@ export function AccountAuthPanel() {
               >
                 {isBusy ? '처리중...' : '이메일 로그인'}
               </button>
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-[#3b3f46]" />
+                <span className="text-[11px] tracking-[0.2em] text-[#8a8f98]">또는</span>
+                <div className="h-px flex-1 bg-[#3b3f46]" />
+              </div>
               <button
                 type="button"
                 onClick={() => void handleGoogleAuth()}
@@ -493,6 +513,16 @@ export function AccountAuthPanel() {
                   <GoogleIcon />
                 </span>
                 <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('guestOrder');
+                  clearMessages();
+                }}
+                className="inline-flex min-h-[56px] w-full items-center justify-center rounded-2xl border border-[#c7c7c7] bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] px-4 py-3 text-sm font-semibold tracking-[0.16em] text-white transition-colors hover:border-white hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))]"
+              >
+                비회원 주문조회
               </button>
             </form>
           </div>
