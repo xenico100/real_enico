@@ -13,9 +13,6 @@ interface InfoPopupProps {
 }
 
 const CONTACT_EMAIL = 'morba9850@gmail.com';
-const DEFAULT_CONTACT_SUBJECT = '멤버십 멤버를 위한 맞춤제작 건의';
-const DEFAULT_CONTACT_BODY =
-  '멤버십 멤버를 위한 맞춤제작 건의를 드립니다.\n\n요청 내용:\n-\n\n예산/일정:\n-\n';
 const DEFAULT_CONTACT_CATEGORY = '멤버십/맞춤제작';
 
 export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
@@ -24,8 +21,8 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
   const [contactName, setContactName] = useState('');
   const [contactReplyEmail, setContactReplyEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
-  const [contactSubject, setContactSubject] = useState(DEFAULT_CONTACT_SUBJECT);
-  const [contactBody, setContactBody] = useState(DEFAULT_CONTACT_BODY);
+  const [contactSubject, setContactSubject] = useState('');
+  const [contactBody, setContactBody] = useState('');
   const [isContactSubmitting, setIsContactSubmitting] = useState(false);
   const [contactMessage, setContactMessage] = useState<string | null>(null);
   const [contactError, setContactError] = useState<string | null>(null);
@@ -39,7 +36,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
     const name = contactName.trim();
     const replyEmail = contactReplyEmail.trim();
     const phone = contactPhone.trim();
-    const subject = contactSubject.trim() || DEFAULT_CONTACT_SUBJECT;
+    const subject = contactSubject.trim();
     const body = contactBody.trim();
 
     if (!name || !replyEmail || !subject || !body || !category) {
@@ -65,8 +62,8 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
       setContactName('');
       setContactReplyEmail('');
       setContactPhone('');
-      setContactSubject(DEFAULT_CONTACT_SUBJECT);
-      setContactBody(DEFAULT_CONTACT_BODY);
+      setContactSubject('');
+      setContactBody('');
     } catch (error) {
       setContactError(error instanceof Error ? error.message : '문의 전송 실패');
     } finally {
