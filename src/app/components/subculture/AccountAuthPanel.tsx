@@ -506,7 +506,7 @@ export function AccountAuthPanel() {
               <button
                 type="submit"
                 disabled={isBusy}
-                className="min-h-[60px] w-full rounded-2xl border border-[#46b45f] bg-[linear-gradient(180deg,#2faa4d_0%,#248b3d_100%)] px-4 py-3 text-base font-bold text-white transition-all hover:-translate-y-[1px] hover:border-[#6bda84] hover:bg-[linear-gradient(180deg,#35bf57_0%,#2a9946_100%)] disabled:opacity-50"
+                className="min-h-[60px] w-full rounded-2xl border border-[#00ffd1] bg-[linear-gradient(180deg,#00ffd1_0%,#00cdb2_100%)] px-4 py-3 text-base font-bold text-black transition-all hover:-translate-y-[1px] hover:border-[#8bfff0] hover:bg-[linear-gradient(180deg,#4dffe0_0%,#00e7c7_100%)] disabled:opacity-50"
               >
                 {isBusy ? '처리중...' : '이메일 로그인'}
               </button>
