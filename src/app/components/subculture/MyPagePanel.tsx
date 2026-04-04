@@ -2291,24 +2291,34 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                 등록된 회원이 없습니다.
               </div>
             ) : (
-              <div className="space-y-7">
-                {members.map((member) => {
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+                {members.map((member, index) => {
                   const draft = memberDrafts[member.id] || createMemberDraft(member);
                   return (
                     <div
                       key={member.id}
-                      className="mb-1 overflow-hidden rounded-[8px] border-2 border-[#d9dee6] bg-[linear-gradient(180deg,#16181c_0%,#101114_100%)] shadow-[0_0_0_1px_rgba(237,242,246,0.18)]"
+                      className="flex h-full min-h-[540px] flex-col overflow-hidden rounded-[8px] border-2 border-[#d9dee6] bg-[linear-gradient(180deg,#16181c_0%,#101114_100%)] shadow-[0_0_0_1px_rgba(237,242,246,0.18)]"
                     >
                       <div className="border-b-2 border-[#b2bbc9] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-4">
-                        <div className="mb-2 text-[11px] uppercase tracking-[0.24em] text-[#e0e5ec]">
-                          Member Card
+                        <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.24em] text-[#e0e5ec]">
+                          <span>회원 {String(index + 1).padStart(2, '0')}</span>
+                          <span className="text-[#aab1ba]">
+                            생성일: {formatDate(member.createdAt || undefined)}
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="break-all text-base font-semibold text-[#f2f5f8]">{member.email || '-'}</p>
-                            <p className="mt-2 text-xs text-[#aab1ba]">
-                              생성일: {formatDate(member.createdAt || undefined)}
-                            </p>
+                            <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-[#d6dce5]">
+                              <p>
+                                <span className="mr-2 text-[#8f99a6]">이름</span>
+                                <span>{member.fullName || '-'}</span>
+                              </p>
+                              <p>
+                                <span className="mr-2 text-[#8f99a6]">전화번호</span>
+                                <span>{member.phone || '-'}</span>
+                              </p>
+                            </div>
                           </div>
                           {member.isPrimaryAdmin && (
                             <span className="rounded-[6px] border border-[#00ffd1]/50 bg-[#00ffd1]/10 px-3 py-1.5 text-[10px] uppercase tracking-widest text-[#00ffd1]">
@@ -2318,8 +2328,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                         </div>
                       </div>
 
-                      <div className="space-y-5 p-5">
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm">
+                      <div className="flex flex-1 flex-col gap-5 p-5">
+                        <div className="grid grid-cols-1 gap-3 text-sm">
                           <label className="rounded-[6px] border border-[#bcc5d0] bg-[#0d1015] p-3 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
                             <span className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-[#c9d1dc]">이름</span>
                             <input
@@ -2344,7 +2354,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               placeholder="전화번호"
                             />
                           </label>
-                          <label className="rounded-[6px] border border-[#bcc5d0] bg-[#0d1015] p-3 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)] md:col-span-2">
+                          <label className="rounded-[6px] border border-[#bcc5d0] bg-[#0d1015] p-3 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
                             <span className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-[#c9d1dc]">주소</span>
                             <input
                               type="text"
@@ -2382,7 +2392,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                           </label>
                         </div>
 
-                        <div className="mt-2 grid grid-cols-1 gap-3 border-t border-[#aab2be]/35 pt-4 md:grid-cols-2">
+                        <div className="mt-auto grid grid-cols-1 gap-3 border-t border-[#aab2be]/35 pt-4">
                           <button
                             type="button"
                             onClick={() => void handleSaveMember(member.id)}
