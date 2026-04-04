@@ -401,7 +401,7 @@ export function AccountAuthPanel() {
 
   return (
     <div className="space-y-4 font-mono">
-      <div className="grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-[#0b0b0b] p-2 sm:grid-cols-3 sm:gap-1 sm:p-1">
+      <div className="grid grid-cols-1 gap-3 rounded-[1.75rem] border border-white/10 bg-[#0b0b0b] p-3 sm:grid-cols-3">
         <button
           type="button"
           onClick={() => {
@@ -409,10 +409,10 @@ export function AccountAuthPanel() {
             clearMessages();
             setSignupError(null);
           }}
-          className={`rounded-xl border px-3 py-3 text-center text-[11px] leading-tight uppercase tracking-[0.16em] transition-colors ${
+          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
             activeTab === 'signup'
-              ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
+              ? 'border-[#00ffd1] bg-[linear-gradient(180deg,rgba(0,255,209,0.18),rgba(0,255,209,0.08))] text-[#00ffd1] shadow-[0_0_24px_rgba(0,255,209,0.16)]'
+              : 'border-[#2f2f2f] bg-[#111] text-[#d0d0d0] hover:-translate-y-[1px] hover:border-[#00ffd1]/60 hover:text-white'
           }`}
         >
           회원가입
@@ -423,10 +423,10 @@ export function AccountAuthPanel() {
             setActiveTab('recover');
             clearMessages();
           }}
-          className={`rounded-xl border px-3 py-3 text-center text-[11px] leading-tight uppercase tracking-[0.16em] transition-colors ${
+          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
             activeTab === 'recover'
-              ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
+              ? 'border-[#00ffd1] bg-[linear-gradient(180deg,rgba(0,255,209,0.18),rgba(0,255,209,0.08))] text-[#00ffd1] shadow-[0_0_24px_rgba(0,255,209,0.16)]'
+              : 'border-[#2f2f2f] bg-[#111] text-[#d0d0d0] hover:-translate-y-[1px] hover:border-[#00ffd1]/60 hover:text-white'
           }`}
         >
           아이디/비번 찾기
@@ -437,10 +437,10 @@ export function AccountAuthPanel() {
             setActiveTab('guestOrder');
             clearMessages();
           }}
-          className={`rounded-xl border px-3 py-3 text-center text-[11px] leading-tight uppercase tracking-[0.16em] transition-colors ${
+          className={`min-h-[68px] rounded-2xl border px-4 py-4 text-center text-[12px] font-semibold leading-tight uppercase tracking-[0.18em] transition-all duration-200 ${
             activeTab === 'guestOrder'
-              ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-[#00ffd1]'
-              : 'border-[#333] bg-[#111] text-[#d0d0d0] hover:border-[#00ffd1]/60 hover:text-white'
+              ? 'border-[#00ffd1] bg-[linear-gradient(180deg,rgba(0,255,209,0.18),rgba(0,255,209,0.08))] text-[#00ffd1] shadow-[0_0_24px_rgba(0,255,209,0.16)]'
+              : 'border-[#2f2f2f] bg-[#111] text-[#d0d0d0] hover:-translate-y-[1px] hover:border-[#00ffd1]/60 hover:text-white'
           }`}
         >
           비회원 주문조회
@@ -449,20 +449,31 @@ export function AccountAuthPanel() {
 
       {activeTab === 'login' && (
         <div className="border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
-            <div className="flex min-h-[188px] flex-col justify-center rounded-2xl border border-white/10 bg-[#111] p-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-[#111] p-5">
+              <div className="mb-4">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">
+                  Quick Login
+                </p>
+                <p className="mt-2 text-sm text-[#f2f2f2]">구글 계정으로 바로 로그인</p>
+              </div>
               <button
                 type="button"
                 onClick={() => void handleGoogleAuth()}
                 disabled={isBusy}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#00ffd1] px-3 py-3.5 text-xs tracking-widest text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:opacity-50"
+                className="inline-flex min-h-[54px] w-full items-center justify-center gap-3 rounded-2xl border border-[#00ffd1] px-4 py-3 text-sm font-semibold tracking-[0.16em] text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:opacity-50"
               >
-                <GoogleIcon />
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+                  <GoogleIcon />
+                </span>
                 <span>{isBusy ? '처리중...' : '구글 로그인'}</span>
               </button>
             </div>
 
-            <form onSubmit={handleEmailAuth} className="space-y-3 rounded-2xl border border-white/10 bg-[#0e0e0e] p-4">
+            <form
+              onSubmit={handleEmailAuth}
+              className="space-y-3 rounded-2xl border border-white/10 bg-[#0e0e0e] p-5"
+            >
               <div>
                 <p className="text-[10px] uppercase tracking-[0.22em] text-[#00ffd1]">이메일 로그인</p>
                 <p className="mt-2 text-sm text-[#f2f2f2]">이메일과 비밀번호로 로그인</p>
@@ -488,7 +499,7 @@ export function AccountAuthPanel() {
               <button
                 type="submit"
                 disabled={isBusy}
-                className="w-full rounded-xl py-3.5 bg-[#e5e5e5] text-black font-bold uppercase hover:bg-[#00ffd1] transition-colors disabled:opacity-50"
+                className="min-h-[54px] w-full rounded-2xl bg-[#e5e5e5] px-4 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition-colors hover:bg-[#00ffd1] disabled:opacity-50"
               >
                 {isBusy ? '처리중...' : '이메일 로그인'}
               </button>
