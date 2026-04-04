@@ -17,7 +17,12 @@ import {
   NICEPAY_TEST_PRODUCT_ID,
   type Product,
 } from '@/lib/storefront/productCatalog';
-import { STOREFRONT_PRODUCT_SELECT, type StorefrontProductRow } from '@/lib/storefront/shared';
+import {
+  buildStorefrontSelect,
+  extractMissingStorefrontColumn,
+  STOREFRONT_PRODUCT_FIELDS,
+  type StorefrontProductRow,
+} from '@/lib/storefront/shared';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface ProductShowcaseProps {
@@ -69,7 +74,11 @@ export function ProductShowcase({
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(initialProducts);
   const [isRecoveringProducts, setIsRecoveringProducts] = useState(false);
   const canViewNicepayTestProduct = isAuthenticated && isDesignatedAdmin(user?.email);
-  const visibleCatalogProducts = canViewNicepayTestProduct
+  const shouldShowNicepayTestProduct =
+    canViewNicepayTestProduct &&
+    (!usingFallbackCatalog ||
+      catalogProducts.some((product) => product.id !== NICEPAY_TEST_PRODUCT_ID));
+  const visibleCatalogProducts = shouldShowNicepayTestProduct
     ? catalogProducts
     : catalogProducts.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID);
   const activeProducts = visibleCatalogProducts.filter((product) => !product.isSoldOut);
@@ -111,42 +120,50 @@ export function ProductShowcase({
       setIsRecoveringProducts(true);
 
       try {
-        let { data, error } = await supabase
-          .from('products')
-          .select(STOREFRONT_PRODUCT_SELECT)
-          .eq('is_published', true)
-          .order('created_at', { ascending: false })
-          .returns<StorefrontProductRow[]>();
+        let fields: string[] = [...STOREFRONT_PRODUCT_FIELDS];
+        let orderColumn: 'created_at' | 'updated_at' | null = 'created_at';
+        let usePublishedFilter = true;
+        let data: StorefrontProductRow[] | null = null;
+        let error: { message?: string } | null = null;
 
-        if (error?.message?.toLowerCase().includes('created_at')) {
-          const updatedAtFallback = await supabase
-            .from('products')
-            .select(STOREFRONT_PRODUCT_SELECT)
-            .eq('is_published', true)
-            .order('updated_at', { ascending: false })
-            .returns<StorefrontProductRow[]>();
-          data = updatedAtFallback.data;
-          error = updatedAtFallback.error;
-        }
+        for (let attempt = 0; attempt < STOREFRONT_PRODUCT_FIELDS.length + 5; attempt += 1) {
+          let query = supabase.from('products').select(buildStorefrontSelect(fields));
 
-        if (error?.message?.toLowerCase().includes('is_published')) {
-          const fallbackQuery = await supabase
-            .from('products')
-            .select(STOREFRONT_PRODUCT_SELECT)
-            .order('created_at', { ascending: false })
-            .returns<StorefrontProductRow[]>();
-          data = fallbackQuery.data;
-          error = fallbackQuery.error;
-
-          if (error?.message?.toLowerCase().includes('created_at')) {
-            const updatedAtFallback = await supabase
-              .from('products')
-              .select(STOREFRONT_PRODUCT_SELECT)
-              .order('updated_at', { ascending: false })
-              .returns<StorefrontProductRow[]>();
-            data = updatedAtFallback.data;
-            error = updatedAtFallback.error;
+          if (usePublishedFilter) {
+            query = query.eq('is_published', true);
           }
+
+          if (orderColumn) {
+            query = query.order(orderColumn, { ascending: false });
+          }
+
+          const result = await query.returns<StorefrontProductRow[]>();
+          data = result.data;
+          error = result.error;
+
+          if (!error) {
+            break;
+          }
+
+          const message = (error.message || '').toLowerCase();
+          const missingColumn = extractMissingStorefrontColumn(error);
+
+          if (usePublishedFilter && message.includes('is_published')) {
+            usePublishedFilter = false;
+            continue;
+          }
+
+          if (orderColumn && message.includes(orderColumn)) {
+            orderColumn = orderColumn === 'created_at' ? 'updated_at' : null;
+            continue;
+          }
+
+          if (missingColumn && fields.includes(missingColumn)) {
+            fields = fields.filter((field) => field !== missingColumn);
+            continue;
+          }
+
+          break;
         }
 
         if (error || !active) return;

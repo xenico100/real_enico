@@ -3,8 +3,10 @@ import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
 import {
-  STOREFRONT_COLLECTION_SELECT,
-  STOREFRONT_PRODUCT_SELECT,
+  buildStorefrontSelect,
+  extractMissingStorefrontColumn,
+  STOREFRONT_COLLECTION_FIELDS,
+  STOREFRONT_PRODUCT_FIELDS,
   type StorefrontCollectionRow,
   type StorefrontProductRow,
 } from '@/lib/storefront/shared';
@@ -34,56 +36,83 @@ function getStorefrontServerClient() {
   });
 }
 
+function getStorefrontErrorMessage(error: unknown) {
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return '';
+}
+
+async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | StorefrontCollectionRow>({
+  client,
+  table,
+  baseFields,
+}: {
+  client: NonNullable<ReturnType<typeof getStorefrontServerClient>>;
+  table: 'products' | 'collections';
+  baseFields: readonly string[];
+}) {
+  let fields: string[] = [...baseFields];
+  let orderColumn: 'created_at' | 'updated_at' | null = 'created_at';
+  let usePublishedFilter = true;
+
+  for (let attempt = 0; attempt < baseFields.length + 5; attempt += 1) {
+    let query = client.from(table).select(buildStorefrontSelect(fields));
+
+    if (usePublishedFilter) {
+      query = query.eq('is_published', true);
+    }
+
+    if (orderColumn) {
+      query = query.order(orderColumn, { ascending: false });
+    }
+
+    const { data, error } = await query.returns<Row[]>();
+
+    if (!error) {
+      return (data || []) as Row[];
+    }
+
+    const message = getStorefrontErrorMessage(error).toLowerCase();
+    const missingColumn = extractMissingStorefrontColumn(error);
+
+    if (usePublishedFilter && message.includes('is_published')) {
+      usePublishedFilter = false;
+      continue;
+    }
+
+    if (orderColumn && message.includes(orderColumn)) {
+      orderColumn = orderColumn === 'created_at' ? 'updated_at' : null;
+      continue;
+    }
+
+    if (missingColumn && fields.includes(missingColumn)) {
+      fields = fields.filter((field) => field !== missingColumn);
+      continue;
+    }
+
+    return [] as Row[];
+  }
+
+  return [] as Row[];
+}
+
 async function fetchProductsUncached() {
   const client = getStorefrontServerClient();
   if (!client) {
     return [] as StorefrontProductRow[];
   }
 
-  const query = client
-    .from('products')
-    .select(STOREFRONT_PRODUCT_SELECT)
-    .eq('is_published', true)
-    .order('created_at', { ascending: false });
-
-  let { data, error } = await query.returns<StorefrontProductRow[]>();
-
-  if (error?.message?.toLowerCase().includes('created_at')) {
-    const fallback = await client
-      .from('products')
-      .select(STOREFRONT_PRODUCT_SELECT)
-      .eq('is_published', true)
-      .order('updated_at', { ascending: false })
-      .returns<StorefrontProductRow[]>();
-    data = fallback.data;
-    error = fallback.error;
-  }
-
-  if (error?.message?.toLowerCase().includes('is_published')) {
-    const fallback = await client
-      .from('products')
-      .select(STOREFRONT_PRODUCT_SELECT)
-      .order('created_at', { ascending: false })
-      .returns<StorefrontProductRow[]>();
-    data = fallback.data;
-    error = fallback.error;
-
-    if (error?.message?.toLowerCase().includes('created_at')) {
-      const updatedAtFallback = await client
-        .from('products')
-        .select(STOREFRONT_PRODUCT_SELECT)
-        .order('updated_at', { ascending: false })
-        .returns<StorefrontProductRow[]>();
-      data = updatedAtFallback.data;
-      error = updatedAtFallback.error;
-    }
-  }
-
-  if (error) {
-    return [] as StorefrontProductRow[];
-  }
-
-  return (data || []) as StorefrontProductRow[];
+  return fetchRowsWithSchemaFallback<StorefrontProductRow>({
+    client,
+    table: 'products',
+    baseFields: STOREFRONT_PRODUCT_FIELDS,
+  });
 }
 
 async function fetchCollectionsUncached() {
@@ -92,28 +121,11 @@ async function fetchCollectionsUncached() {
     return [] as StorefrontCollectionRow[];
   }
 
-  let { data, error } = await client
-    .from('collections')
-    .select(STOREFRONT_COLLECTION_SELECT)
-    .eq('is_published', true)
-    .order('created_at', { ascending: false })
-    .returns<StorefrontCollectionRow[]>();
-
-  if (error?.message?.toLowerCase().includes('is_published')) {
-    const fallback = await client
-      .from('collections')
-      .select(STOREFRONT_COLLECTION_SELECT)
-      .order('created_at', { ascending: false })
-      .returns<StorefrontCollectionRow[]>();
-    data = fallback.data;
-    error = fallback.error;
-  }
-
-  if (error) {
-    return [] as StorefrontCollectionRow[];
-  }
-
-  return (data || []) as StorefrontCollectionRow[];
+  return fetchRowsWithSchemaFallback<StorefrontCollectionRow>({
+    client,
+    table: 'collections',
+    baseFields: STOREFRONT_COLLECTION_FIELDS,
+  });
 }
 
 export const getCachedStorefrontProducts = unstable_cache(fetchProductsUncached, ['storefront-products'], {

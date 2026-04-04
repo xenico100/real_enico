@@ -8,7 +8,9 @@ import {
   type Collection,
 } from '@/lib/storefront/collectionCatalog';
 import {
-  STOREFRONT_COLLECTION_SELECT,
+  buildStorefrontSelect,
+  extractMissingStorefrontColumn,
+  STOREFRONT_COLLECTION_FIELDS,
   type StorefrontCollectionRow,
 } from '@/lib/storefront/shared';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -45,21 +47,50 @@ export function CollectionSection({
       setIsRecoveringCollections(true);
 
       try {
-        let { data, error } = await supabase
-          .from('collections')
-          .select(STOREFRONT_COLLECTION_SELECT)
-          .eq('is_published', true)
-          .order('created_at', { ascending: false })
-          .returns<StorefrontCollectionRow[]>();
+        let fields: string[] = [...STOREFRONT_COLLECTION_FIELDS];
+        let orderColumn: 'created_at' | 'updated_at' | null = 'created_at';
+        let usePublishedFilter = true;
+        let data: StorefrontCollectionRow[] | null = null;
+        let error: { message?: string } | null = null;
 
-        if (error?.message?.toLowerCase().includes('is_published')) {
-          const fallback = await supabase
-            .from('collections')
-            .select(STOREFRONT_COLLECTION_SELECT)
-            .order('created_at', { ascending: false })
-            .returns<StorefrontCollectionRow[]>();
-          data = fallback.data;
-          error = fallback.error;
+        for (let attempt = 0; attempt < STOREFRONT_COLLECTION_FIELDS.length + 5; attempt += 1) {
+          let query = supabase.from('collections').select(buildStorefrontSelect(fields));
+
+          if (usePublishedFilter) {
+            query = query.eq('is_published', true);
+          }
+
+          if (orderColumn) {
+            query = query.order(orderColumn, { ascending: false });
+          }
+
+          const result = await query.returns<StorefrontCollectionRow[]>();
+          data = result.data;
+          error = result.error;
+
+          if (!error) {
+            break;
+          }
+
+          const message = (error.message || '').toLowerCase();
+          const missingColumn = extractMissingStorefrontColumn(error);
+
+          if (usePublishedFilter && message.includes('is_published')) {
+            usePublishedFilter = false;
+            continue;
+          }
+
+          if (orderColumn && message.includes(orderColumn)) {
+            orderColumn = orderColumn === 'created_at' ? 'updated_at' : null;
+            continue;
+          }
+
+          if (missingColumn && fields.includes(missingColumn)) {
+            fields = fields.filter((field) => field !== missingColumn);
+            continue;
+          }
+
+          break;
         }
 
         if (error || !active) return;
