@@ -555,30 +555,33 @@ function injectManualProducts(products: Product[]) {
   return [...filteredProducts, NICEPAY_TEST_PRODUCT];
 }
 
-export function buildProductCatalog(rows: StorefrontProductRow[]) {
+function buildDbBackedProductCatalog(rows: StorefrontProductRow[]) {
   const seen = new Set<string>();
 
-  return injectManualProducts(
-    sortProductsByLatest(
-      rows
-        .map(mapDbRowToProduct)
-        .filter((item): item is Product => Boolean(item)),
-    ).filter((product) => {
-      const key = normalizeCategoryHintKey(product.name);
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    }),
-  );
+  return sortProductsByLatest(
+    rows
+      .map(mapDbRowToProduct)
+      .filter((item): item is Product => Boolean(item)),
+  ).filter((product) => {
+    const key = normalizeCategoryHintKey(product.name);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+export function buildProductCatalog(rows: StorefrontProductRow[]) {
+  return injectManualProducts(buildDbBackedProductCatalog(rows));
 }
 
 export function resolveInitialProductCatalog(rows: StorefrontProductRow[]) {
-  const products = buildProductCatalog(rows);
+  const dbProducts = buildDbBackedProductCatalog(rows);
+  const products = injectManualProducts(dbProducts);
 
   return {
     products,
-    usingFallbackCatalog: products.length === 0,
+    usingFallbackCatalog: dbProducts.length === 0,
   };
 }
