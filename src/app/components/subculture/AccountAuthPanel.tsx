@@ -407,8 +407,8 @@ export function AccountAuthPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 font-mono">
-      <div className="grid grid-cols-1 gap-2 rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,#111214_0%,#090909_100%)] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.04)] sm:grid-cols-3">
+    <div className="mx-auto w-full max-w-[860px] space-y-5 font-mono">
+      <div className="mx-auto grid w-full max-w-[760px] grid-cols-1 gap-2 rounded-[1.9rem] border border-white/10 bg-[linear-gradient(180deg,#111214_0%,#090909_100%)] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.04)] sm:grid-cols-3">
         <button
           type="button"
           onClick={openLoginTab}
@@ -452,11 +452,11 @@ export function AccountAuthPanel() {
       </div>
 
       {activeTab === 'login' && (
-        <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_38%),linear-gradient(180deg,#111214_0%,#090909_100%)] p-4 md:p-6">
-          <div className="flex justify-center">
+        <div className="mx-auto w-full max-w-[760px] rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_38%),linear-gradient(180deg,#111214_0%,#090909_100%)] p-4 md:p-6">
+          <div className="flex w-full justify-center">
             <form
               onSubmit={handleEmailAuth}
-              className="w-full max-w-[560px] space-y-5 rounded-[1.9rem] border border-[#cfd5de]/20 bg-[linear-gradient(180deg,#16191e_0%,#0d0f13_100%)] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.05)] md:p-7"
+              className="mx-auto w-full max-w-[580px] space-y-5 rounded-[1.9rem] border border-[#cfd5de]/20 bg-[linear-gradient(180deg,#16191e_0%,#0d0f13_100%)] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.05)] md:p-7"
             >
               <div className="space-y-2 border-b border-white/10 pb-4">
                 <p className="text-[11px] font-semibold tracking-[0.24em] text-[#00ffd1]">이메일 로그인</p>
@@ -542,7 +542,7 @@ export function AccountAuthPanel() {
       )}
 
       {activeTab === 'signup' && (
-        <form onSubmit={handleSignUp} className="space-y-3 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
+        <form onSubmit={handleSignUp} className="mx-auto w-full max-w-[760px] space-y-3 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
           <input
             type="text"
             value={signupName}
@@ -601,7 +601,7 @@ export function AccountAuthPanel() {
       )}
 
       {activeTab === 'recover' && (
-        <div className="space-y-4 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
+        <div className="mx-auto w-full max-w-[760px] space-y-4 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
           <form onSubmit={handleFindEmail} className="space-y-3">
             <p className="text-xs text-[#00ffd1] uppercase tracking-widest">아이디(이메일) 찾기</p>
             <input
@@ -667,7 +667,7 @@ export function AccountAuthPanel() {
       )}
 
       {activeTab === 'guestOrder' && (
-        <div className="space-y-4 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
+        <div className="mx-auto w-full max-w-[760px] space-y-4 border border-[#333] bg-[#0a0a0a] p-4 md:p-5">
           <div className="border border-[#00ffd1]/35 bg-[#00ffd1]/6 px-4 py-3">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#00ffd1]">
               Mobile Guest Lookup
