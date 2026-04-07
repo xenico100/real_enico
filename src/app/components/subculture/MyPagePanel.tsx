@@ -1276,8 +1276,10 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="space-y-4 font-mono">
-        <AccountAuthPanel />
+      <div className="h-full min-h-0 font-mono">
+        <div className="h-full min-h-0 overflow-y-auto overscroll-contain pr-1 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          <AccountAuthPanel />
+        </div>
       </div>
     );
   }
