@@ -8,7 +8,7 @@ import {
   useFashionCart,
 } from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
-import { useMemo, useRef, useState, type TouchEventHandler } from 'react';
+import { useEffect, useMemo, useRef, useState, type TouchEventHandler } from 'react';
 import type { Product } from '@/lib/storefront/productCatalog';
 
 interface ProductDetailPopupProps {
@@ -27,14 +27,16 @@ function NaverIcon() {
 }
 
 export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
-  const { cart, addToCart } = useFashionCart();
+  const { cart, addToCart, lastAddedItem } = useFashionCart();
   const [imageState, setImageState] = useState(() => ({
     productId: product.id,
     index: 0,
   }));
+  const [isCartBurstVisible, setIsCartBurstVisible] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const itemKey = getFashionCartItemKey(product.id, null);
   const isInCart = cart.some(
-    (item) => getFashionCartItemKey(item.id, item.selectedSize) === getFashionCartItemKey(product.id, null),
+    (item) => getFashionCartItemKey(item.id, item.selectedSize) === itemKey,
   );
   const isSoldOut = Boolean(product.isSoldOut);
   const smartstoreUrl = SMARTSTORE_HOME_URL;
@@ -65,6 +67,18 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     .filter(({ index }) => index > 0);
   const shouldUseDirectActiveImage = shouldBypassImageOptimization(activeImage);
 
+  useEffect(() => {
+    if (lastAddedItem?.itemKey !== itemKey) return;
+
+    setIsCartBurstVisible(true);
+    const timeoutId = window.setTimeout(() => {
+      setIsCartBurstVisible(false);
+    }, 950);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [itemKey, lastAddedItem]);
 
   const moveImage = (direction: 'next' | 'prev') => {
     if (!canSlide) return;
@@ -108,7 +122,6 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
       image: product.image,
       category: product.category,
     });
-    onClose();
   };
 
   const handleSmartstorePurchase = () => {
@@ -266,32 +279,85 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={handleAddToCart}
-                    disabled={isSoldOut}
-                    className={`min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-all duration-300 relative overflow-hidden group text-left ${
-                      isSoldOut
-                        ? 'bg-[#1f0e0e] text-[#ffabab] border-[#6d2d2d] cursor-not-allowed'
-                        : isInCart
-                          ? 'bg-[#0e1f1c] text-[#8fd6c8] border-[#2d6d62]'
-                          : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
-                    }`}
-                  >
-                    {!isInCart && !isSoldOut ? (
-                      <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                    ) : null}
-                    <span className="relative z-10 flex h-full items-center justify-between gap-3">
-                      <span className="leading-tight">
-                        {isSoldOut
-                          ? '품절'
+                  <div className="relative">
+                    <AnimatePresence>
+                      {isCartBurstVisible ? (
+                        <>
+                          <motion.div
+                            key={`${itemKey}-detail-burst`}
+                            initial={{ opacity: 0.82, scale: 0.9 }}
+                            animate={{ opacity: 0, scale: 1.16 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.7, ease: 'easeOut' }}
+                            className="pointer-events-none absolute inset-0 z-10 rounded-none bg-[radial-gradient(circle_at_50%_50%,rgba(0,255,209,0.32)_0%,rgba(0,255,209,0.14)_36%,rgba(0,255,209,0)_74%)]"
+                          />
+                          <motion.span
+                            key={`${itemKey}-detail-plus`}
+                            initial={{ opacity: 0, y: 8, scale: 0.84 }}
+                            animate={{ opacity: 1, y: -14, scale: 1 }}
+                            exit={{ opacity: 0, y: -24, scale: 0.92 }}
+                            transition={{ duration: 0.55, ease: 'easeOut' }}
+                            className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-[#c5fff6] bg-[#e0fff9] px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#034138] shadow-[0_12px_26px_rgba(0,255,209,0.25)]"
+                          >
+                            +1
+                          </motion.span>
+                        </>
+                      ) : null}
+                    </AnimatePresence>
+
+                    <motion.button
+                      type="button"
+                      onClick={handleAddToCart}
+                      disabled={isSoldOut}
+                      animate={
+                        isCartBurstVisible
+                          ? {
+                              scale: [1, 0.97, 1.03, 1],
+                              boxShadow: [
+                                '0 0 0 rgba(0,255,209,0)',
+                                '0 0 0 rgba(0,255,209,0)',
+                                '0 0 34px rgba(0,255,209,0.32)',
+                                '0 0 0 rgba(0,255,209,0)',
+                              ],
+                            }
+                          : { scale: 1, boxShadow: '0 0 0 rgba(0,255,209,0)' }
+                      }
+                      transition={{ duration: 0.72, ease: 'easeOut' }}
+                      className={`min-h-[88px] w-full px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-all duration-300 relative overflow-hidden group text-left ${
+                        isSoldOut
+                          ? 'bg-[#1f0e0e] text-[#ffabab] border-[#6d2d2d] cursor-not-allowed'
                           : isInCart
-                            ? '장바구니 담김'
-                            : '장바구니 담기'}
+                            ? 'bg-[#032822] text-[#d8fff8] border-[#63e7d2]'
+                            : 'bg-transparent text-[#00ffd1] border-[#00ffd1] hover:text-black'
+                      }`}
+                    >
+                      {!isInCart && !isSoldOut ? (
+                        <div className="absolute inset-0 bg-[#00ffd1] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                      ) : null}
+                      <AnimatePresence>
+                        {isCartBurstVisible ? (
+                          <motion.span
+                            key={`${itemKey}-detail-sweep`}
+                            initial={{ opacity: 0.95, x: '-100%' }}
+                            animate={{ opacity: 0, x: '115%' }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.55, ease: 'easeOut' }}
+                            className="pointer-events-none absolute inset-y-0 left-[-25%] w-[45%] bg-[linear-gradient(90deg,transparent,rgba(236,255,252,0.95),transparent)]"
+                          />
+                        ) : null}
+                      </AnimatePresence>
+                      <span className="relative z-10 flex h-full items-center justify-between gap-3">
+                        <span className="leading-tight">
+                          {isSoldOut
+                            ? '품절'
+                            : isInCart
+                              ? '장바구니 담김'
+                              : '장바구니 담기'}
+                        </span>
+                        <span className="text-xl">{isSoldOut ? 'X' : isInCart ? '✓' : '+'}</span>
                       </span>
-                      <span className="text-xl">{isSoldOut ? 'X' : isInCart ? '✓' : '+'}</span>
-                    </span>
-                  </button>
+                    </motion.button>
+                  </div>
 
                   <button
                     type="button"
