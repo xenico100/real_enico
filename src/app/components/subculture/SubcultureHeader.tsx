@@ -2,7 +2,7 @@
 
 import { ShoppingBag, Menu, X } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/app/context/AuthContext';
 
@@ -19,10 +19,11 @@ type NavItem =
   | { key: 'randomChat'; label: string; action: 'randomChat' };
 
 export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }: SubcultureHeaderProps) {
-  const { cart } = useFashionCart();
+  const { cart, lastAddedItem } = useFashionCart();
   const { isAuthenticated, isAuthReady } = useAuth();
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeCartFeedbackSequence, setActiveCartFeedbackSequence] = useState<number | null>(null);
   const myPageLabel = isAuthenticated
     ? '마이페이지'
     : isAuthReady
@@ -34,6 +35,23 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
     { key: 'randomChat', label: '단체랜덤채팅', action: 'randomChat' },
     { key: 'mypage', label: myPageLabel, action: 'info' },
   ];
+  const isCartCelebrating = activeCartFeedbackSequence === lastAddedItem?.sequence;
+
+  useEffect(() => {
+    if (!lastAddedItem) return;
+
+    setActiveCartFeedbackSequence(lastAddedItem.sequence);
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveCartFeedbackSequence((current) =>
+        current === lastAddedItem.sequence ? null : current,
+      );
+    }, 1150);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [lastAddedItem]);
 
   return (
     <>
@@ -84,7 +102,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
             
             <button
               onClick={onCartClick}
-              className="mt-4 group relative w-full min-w-[220px] overflow-visible border border-[#333] bg-black/60 px-3 py-3 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:border-[#00ffd1] hover:shadow-[0_0_30px_rgba(0,255,209,0.24)]"
+              className={`mt-4 group relative w-full min-w-[220px] overflow-visible border bg-black/60 px-3 py-3 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:border-[#00ffd1] hover:shadow-[0_0_30px_rgba(0,255,209,0.24)] ${
+                isCartCelebrating
+                  ? 'border-[#8effee] shadow-[0_0_34px_rgba(0,255,209,0.28)]'
+                  : 'border-[#333]'
+              }`}
             >
               <span className="pointer-events-none absolute inset-y-2 left-4 right-4 rounded-full bg-[#00ffd1]/0 blur-xl transition-all duration-200 group-hover:bg-[#00ffd1]/18" />
               <div className="flex items-center justify-between gap-3">
@@ -96,23 +118,84 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                     결제 창 열기
                   </p>
                 </div>
-                <div className="relative z-[1] shrink-0 border border-[#333] bg-[#111] p-2 group-hover:border-[#00ffd1] transition-colors">
+                <motion.div
+                  animate={
+                    isCartCelebrating
+                      ? { scale: [1, 0.92, 1.18, 1], rotate: [0, -5, 4, 0] }
+                      : { scale: 1, rotate: 0 }
+                  }
+                  transition={{ duration: 0.72, ease: 'easeOut' }}
+                  className="relative z-[1] shrink-0 border border-[#333] bg-[#111] p-2 transition-colors group-hover:border-[#00ffd1]"
+                >
                   <ShoppingBag size={18} strokeWidth={1.5} />
-                  <span className="absolute -top-2 -right-2 bg-[#00ffd1] text-black text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center">
+                  <motion.span
+                    animate={isCartCelebrating ? { scale: [1, 1.22, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center bg-[#00ffd1] px-1 text-[10px] font-bold text-black"
+                  >
                     {cartCount}
-                  </span>
-                </div>
+                  </motion.span>
+                  <AnimatePresence>
+                    {isCartCelebrating ? (
+                      <motion.span
+                        key={`desktop-cart-feedback-${lastAddedItem?.sequence}`}
+                        initial={{ opacity: 0, y: 8, scale: 0.7 }}
+                        animate={{ opacity: 1, y: -18, scale: 1 }}
+                        exit={{ opacity: 0, y: -28, scale: 0.9 }}
+                        transition={{ duration: 0.58, ease: 'easeOut' }}
+                        className="pointer-events-none absolute -right-5 -top-3 rounded-full border border-[#bffff4] bg-[#dbfff9] px-2 py-1 font-mono text-[9px] font-black tracking-[0.2em] text-[#063e34] shadow-[0_10px_24px_rgba(0,255,209,0.3)]"
+                      >
+                        +1
+                      </motion.span>
+                    ) : null}
+                  </AnimatePresence>
+                </motion.div>
               </div>
             </button>
           </nav>
 
           {/* Mobile Menu Toggle */}
-          <button 
-            className="md:hidden pointer-events-auto text-white z-50"
+          <motion.button
+            type="button"
+            aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
+            animate={
+              isCartCelebrating
+                ? { scale: [1, 0.94, 1.08, 1], rotate: [0, -4, 0] }
+                : { scale: 1, rotate: 0 }
+            }
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+            className={`md:hidden pointer-events-auto relative z-50 flex h-12 w-12 items-center justify-center border bg-black/78 text-white transition-[border-color,box-shadow,color] ${
+              isCartCelebrating
+                ? 'border-[#91fff0] text-[#dffff8] shadow-[0_0_28px_rgba(0,255,209,0.28)]'
+                : 'border-[#333]'
+            }`}
             onClick={() => setMenuOpen(!menuOpen)}
           >
+            {cartCount > 0 ? (
+              <motion.span
+                animate={isCartCelebrating ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                transition={{ duration: 0.48, ease: 'easeOut' }}
+                className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#00ffd1] px-1.5 font-mono text-[10px] font-black text-black"
+              >
+                {cartCount}
+              </motion.span>
+            ) : null}
+            <AnimatePresence>
+              {isCartCelebrating ? (
+                <motion.span
+                  key={`mobile-cart-feedback-${lastAddedItem?.sequence}`}
+                  initial={{ opacity: 0, y: 6, scale: 0.76 }}
+                  animate={{ opacity: 1, y: -16, scale: 1 }}
+                  exit={{ opacity: 0, y: -26, scale: 0.9 }}
+                  transition={{ duration: 0.56, ease: 'easeOut' }}
+                  className="pointer-events-none absolute -right-4 -top-4 rounded-full border border-[#bffff4] bg-[#dbfff9] px-2 py-1 font-mono text-[9px] font-black tracking-[0.18em] text-[#063e34] shadow-[0_10px_24px_rgba(0,255,209,0.3)]"
+                >
+                  +1
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
             {menuOpen ? <X size={32} /> : <Menu size={32} />}
-          </button>
+          </motion.button>
         </div>
       </header>
 
@@ -148,9 +231,25 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                   onCartClick();
                   setMenuOpen(false);
                 }}
-                className="flex items-center gap-4 hover:line-through decoration-4 decoration-white"
+                className={`relative flex items-center gap-4 hover:line-through decoration-4 decoration-white ${
+                  isCartCelebrating ? 'text-white [text-shadow:0_0_18px_rgba(255,255,255,0.45)]' : ''
+                }`}
               >
                 장바구니 ({cartCount})
+                <AnimatePresence>
+                  {isCartCelebrating ? (
+                    <motion.span
+                      key={`menu-cart-feedback-${lastAddedItem?.sequence}`}
+                      initial={{ opacity: 0, x: -10, y: 4, scale: 0.84 }}
+                      animate={{ opacity: 1, x: 0, y: -10, scale: 1 }}
+                      exit={{ opacity: 0, x: 6, y: -18, scale: 0.9 }}
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                      className="rounded-full border border-black/15 bg-white px-3 py-1 text-base font-mono font-black tracking-[0.18em] text-[#008d73] shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
+                    >
+                      +1
+                    </motion.span>
+                  ) : null}
+                </AnimatePresence>
               </button>
             </nav>
           </motion.div>

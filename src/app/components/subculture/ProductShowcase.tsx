@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import { startTransition, useDeferredValue, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   PRODUCT_CATEGORIES,
   type ProductCategory,
 } from '@/app/constants/productCategories';
 import {
+  type FashionCartAdditionFeedback,
   getFashionCartItemKey,
   useFashionCart,
 } from '@/app/context/FashionCartContext';
@@ -63,12 +65,187 @@ function isDesignatedAdmin(email: string | null | undefined) {
   return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
 }
 
+interface ProductCardProps {
+  product: Product;
+  isInCart: boolean;
+  isSoldOut: boolean;
+  cartFeedback: FashionCartAdditionFeedback | null;
+  onProductClick: (product: Product) => void;
+  onAddToCart: (product: Product) => void;
+}
+
+function ProductCard({
+  product,
+  isInCart,
+  isSoldOut,
+  cartFeedback,
+  onProductClick,
+  onAddToCart,
+}: ProductCardProps) {
+  const shouldUseDirectImage = shouldBypassImageOptimization(product.image);
+  const itemKey = getFashionCartItemKey(product.id, null);
+  const [isCartBurstVisible, setIsCartBurstVisible] = useState(false);
+
+  useEffect(() => {
+    if (cartFeedback?.itemKey !== itemKey) return;
+
+    setIsCartBurstVisible(true);
+    const timeoutId = window.setTimeout(() => {
+      setIsCartBurstVisible(false);
+    }, 950);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [cartFeedback, itemKey]);
+
+  return (
+    <motion.div
+      layout
+      onClick={() => onProductClick(product)}
+      className="group relative cursor-pointer overflow-hidden bg-[#111] border border-[#333] transition-colors duration-300 hover:border-[#00ffd1]"
+    >
+      <AnimatePresence>
+        {isCartBurstVisible ? (
+          <motion.div
+            key={`${itemKey}-cart-burst`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none absolute inset-0 z-30"
+          >
+            <motion.div
+              initial={{ opacity: 0.78, scale: 0.88 }}
+              animate={{ opacity: 0, scale: 1.24 }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(0,255,209,0.38)_0%,rgba(0,255,209,0.16)_32%,rgba(0,255,209,0)_74%)]"
+            />
+            <motion.div
+              initial={{ opacity: 0.45, x: '-100%' }}
+              animate={{ opacity: 0, x: '125%' }}
+              transition={{ duration: 0.72, ease: 'easeOut' }}
+              className="absolute inset-y-0 left-[-22%] w-[44%] bg-[linear-gradient(90deg,transparent,rgba(170,255,243,0.8),transparent)] blur-md"
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <div className="relative overflow-hidden bg-black aspect-[1080/1350]">
+        <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 z-10 transition-opacity duration-300 group-hover:opacity-20" />
+
+        <Image
+          src={product.image}
+          alt={product.name}
+          fill
+          unoptimized={shouldUseDirectImage}
+          sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
+          className="object-contain object-center bg-black"
+        />
+
+        <div className="pointer-events-none absolute inset-0 z-20 opacity-0 transition-opacity duration-100 mix-blend-exclusion group-hover:opacity-100">
+          <div className="h-full w-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_3px)] opacity-20" />
+        </div>
+      </div>
+
+      <div className="relative overflow-hidden p-2 md:p-4">
+        <div className="absolute inset-0 z-0 bg-[#0a0a0a]" />
+
+        <div className="relative z-10 flex flex-col gap-1.5 md:gap-2">
+          <h3 className="line-clamp-2 font-heading text-[11px] uppercase leading-tight text-[#e5e5e5] transition-colors group-hover:text-[#00ffd1] md:text-xl md:leading-none">
+            {product.name}
+          </h3>
+
+          <div className="mt-1 flex items-center justify-between md:mt-2">
+            <span className="truncate font-mono text-[9px] text-[#888] md:text-xs">
+              {getCategoryLabel(product.category)}
+            </span>
+            <div className="flex items-center gap-2">
+              {isSoldOut ? (
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[#ff8888] md:text-[10px]">
+                  품절
+                </span>
+              ) : null}
+              <span className="whitespace-nowrap font-mono text-[10px] font-bold text-[#e5e5e5] md:text-sm">
+                {product.price.toLocaleString('ko-KR')}원
+              </span>
+            </div>
+          </div>
+
+          <div className="relative mt-2 md:mt-3">
+            <AnimatePresence>
+              {isCartBurstVisible ? (
+                <motion.span
+                  key={`${itemKey}-cart-toast`}
+                  initial={{ opacity: 0, y: 6, scale: 0.92 }}
+                  animate={{ opacity: 1, y: -10, scale: 1 }}
+                  exit={{ opacity: 0, y: -18, scale: 0.96 }}
+                  transition={{ duration: 0.55, ease: 'easeOut' }}
+                  className="pointer-events-none absolute right-2 top-0 z-20 rounded-full border border-[#b8fff2] bg-[#d9fff8] px-2.5 py-1 font-mono text-[9px] font-black uppercase tracking-[0.22em] text-[#033c33] shadow-[0_10px_24px_rgba(0,255,209,0.28)]"
+                >
+                  + cart
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
+
+            <motion.button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (isInCart || isSoldOut) return;
+                onAddToCart(product);
+              }}
+              disabled={isInCart || isSoldOut}
+              animate={
+                isCartBurstVisible
+                  ? {
+                      scale: [1, 0.97, 1.04, 1],
+                      boxShadow: [
+                        '0 0 0 rgba(0,255,209,0)',
+                        '0 0 0 rgba(0,255,209,0)',
+                        '0 0 30px rgba(0,255,209,0.38)',
+                        '0 0 0 rgba(0,255,209,0)',
+                      ],
+                    }
+                  : { scale: 1, boxShadow: '0 0 0 rgba(0,255,209,0)' }
+              }
+              transition={{ duration: 0.72, ease: 'easeOut' }}
+              className={`relative w-full overflow-hidden border px-2 py-2 text-[10px] font-mono uppercase tracking-widest transition-[color,background-color,border-color,transform] md:text-xs ${
+                isSoldOut
+                  ? 'cursor-not-allowed border-[#6d2d2d] bg-[#1f0e0e] text-[#ffabab]'
+                  : isInCart
+                    ? 'cursor-default border-[#5ce9d1] bg-[#032a23] text-[#d4fff6]'
+                    : 'border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black'
+              }`}
+            >
+              <AnimatePresence>
+                {isCartBurstVisible ? (
+                  <motion.span
+                    key={`${itemKey}-button-sweep`}
+                    initial={{ opacity: 0.95, x: '-100%' }}
+                    animate={{ opacity: 0, x: '115%' }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.58, ease: 'easeOut' }}
+                    className="pointer-events-none absolute inset-y-0 left-[-25%] w-[48%] bg-[linear-gradient(90deg,transparent,rgba(224,255,249,0.95),transparent)]"
+                  />
+                ) : null}
+              </AnimatePresence>
+              <span className="relative z-10">
+                {isSoldOut ? '품절' : isInCart ? '장바구니 담김' : '장바구니 담기'}
+              </span>
+            </motion.button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export function ProductShowcase({
   initialProducts = [],
   usingFallbackCatalog = false,
   onProductClick,
 }: ProductShowcaseProps) {
-  const { cart, addToCart } = useFashionCart();
+  const { cart, addToCart, lastAddedItem } = useFashionCart();
   const { isAuthenticated, user } = useAuth();
   const [activeCategory, setActiveCategory] = useState<ProductFilterCategory>(ALL_CATEGORY);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(initialProducts);
@@ -189,83 +366,26 @@ export function ProductShowcase({
   const productCards = filteredProducts.map((product) => {
     const isInCart = cartProductKeys.has(getFashionCartItemKey(product.id, null));
     const isSoldOut = Boolean(product.isSoldOut);
-    const shouldUseDirectImage = shouldBypassImageOptimization(product.image);
 
     return (
-      <div
+      <ProductCard
         key={product.id}
-        onClick={() => onProductClick(product)}
-        className="group cursor-pointer relative bg-[#111] border border-[#333] hover:border-[#00ffd1] transition-colors duration-300"
-      >
-        <div className="relative overflow-hidden bg-black aspect-[1080/1350]">
-          <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 group-hover:opacity-20 z-10 transition-opacity duration-300" />
-
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            unoptimized={shouldUseDirectImage}
-            sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
-            className="object-contain object-center bg-black"
-          />
-
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-100 z-20 mix-blend-exclusion pointer-events-none">
-            <div className="w-full h-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_3px)] opacity-20" />
-          </div>
-        </div>
-
-        <div className="p-2 md:p-4 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[#0a0a0a] z-0" />
-
-          <div className="relative z-10 flex flex-col gap-1.5 md:gap-2">
-            <h3 className="font-heading text-[11px] md:text-xl uppercase leading-tight md:leading-none text-[#e5e5e5] group-hover:text-[#00ffd1] transition-colors line-clamp-2">
-              {product.name}
-            </h3>
-
-            <div className="flex justify-between items-center mt-1 md:mt-2">
-              <span className="font-mono text-[9px] md:text-xs text-[#888] truncate">
-                {getCategoryLabel(product.category)}
-              </span>
-              <div className="flex items-center gap-2">
-                {isSoldOut ? (
-                  <span className="font-mono text-[9px] md:text-[10px] font-bold text-[#ff8888] uppercase tracking-widest">
-                    품절
-                  </span>
-                ) : null}
-                <span className="font-mono text-[10px] md:text-sm font-bold text-[#e5e5e5] whitespace-nowrap">
-                  {product.price.toLocaleString('ko-KR')}원
-                </span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                if (isInCart || isSoldOut) return;
-                addToCart({
-                  id: product.id,
-                  name: product.name,
-                  price: product.price,
-                  quantity: 1,
-                  image: product.image,
-                  category: product.category,
-                });
-              }}
-              disabled={isInCart || isSoldOut}
-              className={`mt-2 md:mt-3 w-full border px-2 py-2 text-[10px] md:text-xs font-mono uppercase tracking-widest transition-colors ${
-                isSoldOut
-                  ? 'border-[#6d2d2d] bg-[#1f0e0e] text-[#ffabab] cursor-not-allowed'
-                  : isInCart
-                    ? 'border-[#2d6d62] bg-[#0e1f1c] text-[#8fd6c8] cursor-default'
-                    : 'border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black'
-              }`}
-            >
-              {isSoldOut ? '품절' : isInCart ? '장바구니 담김' : '장바구니 담기'}
-            </button>
-          </div>
-        </div>
-      </div>
+        product={product}
+        isInCart={isInCart}
+        isSoldOut={isSoldOut}
+        cartFeedback={lastAddedItem}
+        onProductClick={onProductClick}
+        onAddToCart={(nextProduct) =>
+          addToCart({
+            id: nextProduct.id,
+            name: nextProduct.name,
+            price: nextProduct.price,
+            quantity: 1,
+            image: nextProduct.image,
+            category: nextProduct.category,
+          })
+        }
+      />
     );
   });
 

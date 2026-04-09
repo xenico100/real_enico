@@ -1,6 +1,13 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useReducer,
+  type ReactNode,
+} from 'react';
 
 export interface FashionCartItem {
   id: string;
@@ -12,8 +19,16 @@ export interface FashionCartItem {
   selectedSize?: string | null;
 }
 
+export interface FashionCartAdditionFeedback {
+  itemKey: string;
+  itemName: string;
+  cartCount: number;
+  sequence: number;
+}
+
 interface FashionCartContextType {
   cart: FashionCartItem[];
+  lastAddedItem: FashionCartAdditionFeedback | null;
   addToCart: (item: FashionCartItem) => void;
   removeFromCart: (id: string, selectedSize?: string | null) => void;
   updateQuantity: (id: string, quantity: number, selectedSize?: string | null) => void;
@@ -23,83 +38,147 @@ interface FashionCartContextType {
 const FashionCartContext = createContext<FashionCartContextType | undefined>(undefined);
 const MAX_CART_ITEM_QUANTITY = 1;
 
+interface FashionCartState {
+  cart: FashionCartItem[];
+  lastAddedItem: FashionCartAdditionFeedback | null;
+  additionSequence: number;
+}
+
+type FashionCartAction =
+  | { type: 'add'; item: FashionCartItem }
+  | { type: 'remove'; id: string; selectedSize?: string | null }
+  | { type: 'updateQuantity'; id: string; quantity: number; selectedSize?: string | null }
+  | { type: 'clear' };
+
 export function getFashionCartItemKey(id: string, selectedSize?: string | null) {
   return `${id}::${selectedSize?.trim() || ''}`;
 }
 
-export function FashionCartProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<FashionCartItem[]>([]);
-
-  const addToCart = (item: FashionCartItem) => {
-    setCart((prevCart) => {
-      const nextItemKey = getFashionCartItemKey(item.id, item.selectedSize);
-      const existingItem = prevCart.find(
+function fashionCartReducer(
+  state: FashionCartState,
+  action: FashionCartAction,
+): FashionCartState {
+  switch (action.type) {
+    case 'add': {
+      const nextItemKey = getFashionCartItemKey(action.item.id, action.item.selectedSize);
+      const existingItem = state.cart.find(
         (cartItem) =>
           getFashionCartItemKey(cartItem.id, cartItem.selectedSize) === nextItemKey,
       );
       const normalizedQuantity = Math.min(
         MAX_CART_ITEM_QUANTITY,
-        Math.max(1, item.quantity || 1),
+        Math.max(1, action.item.quantity || 1),
       );
 
       if (existingItem) {
-        return prevCart.map((i) =>
-          getFashionCartItemKey(i.id, i.selectedSize) === nextItemKey
-            ? {
-                ...i,
-                quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, i.quantity || 1)),
-              }
-            : i,
-        );
-      } else {
-        return [...prevCart, { ...item, quantity: normalizedQuantity }];
+        return {
+          ...state,
+          cart: state.cart.map((item) =>
+            getFashionCartItemKey(item.id, item.selectedSize) === nextItemKey
+              ? {
+                  ...item,
+                  quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, item.quantity || 1)),
+                }
+              : item,
+          ),
+        };
       }
-    });
-  };
 
-  const removeFromCart = (id: string, selectedSize?: string | null) => {
-    const targetKey = getFashionCartItemKey(id, selectedSize);
-    setCart((prevCart) =>
-      prevCart.filter(
-        (item) => getFashionCartItemKey(item.id, item.selectedSize) !== targetKey,
-      ),
-    );
-  };
+      const nextCart = [...state.cart, { ...action.item, quantity: normalizedQuantity }];
+      const nextSequence = state.additionSequence + 1;
 
-  const updateQuantity = (id: string, quantity: number, selectedSize?: string | null) => {
-    const targetKey = getFashionCartItemKey(id, selectedSize);
-    if (quantity <= 0) {
-      removeFromCart(id, selectedSize);
-    } else {
-      setCart((prevCart) =>
-        prevCart.map((item) =>
+      return {
+        cart: nextCart,
+        additionSequence: nextSequence,
+        lastAddedItem: {
+          itemKey: nextItemKey,
+          itemName: action.item.name,
+          cartCount: nextCart.length,
+          sequence: nextSequence,
+        },
+      };
+    }
+    case 'remove': {
+      const targetKey = getFashionCartItemKey(action.id, action.selectedSize);
+
+      return {
+        ...state,
+        cart: state.cart.filter(
+          (item) => getFashionCartItemKey(item.id, item.selectedSize) !== targetKey,
+        ),
+      };
+    }
+    case 'updateQuantity': {
+      const targetKey = getFashionCartItemKey(action.id, action.selectedSize);
+
+      if (action.quantity <= 0) {
+        return {
+          ...state,
+          cart: state.cart.filter(
+            (item) => getFashionCartItemKey(item.id, item.selectedSize) !== targetKey,
+          ),
+        };
+      }
+
+      return {
+        ...state,
+        cart: state.cart.map((item) =>
           getFashionCartItemKey(item.id, item.selectedSize) === targetKey
             ? {
                 ...item,
-                quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, quantity)),
+                quantity: Math.min(MAX_CART_ITEM_QUANTITY, Math.max(1, action.quantity)),
               }
             : item,
-        )
-      );
+        ),
+      };
     }
-  };
+    case 'clear':
+      return {
+        ...state,
+        cart: [],
+      };
+    default:
+      return state;
+  }
+}
 
-  const clearCart = () => {
-    setCart([]);
-  };
+export function FashionCartProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(fashionCartReducer, {
+    cart: [],
+    lastAddedItem: null,
+    additionSequence: 0,
+  });
+
+  const addToCart = useCallback((item: FashionCartItem) => {
+    dispatch({ type: 'add', item });
+  }, []);
+
+  const removeFromCart = useCallback((id: string, selectedSize?: string | null) => {
+    dispatch({ type: 'remove', id, selectedSize });
+  }, []);
+
+  const updateQuantity = useCallback((id: string, quantity: number, selectedSize?: string | null) => {
+    dispatch({ type: 'updateQuantity', id, quantity, selectedSize });
+  }, []);
+
+  const clearCart = useCallback(() => {
+    dispatch({ type: 'clear' });
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      cart: state.cart,
+      lastAddedItem: state.lastAddedItem,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+    }),
+    [addToCart, clearCart, removeFromCart, state.cart, state.lastAddedItem, updateQuantity],
+  );
 
   return (
-    <FashionCartContext.Provider
-      value={{
-        cart,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-      }}
-    >
-      {children}
-    </FashionCartContext.Provider>
+    <FashionCartContext.Provider value={value}>{children}</FashionCartContext.Provider>
   );
 }
 
