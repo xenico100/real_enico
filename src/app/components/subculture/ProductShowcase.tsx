@@ -36,10 +36,9 @@ interface ProductShowcaseProps {
 export type { Product };
 
 const ALL_CATEGORY = '전체' as const;
-const SOLD_OUT_CATEGORY = '품절' as const;
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
-type ProductFilterCategory = typeof ALL_CATEGORY | typeof SOLD_OUT_CATEGORY | ProductCategory;
+type ProductFilterCategory = typeof ALL_CATEGORY | ProductCategory;
 
 const CATEGORY_LABELS: Record<ProductFilterCategory, string> = {
   전체: 'All',
@@ -50,7 +49,6 @@ const CATEGORY_LABELS: Record<ProductFilterCategory, string> = {
   악세사리: 'Accessories',
   인형: 'Dolls',
   드레스: 'Dresses',
-  품절: 'Sold Out',
 };
 
 function getCategoryLabel(category: string) {
@@ -258,23 +256,17 @@ export function ProductShowcase({
   const visibleCatalogProducts = shouldShowNicepayTestProduct
     ? catalogProducts
     : catalogProducts.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID);
-  const activeProducts = visibleCatalogProducts.filter((product) => !product.isSoldOut);
-  const soldOutProducts = visibleCatalogProducts.filter((product) => Boolean(product.isSoldOut));
-  const categories = [ALL_CATEGORY, ...PRODUCT_CATEGORIES, SOLD_OUT_CATEGORY] as const;
+  const categories = [ALL_CATEGORY, ...PRODUCT_CATEGORIES] as const;
   const deferredActiveCategory = useDeferredValue(activeCategory);
   const filteredProducts =
     deferredActiveCategory === ALL_CATEGORY
-      ? activeProducts
-      : deferredActiveCategory === SOLD_OUT_CATEGORY
-        ? soldOutProducts
-        : activeProducts.filter((product) => product.category === deferredActiveCategory);
+      ? visibleCatalogProducts
+      : visibleCatalogProducts.filter((product) => product.category === deferredActiveCategory);
   const categoryCounts = categories.reduce<Record<string, number>>((accumulator, category) => {
     accumulator[category] =
       category === ALL_CATEGORY
-        ? activeProducts.length
-        : category === SOLD_OUT_CATEGORY
-          ? soldOutProducts.length
-          : activeProducts.filter((product) => product.category === category).length;
+        ? visibleCatalogProducts.length
+        : visibleCatalogProducts.filter((product) => product.category === category).length;
     return accumulator;
   }, {});
   const cartProductKeys = new Set(
