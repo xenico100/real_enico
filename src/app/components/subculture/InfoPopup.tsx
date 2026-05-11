@@ -224,7 +224,11 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[100] flex items-center justify-center p-4"
+        className={`fixed inset-0 z-[100] flex bg-black/95 backdrop-blur-xl ${
+          type === 'mypage'
+            ? 'items-start justify-center overflow-y-auto overscroll-contain px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)] md:items-center md:overflow-hidden md:p-4'
+            : 'items-center justify-center p-4'
+        }`}
         onClick={onClose}
       >
         <motion.div
@@ -238,8 +242,10 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
                 : 'max-w-[min(940px,92vw)]'
               : 'max-w-2xl'
           } flex ${
-            type === 'mypage' ? 'h-[92vh] max-h-[92vh]' : 'max-h-[92vh]'
-          } flex-col bg-[#050505] border border-[#333] shadow-2xl shadow-[#00ffd1]/5 overflow-hidden`}
+            type === 'mypage' ? 'min-h-[92dvh] md:h-[92vh] md:max-h-[92vh]' : 'max-h-[92vh]'
+          } flex-col border border-[#333] bg-[#050505] shadow-2xl shadow-[#00ffd1]/5 ${
+            type === 'mypage' ? 'overflow-visible md:overflow-hidden' : 'overflow-hidden'
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -274,7 +280,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
           <div
             className={`min-h-0 ${
               type === 'mypage'
-                ? 'flex-1 overflow-hidden p-3 md:p-5'
+                ? 'overflow-visible p-3 md:min-h-0 md:flex-1 md:overflow-hidden md:p-5'
                 : 'max-h-[70vh] overflow-y-auto p-4 md:p-8'
             }`}
           >

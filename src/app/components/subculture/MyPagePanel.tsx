@@ -1276,8 +1276,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="h-full min-h-0 font-mono">
-        <div className="h-full min-h-0 overflow-y-auto overscroll-contain pr-1 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+      <div className="font-mono md:h-full md:min-h-0">
+        <div className="pb-[calc(env(safe-area-inset-bottom)+1rem)] md:h-full md:min-h-0 md:overflow-y-auto md:overscroll-contain md:pr-1">
           <AccountAuthPanel />
         </div>
       </div>
@@ -2425,7 +2425,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   return (
-    <div className="h-full min-h-0 overflow-hidden font-mono">
+    <div className="font-mono md:h-full md:min-h-0 md:overflow-hidden">
       {onBack && !adminComposer ? (
         <button
           type="button"
@@ -2437,7 +2437,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         </button>
       ) : null}
 
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[18px] border border-white/10 bg-[#0d0d0d] p-3 md:p-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col rounded-[18px] border border-white/10 bg-[#0d0d0d] p-3 md:h-full md:min-h-0 md:overflow-hidden md:p-4">
         <div className="rounded-[16px] border border-white/10 bg-[#121212] p-4 md:p-5">
           <div className="flex flex-col gap-4 text-center md:text-left">
             <div className="flex flex-col items-center gap-3 md:flex-row md:items-start md:justify-between">
@@ -2535,7 +2535,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
         </div>
 
-        <section className="mt-4 min-h-0 flex flex-1 flex-col overflow-hidden rounded-[18px] border border-[#727884] bg-[linear-gradient(180deg,#121416_0%,#0b0c0e_100%)] p-4 md:p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+        <section className="mt-4 flex flex-col rounded-[18px] border border-[#727884] bg-[linear-gradient(180deg,#121416_0%,#0b0c0e_100%)] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] md:min-h-0 md:flex-1 md:overflow-hidden md:p-6">
           <div className="mb-4 flex flex-col gap-2 rounded-[14px] border border-[#727884] bg-[linear-gradient(180deg,#1a1c20_0%,#121316_100%)] px-5 py-4 text-center md:flex-row md:items-center md:justify-between md:text-left">
             <div>
               <p className="text-lg font-semibold text-white">
@@ -2543,7 +2543,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               </p>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+          <div className="md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1">
             {tabContent[activeTab]}
           </div>
         </section>
