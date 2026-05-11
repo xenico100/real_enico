@@ -31,13 +31,13 @@ const INTERNATIONAL_SHIPPING_FEE = 40000;
 const PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY = 'enicoveck_pending_account_profile_sync';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
-  'overflow-hidden rounded-none border border-[#cfd6df]/18 bg-[linear-gradient(180deg,#171b22_0%,#11141a_100%)] px-5 py-5 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-6 md:py-6';
+  'overflow-hidden rounded-[18px] border border-[#cfd6df]/18 bg-[linear-gradient(180deg,#171b22_0%,#11141a_100%)] px-4 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.24)] md:px-6 md:py-6';
 const CHECKOUT_FIELD_GROUP_CLASS =
-  'rounded-none border border-[#cdd5df]/28 bg-[linear-gradient(180deg,#1b1f27_0%,#151922_100%)] px-5 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] md:px-6 md:py-6';
+  'rounded-[14px] border border-[#cdd5df]/28 bg-[linear-gradient(180deg,#1b1f27_0%,#151922_100%)] px-3.5 py-3.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] md:px-5 md:py-5';
 const CHECKOUT_FIELD_CLASS =
-  'w-full rounded-none border border-[#4a5361] bg-[#11151c] px-4 py-3.5 text-[15px] leading-[1.55] text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#d8dee8] focus:outline-none focus:ring-2 focus:ring-[#d8dee8]/15';
-const CHECKOUT_FIELD_HEADER_CLASS = 'border-b border-[#d3dae3]/12 pb-4';
-const CHECKOUT_FIELD_BODY_CLASS = 'pt-4';
+  'w-full rounded-[12px] border border-[#4a5361] bg-[#11151c] px-3.5 py-3 text-[15px] leading-[1.45] text-[#f5f7fa] placeholder:text-[#6f7682] focus:border-[#d8dee8] focus:outline-none focus:ring-2 focus:ring-[#d8dee8]/15';
+const CHECKOUT_FIELD_HEADER_CLASS = 'mb-2.5';
+const CHECKOUT_FIELD_BODY_CLASS = '';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -1041,9 +1041,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
             <div
               ref={checkoutScrollRef}
-              className="checkout-scroll-area flex-1 min-h-0 overflow-y-auto px-4 py-4 pr-2 pb-36 md:px-7 md:py-6 md:pr-4 md:pb-8 space-y-5"
+              className="checkout-scroll-area flex-1 min-h-0 space-y-4 overflow-y-auto px-4 py-4 pr-2 pb-28 md:space-y-5 md:px-7 md:py-6 md:pr-4 md:pb-8"
             >
-              <div className="sticky top-0 z-10 rounded-[16px] border border-white/8 bg-[#11141b]/92 px-4 py-4 shadow-[0_14px_30px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+              <div className="sticky top-0 z-10 rounded-[16px] border border-white/8 bg-[#11141b]/92 px-4 py-3 shadow-[0_14px_30px_rgba(0,0,0,0.24)] backdrop-blur-xl md:py-4">
                 <div className="flex items-end justify-between gap-4">
                   <div>
                     <p className="text-lg font-semibold text-white">{itemCount}개 상품</p>
@@ -1054,7 +1054,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-2 rounded-[12px] border border-white/6 bg-black/25 px-4 py-3">
+                <div className="mt-3 space-y-2 rounded-[12px] border border-white/6 bg-black/25 px-4 py-2.5 md:py-3">
                   {canCheckout ? (
                     cart.map((item) => {
                       const quantity = item.quantity || 1;
@@ -1152,13 +1152,14 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   )}
                 </>
               ) : (
-                <div className="space-y-8">
+                <div className="space-y-4 md:space-y-6">
                   <div className={CHECKOUT_SECTION_CLASS}>
-                    <div className="mb-5 border-b border-[#d3dae3]/12 pb-4">
-                      <h3 className="text-xl font-semibold tracking-[-0.03em] text-white">주문자 정보</h3>
+                    <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#d3dae3]/12 pb-3">
+                      <h3 className="text-lg font-semibold tracking-[-0.03em] text-white md:text-xl">주문자 정보</h3>
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-[#8e96a3]">Customer</p>
                     </div>
-                    <div className="space-y-6">
-                      <div className={CHECKOUT_FIELD_GROUP_CLASS}>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={`${CHECKOUT_FIELD_GROUP_CLASS} col-span-2`}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
                           <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
                             이메일
@@ -1213,16 +1214,17 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   </div>
 
                   <div className={CHECKOUT_SECTION_CLASS}>
-                    <div className="mb-5 border-b border-[#d3dae3]/12 pb-4">
-                      <h3 className="text-xl font-semibold tracking-[-0.03em] text-white">배송 정보</h3>
+                    <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#d3dae3]/12 pb-3">
+                      <h3 className="text-lg font-semibold tracking-[-0.03em] text-white md:text-xl">배송 정보</h3>
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-[#8e96a3]">Shipping</p>
                     </div>
-                    <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-3">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
                           <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
                             구역 (국가)
                           </label>
-                          <p className="mt-3 text-xs leading-relaxed text-[#8e96a3]">
+                          <p className="mt-2 text-[11px] leading-relaxed text-[#8e96a3]">
                             {isNicepayTestOrder
                               ? 'NICE 1000원 테스트 상품은 배송비 없이 결제됩니다.'
                               : '대한민국 배송비 3,000원 / 해외 배송비 40,000원'}
@@ -1243,12 +1245,25 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           </select>
                         </div>
                       </div>
-                      <div className={CHECKOUT_FIELD_GROUP_CLASS}>
+                      <div className={`${CHECKOUT_FIELD_GROUP_CLASS} flex flex-col justify-between gap-3`}>
+                        <div className={CHECKOUT_FIELD_HEADER_CLASS}>
+                          <p className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                            배송비
+                          </p>
+                          <p className="mt-2 text-[11px] leading-relaxed text-[#8e96a3]">
+                            선택한 구역 기준
+                          </p>
+                        </div>
+                        <p className="text-lg font-semibold tracking-[-0.03em] text-white">
+                          {formatKrw(shipping)}
+                        </p>
+                      </div>
+                      <div className={`${CHECKOUT_FIELD_GROUP_CLASS} col-span-2`}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
                           <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
                             상세 주소
                           </label>
-                          <p className="mt-3 text-xs leading-relaxed text-[#8e96a3]">
+                          <p className="mt-2 text-[11px] leading-relaxed text-[#8e96a3]">
                             수령지 주소를 상세하게 입력하세요. 도로명, 건물명, 호수까지 적어야 합니다.
                           </p>
                         </div>
@@ -1257,7 +1272,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             ref={checkoutAddressInputRef}
                             value={checkoutAddress}
                             onChange={(e) => setCheckoutAddress(e.target.value)}
-                            rows={4}
+                            rows={3}
                             placeholder="수령지 / 도로명 / 건물명 / 도시 / 우편번호"
                             className={`${CHECKOUT_FIELD_CLASS} resize-none`}
                           />
@@ -1271,25 +1286,27 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             </div>
 
             {canCheckout && (
-              <div className="relative z-20 border-t border-white/8 bg-[#0a0c10] px-4 py-4 md:px-7 md:pb-7">
-                <div className="mb-4 rounded-[16px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4 md:px-5 md:py-5">
-                  <div className="flex items-start justify-between gap-4">
+              <div className="relative z-20 border-t border-white/8 bg-[#0a0c10] px-4 py-3 md:px-7 md:py-5">
+                <div className="mb-3 rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3 md:px-4 md:py-4">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f97a3]">Payment Summary</p>
-                    <p className="mt-2 text-xl font-semibold tracking-[0.01em] leading-[1.15] text-white">결제 예정 금액</p>
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#8f97a3]">Payment Summary</p>
+                      <p className="mt-1 text-base font-semibold tracking-[0.01em] leading-[1.15] text-white md:text-lg">
+                        결제 예정 금액
+                      </p>
                     </div>
-                    <p className="text-right text-[1.6rem] font-semibold tracking-[0.01em] leading-[1.1] text-white md:text-[1.8rem]">
+                    <p className="text-right text-[1.35rem] font-semibold tracking-[0.01em] leading-[1.1] text-white md:text-[1.55rem]">
                       {formatKrw(total)}
                     </p>
                   </div>
-                  <div className="mt-4 space-y-2 rounded-[12px] border border-white/6 bg-black/20 px-4 py-3">
-                    <div className="flex items-center justify-between gap-3 text-sm text-[#a5acb8]">
+                  <div className="mt-2 hidden grid-cols-2 gap-2 md:grid">
+                    <div className="rounded-[10px] border border-white/6 bg-black/20 px-3 py-2 text-xs text-[#a5acb8]">
                       <p>상품 금액</p>
-                      <p className="text-white">{formatKrw(subtotal)}</p>
+                      <p className="mt-1 text-sm text-white">{formatKrw(subtotal)}</p>
                     </div>
-                    <div className="flex items-center justify-between gap-3 text-sm text-[#a5acb8]">
+                    <div className="rounded-[10px] border border-white/6 bg-black/20 px-3 py-2 text-xs text-[#a5acb8]">
                       <p>배송비</p>
-                      <p className="text-white">{formatKrw(shipping)}</p>
+                      <p className="mt-1 text-sm text-white">{formatKrw(shipping)}</p>
                     </div>
                   </div>
                 </div>
@@ -1297,15 +1314,15 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   <button
                     type="button"
                     onClick={() => setMode('checkout')}
-                    className="w-full rounded-[14px] bg-[#f5f7fa] px-5 py-4 text-center font-heading text-lg uppercase tracking-[0.08em] leading-[1.1] text-black transition-all hover:bg-white md:text-[1.15rem]"
+                    className="w-full rounded-[12px] bg-[#f5f7fa] px-4 py-3 text-center font-heading text-base uppercase tracking-[0.08em] leading-[1.1] text-black transition-all hover:bg-white md:text-lg"
                   >
                     결제로 이동
                   </button>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-2.5 md:space-y-3">
                     {!isAuthenticated && (
-                      <div className="rounded-[16px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-4 py-4">
-                        <label className="mb-2 block text-[11px] uppercase tracking-[0.2em] text-[#c9d5eb]">
+                      <div className="rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
+                        <label className="mb-1.5 block text-[11px] uppercase tracking-[0.2em] text-[#c9d5eb]">
                           비회원 주문조회 비밀번호
                         </label>
                         <input
@@ -1316,18 +1333,18 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           placeholder="4자 이상 입력"
                           className={CHECKOUT_FIELD_CLASS}
                         />
-                        <p className="mt-3 text-xs leading-relaxed text-[#8e96a3]">
+                        <p className="mt-2 text-xs leading-relaxed text-[#8e96a3]">
                           비회원 구매 후 주문번호와 이 비밀번호로 배송조회합니다.
                         </p>
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-1 md:gap-3">
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
                         disabled={isSubmittingOrder}
-                        className={`group relative min-h-[58px] overflow-hidden rounded-[16px] px-4 py-3 text-left transition-all duration-200 ${
+                        className={`group relative min-h-[48px] overflow-hidden rounded-[12px] px-3 py-2 text-left transition-all duration-200 ${
                           isAuthenticated
                             ? 'border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] text-black shadow-[0_10px_22px_rgba(171,190,220,0.16)] hover:brightness-105'
                             : 'border border-white/12 bg-[#151922] text-white hover:border-white/25 hover:bg-[#181d26]'
@@ -1336,9 +1353,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         {isAuthenticated && !isSubmittingOrder ? (
                           <span className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.28),transparent_55%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                         ) : null}
-                        <span className="relative z-10 flex min-h-[34px] items-center justify-between gap-3">
+                        <span className="relative z-10 flex min-h-[28px] items-center justify-between gap-3">
                           <span
-                            className={`text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug ${
+                            className={`text-[0.9rem] font-semibold tracking-[-0.02em] leading-snug ${
                               isAuthenticated ? 'text-black' : 'text-white'
                             }`}
                           >
@@ -1351,38 +1368,46 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           </span>
                         </span>
                       </button>
-                    </div>
-                    <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
-                      {nicepayError && (
-                        <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{nicepayError}</p>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => void handleNicepayCheckout()}
-                        disabled={isSubmittingOrder || isStartingNicepay}
-                        className="group w-full min-h-[58px] overflow-hidden rounded-[16px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-4 py-3 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
-                      >
-                        <span className="flex min-h-[34px] items-center justify-between gap-3">
-                          <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-black">
-                            {isStartingNicepay
-                              ? '카드결제 준비중... (나이스페이먼츠)'
-                              : '카드결제 (나이스페이먼츠)'}
+                      <div className="rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-1.5 py-1.5 md:px-2.5 md:py-2.5">
+                        {nicepayError && (
+                          <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{nicepayError}</p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleNicepayCheckout()}
+                          disabled={isSubmittingOrder || isStartingNicepay}
+                          className="group w-full min-h-[48px] overflow-hidden rounded-[12px] border border-[#d7e6ff]/50 bg-[linear-gradient(135deg,#f8fbff_0%,#dbe8ff_100%)] px-3 py-2 text-left text-black shadow-[0_8px_18px_rgba(171,190,220,0.14)] transition-all duration-200 hover:brightness-105 disabled:opacity-50"
+                        >
+                          <span className="flex min-h-[28px] items-center justify-between gap-3">
+                            <span className="text-[0.9rem] font-semibold tracking-[-0.02em] leading-snug text-black">
+                              {isStartingNicepay ? (
+                                <>
+                                  <span className="md:hidden">카드 준비중...</span>
+                                  <span className="hidden md:inline">카드결제 준비중... (나이스페이먼츠)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="md:hidden">카드결제</span>
+                                  <span className="hidden md:inline">카드결제 (나이스페이먼츠)</span>
+                                </>
+                              )}
+                            </span>
+                            <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
+                              →
+                            </span>
                           </span>
-                          <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
-                            →
-                          </span>
-                        </span>
-                      </button>
+                        </button>
+                      </div>
                     </div>
                     {shouldShowPaypal ? (
-                      <div className="rounded-[20px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-3 py-3">
+                      <div className="rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,#151921_0%,#101318_100%)] px-2.5 py-2.5">
                         {paypalError && (
                           <p className="mb-3 rounded-[16px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">{paypalError}</p>
                         )}
                         <div>
                           <div
                             ref={paypalContainerRef}
-                            className="min-h-[58px]"
+                            className="min-h-[46px]"
                             aria-label="paypal-sandbox-button"
                           />
                         </div>
@@ -1401,23 +1426,25 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         )}
                       </div>
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={() => void submitBankTransferOrder('guest')}
-                      disabled={isSubmittingOrder}
-                      className="group relative min-h-[58px] overflow-hidden rounded-[16px] border border-[#c8d0dc]/45 bg-[linear-gradient(180deg,#242a35_0%,#1a1f28_100%)] px-4 py-3 text-left text-white shadow-[0_10px_22px_rgba(0,0,0,0.22)] transition-colors hover:border-[#eef2f7] hover:bg-[#2a313d] disabled:opacity-50"
-                    >
-                      <span className="flex min-h-[34px] items-center justify-between gap-3">
-                        <span className="text-[0.95rem] font-semibold tracking-[-0.02em] leading-snug text-white">
-                          {isSubmittingOrder ? '처리중...' : '비회원 구매'}
+                    {!isAuthenticated ? (
+                      <button
+                        type="button"
+                        onClick={() => void submitBankTransferOrder('guest')}
+                        disabled={isSubmittingOrder}
+                        className="group relative min-h-[48px] overflow-hidden rounded-[12px] border border-[#c8d0dc]/45 bg-[linear-gradient(180deg,#242a35_0%,#1a1f28_100%)] px-3 py-2 text-left text-white shadow-[0_10px_22px_rgba(0,0,0,0.22)] transition-colors hover:border-[#eef2f7] hover:bg-[#2a313d] disabled:opacity-50"
+                      >
+                        <span className="flex min-h-[28px] items-center justify-between gap-3">
+                          <span className="text-[0.9rem] font-semibold tracking-[-0.02em] leading-snug text-white">
+                            {isSubmittingOrder ? '처리중...' : '비회원 구매'}
+                          </span>
+                          <span className="text-sm font-semibold text-white">→</span>
                         </span>
-                        <span className="text-sm font-semibold text-white">→</span>
-                      </span>
-                    </button>
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => setMode('cart')}
-                      className="w-full rounded-[16px] border border-white/10 py-2 text-[13px] text-[#b8c0cc] transition-colors hover:border-white/20 hover:text-white"
+                      className="w-full rounded-[12px] border border-white/10 py-2 text-[13px] text-[#b8c0cc] transition-colors hover:border-white/20 hover:text-white"
                     >
                       장바구니로
                     </button>
