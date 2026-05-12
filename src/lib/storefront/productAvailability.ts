@@ -16,6 +16,49 @@ type RestockMeta = {
   paymentMethod: string;
 };
 
+const SOLD_OUT_PRODUCT_TITLES = [
+  'EVA-JACEKT',
+  'Akira Jacket',
+  'Flannel double-label shirt',
+  'eco bag',
+  'Blue Flower Shoulder bag',
+  '퍼펙트 블루의 가면',
+  'enico MIX shirts',
+  'enico veck 2025 denim jacket',
+  'enico veck’s denim hood jacket',
+  'enico damm denim jacket',
+  '가치아쿠타의 장갑',
+  'enico MIX pants',
+  'Mononoke Bolero',
+  'INFINITY CASTLE Shorts',
+  'INFINITY CASTLE Crop Shirts',
+  'Mononoke Pants',
+  'Ben’s Shirts',
+  'Mononoke Jacket',
+  'INFINITY CASTLE Kimono',
+  'BERSERK Pants',
+  'Night Face',
+  'Check Shark',
+  'Desert Bat',
+  'Desert Dee',
+  'Desert Angry Shark',
+  '2Face Shark',
+  'Enico Dee',
+  'Enico Veck 1st Linen Jacket',
+] as const;
+
+function normalizeSoldOutTitleKey(value: string) {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/['’`"“”]/g, '')
+    .replace(/[^a-z0-9가-힣]+/g, '');
+}
+
+const SOLD_OUT_PRODUCT_TITLE_KEY_SET = new Set(
+  SOLD_OUT_PRODUCT_TITLES.map((title) => normalizeSoldOutTitleKey(title)),
+);
+
 function asRecord(value: unknown) {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
@@ -80,6 +123,20 @@ export function isProductMarkedSoldOut(raw: unknown) {
 
   const status = typeof target.status === 'string' ? target.status.trim().toLowerCase() : '';
   return status === 'soldout' || status === 'sold_out' || status === 'out_of_stock';
+}
+
+export function isProductTitleMarkedSoldOut(title: unknown) {
+  return (
+    typeof title === 'string' &&
+    SOLD_OUT_PRODUCT_TITLE_KEY_SET.has(normalizeSoldOutTitleKey(title))
+  );
+}
+
+export function getSoldOutOrderItemName(items: Array<{ name?: unknown }>) {
+  const soldOutItem = items.find((item) => isProductTitleMarkedSoldOut(item.name));
+  return typeof soldOutItem?.name === 'string' && soldOutItem.name.trim()
+    ? soldOutItem.name.trim()
+    : null;
 }
 
 export function buildSoldOutRaw(raw: unknown, meta: SoldOutMeta) {

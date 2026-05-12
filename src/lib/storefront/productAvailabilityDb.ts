@@ -3,6 +3,7 @@ import {
   buildAvailableRaw,
   buildSoldOutRaw,
   isProductMarkedSoldOut,
+  isProductTitleMarkedSoldOut,
 } from '@/lib/storefront/productAvailability';
 
 export type ProductAvailabilityRow = {
@@ -79,7 +80,11 @@ export async function fetchProductAvailabilitySnapshot(
 }
 
 export function isProductUnavailable(row: ProductAvailabilityRow) {
-  return row.is_published === false || isProductMarkedSoldOut(row.raw);
+  return (
+    row.is_published === false ||
+    isProductMarkedSoldOut(row.raw) ||
+    isProductTitleMarkedSoldOut(row.title)
+  );
 }
 
 export async function markProductsSoldOut(

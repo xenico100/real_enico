@@ -4,7 +4,10 @@ import {
   type ProductCategory,
 } from '@/app/constants/productCategories';
 import { buildUnifiedProductDescription } from '@/lib/storefront/productDescription';
-import { isProductMarkedSoldOut } from '@/lib/storefront/productAvailability';
+import {
+  isProductTitleMarkedSoldOut,
+  isProductMarkedSoldOut,
+} from '@/lib/storefront/productAvailability';
 import type { StorefrontProductRow } from '@/lib/storefront/shared';
 
 export interface Product {
@@ -124,36 +127,6 @@ const EDITORIAL_PRODUCT_ORDER = [
   'Where GA-O-RI',
 ] as const;
 
-const SOLD_OUT_PRODUCT_TITLES = [
-  'EVA-JACEKT',
-  'Akira Jacket',
-  'Flannel double-label shirt',
-  'eco bag',
-  'Blue Flower Shoulder bag',
-  '퍼펙트 블루의 가면',
-  'enico MIX shirts',
-  'enico veck 2025 denim jacket',
-  'enico veck’s denim hood jacket',
-  'enico damm denim jacket',
-  '가치아쿠타의 장갑',
-  'enico MIX pants',
-  'Mononoke Bolero',
-  'INFINITY CASTLE Shorts',
-  'Mononoke Pants',
-  'Ben’s Shirts',
-  'Mononoke Jacket',
-  'INFINITY CASTLE Kimono',
-  'BERSERK Pants',
-  'Night Face',
-  'Check Shark',
-  'Desert Bat',
-  'Desert Dee',
-  'Desert Angry Shark',
-  '2Face Shark',
-  'Enico Dee',
-  'Enico Veck 1st Linen Jacket',
-] as const;
-
 const SMARTSTORE_LINK_ENTRIES = [
   ['Re: flower of evil jacket', 'https://smartstore.naver.com/xenicolack/products/12987517638'],
   ['Re: kevin shirts', 'https://smartstore.naver.com/xenicolack/products/12954569209'],
@@ -211,10 +184,6 @@ const UPLOAD_HINT_KEYWORDS = UPLOAD_TITLE_CATEGORY_HINTS.map(({ title, category 
 
 const EDITORIAL_PRODUCT_ORDER_INDEX = new Map(
   EDITORIAL_PRODUCT_ORDER.map((title, index) => [normalizeCategoryHintKey(title), index] as const),
-);
-
-const SOLD_OUT_PRODUCT_KEY_SET = new Set(
-  SOLD_OUT_PRODUCT_TITLES.map((title) => normalizeCategoryHintKey(title)),
 );
 
 const SMARTSTORE_LINK_MAP = new Map<string, string>(
@@ -497,12 +466,12 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
   ]);
 
   const title = row.title?.trim() || `상품 ${row.id}`;
-  const normalizedTitleKey = normalizeCategoryHintKey(title);
   const isSoldOut =
-    SOLD_OUT_PRODUCT_KEY_SET.has(normalizedTitleKey) ||
+    isProductTitleMarkedSoldOut(title) ||
     isProductMarkedSoldOut(row.raw);
   const numericPrice = Number(row.price);
-  const price = Number.isFinite(numericPrice) ? numericPrice : 0;
+  const basePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
+  const price = isSoldOut ? 0 : basePrice;
   const storedSpecs = typeof row.specs === 'string' ? row.specs.trim() : '';
   const description = buildUnifiedProductDescription(
     [explicitDescription, plainDetail, rawDescription, storedSpecs, rawSpecs],

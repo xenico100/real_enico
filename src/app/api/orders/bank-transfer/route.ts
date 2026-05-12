@@ -5,7 +5,10 @@ import {
   hashGuestLookupPassword,
 } from '@/lib/orders/guestLookup';
 import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
-import { getSingleStockOrderViolation } from '@/lib/storefront/productAvailability';
+import {
+  getSingleStockOrderViolation,
+  getSoldOutOrderItemName,
+} from '@/lib/storefront/productAvailability';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -372,6 +375,14 @@ export async function POST(request: Request) {
     const singleStockViolation = getSingleStockOrderViolation(payload.items);
     if (singleStockViolation) {
       return NextResponse.json({ message: singleStockViolation }, { status: 409 });
+    }
+
+    const soldOutItemName = getSoldOutOrderItemName(payload.items);
+    if (soldOutItemName) {
+      return NextResponse.json(
+        { message: `${soldOutItemName}은 이미 품절되어 주문할 수 없습니다.` },
+        { status: 409 },
+      );
     }
 
     const guestOrderNumber =
