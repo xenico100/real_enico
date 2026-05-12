@@ -502,8 +502,7 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     SOLD_OUT_PRODUCT_KEY_SET.has(normalizedTitleKey) ||
     isProductMarkedSoldOut(row.raw);
   const numericPrice = Number(row.price);
-  const basePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const price = isSoldOut ? 0 : basePrice;
+  const price = Number.isFinite(numericPrice) ? numericPrice : 0;
   const storedSpecs = typeof row.specs === 'string' ? row.specs.trim() : '';
   const description = buildUnifiedProductDescription(
     [explicitDescription, plainDetail, rawDescription, storedSpecs, rawSpecs],
