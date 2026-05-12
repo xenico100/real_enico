@@ -137,6 +137,12 @@ const SOLD_OUT_PRODUCT_TITLES = [
   'enico damm denim jacket',
   '가치아쿠타의 장갑',
   'enico MIX pants',
+  'Mononoke Bolero',
+  'INFINITY CASTLE Shorts',
+  'Mononoke Pants',
+  'Ben’s Shirts',
+  'Mononoke Jacket',
+  'INFINITY CASTLE Kimono',
   'BERSERK Pants',
   'Night Face',
   'Check Shark',
@@ -491,8 +497,13 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
   ]);
 
   const title = row.title?.trim() || `상품 ${row.id}`;
+  const normalizedTitleKey = normalizeCategoryHintKey(title);
+  const isSoldOut =
+    SOLD_OUT_PRODUCT_KEY_SET.has(normalizedTitleKey) ||
+    isProductMarkedSoldOut(row.raw);
   const numericPrice = Number(row.price);
-  const price = Number.isFinite(numericPrice) ? numericPrice : 0;
+  const basePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
+  const price = isSoldOut ? 0 : basePrice;
   const storedSpecs = typeof row.specs === 'string' ? row.specs.trim() : '';
   const description = buildUnifiedProductDescription(
     [explicitDescription, plainDetail, rawDescription, storedSpecs, rawSpecs],
@@ -509,9 +520,7 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     description,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? row.created_at ?? null,
-    isSoldOut:
-      SOLD_OUT_PRODUCT_KEY_SET.has(normalizeCategoryHintKey(title)) ||
-      isProductMarkedSoldOut(row.raw),
+    isSoldOut,
     smartstoreUrl: getSmartstoreUrlByTitle(title),
   };
 }
