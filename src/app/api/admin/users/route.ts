@@ -33,6 +33,16 @@ type MemberResponse = {
   isPrimaryAdmin: boolean;
 };
 
+type AuthUserForMembers = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+  app_metadata?: Record<string, unknown> | null;
+  is_anonymous?: boolean | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 function getServerConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -50,14 +60,31 @@ function normalizeText(value: unknown) {
   return value.trim();
 }
 
+function isAnonymousAuthUser(authUser: AuthUserForMembers) {
+  if (authUser.is_anonymous) return true;
+
+  const metadata =
+    authUser.app_metadata && typeof authUser.app_metadata === 'object'
+      ? authUser.app_metadata
+      : {};
+  const provider =
+    typeof metadata.provider === 'string' ? metadata.provider.trim().toLowerCase() : '';
+  const providers = Array.isArray(metadata.providers)
+    ? metadata.providers
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim().toLowerCase())
+    : [];
+
+  return provider === 'anonymous' || providers.includes('anonymous');
+}
+
+function hasMemberIdentity(authUser: AuthUserForMembers, profile?: ProfileRow) {
+  if (isAnonymousAuthUser(authUser)) return false;
+  return Boolean(normalizeText(authUser.email || profile?.email || ''));
+}
+
 function buildMemberResponse(
-  authUser: {
-    id: string;
-    email?: string | null;
-    user_metadata?: Record<string, unknown> | null;
-    created_at?: string;
-    updated_at?: string;
-  },
+  authUser: AuthUserForMembers,
   profile?: ProfileRow,
 ): MemberResponse {
   const metadata =
@@ -157,13 +184,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const authUsers = (authUsersData.users ?? []) as Array<{
-    id: string;
-    email?: string | null;
-    user_metadata?: Record<string, unknown> | null;
-    created_at?: string;
-    updated_at?: string;
-  }>;
+  const authUsers = (authUsersData.users ?? []) as AuthUserForMembers[];
   const userIds = authUsers.map((item: { id: string }) => item.id);
 
   let profileMap = new Map<string, ProfileRow>();
@@ -186,6 +207,7 @@ export async function GET(request: Request) {
   }
 
   const members = authUsers
+    .filter((item) => hasMemberIdentity(item, profileMap.get(item.id)))
     .map((item) =>
       buildMemberResponse(
         {
@@ -195,6 +217,11 @@ export async function GET(request: Request) {
             item.user_metadata && typeof item.user_metadata === 'object'
               ? (item.user_metadata as Record<string, unknown>)
               : null,
+          app_metadata:
+            item.app_metadata && typeof item.app_metadata === 'object'
+              ? (item.app_metadata as Record<string, unknown>)
+              : null,
+          is_anonymous: item.is_anonymous,
           created_at: item.created_at,
           updated_at: item.updated_at,
         },
