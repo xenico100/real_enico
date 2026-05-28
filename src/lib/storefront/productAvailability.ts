@@ -16,6 +16,12 @@ type RestockMeta = {
   paymentMethod: string;
 };
 
+type InventoryMeta = {
+  quantity: number;
+  isSoldOut: boolean;
+  source?: string;
+};
+
 const SOLD_OUT_PRODUCT_TITLES = [
   'EVA-JACEKT',
   'Akira Jacket',
@@ -66,6 +72,21 @@ function asRecord(value: unknown) {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
 
+function readNumericInventoryValue(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value));
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.trunc(parsed));
+    }
+  }
+
+  return null;
+}
+
 function isTruthyFlag(value: unknown) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value <= 0;
@@ -73,6 +94,22 @@ function isTruthyFlag(value: unknown) {
 
   const normalized = value.trim().toLowerCase();
   return normalized === 'true' || normalized === 'yes' || normalized === 'soldout' || normalized === 'sold_out' || normalized === 'out_of_stock' || normalized === '0';
+}
+
+function isFalseySoldOutFlag(value: unknown) {
+  if (typeof value === 'boolean') return value === false;
+  if (typeof value === 'number') return value > 0;
+  if (typeof value !== 'string') return false;
+
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === 'false' ||
+    normalized === 'no' ||
+    normalized === 'available' ||
+    normalized === 'in_stock' ||
+    normalized === 'instock' ||
+    normalized === '1'
+  );
 }
 
 export function isUuidLike(value: string) {
@@ -112,6 +149,46 @@ export function getSingleStockOrderViolation(items: OrderItemLike[]) {
   return null;
 }
 
+export function getProductInventoryQuantity(raw: unknown) {
+  const target = asRecord(raw);
+  if (!target) return null;
+
+  const stock = readNumericInventoryValue(target.stock);
+  if (stock !== null) return stock;
+
+  const inventory = readNumericInventoryValue(target.inventory);
+  if (inventory !== null) return inventory;
+
+  return readNumericInventoryValue(target.quantity);
+}
+
+export function isProductMarkedAvailable(raw: unknown) {
+  const target = asRecord(raw);
+  if (!target) return false;
+
+  if (isTruthyFlag(target.sold_out) || isTruthyFlag(target.soldOut)) {
+    return false;
+  }
+
+  const status = typeof target.status === 'string' ? target.status.trim().toLowerCase() : '';
+  if (status === 'soldout' || status === 'sold_out' || status === 'out_of_stock') {
+    return false;
+  }
+
+  const inventoryQuantity = getProductInventoryQuantity(raw);
+  if (inventoryQuantity !== null) {
+    return inventoryQuantity > 0;
+  }
+
+  return (
+    isFalseySoldOutFlag(target.sold_out) ||
+    isFalseySoldOutFlag(target.soldOut) ||
+    status === 'available' ||
+    status === 'in_stock' ||
+    status === 'instock'
+  );
+}
+
 export function isProductMarkedSoldOut(raw: unknown) {
   const target = asRecord(raw);
   if (!target) return false;
@@ -142,8 +219,42 @@ export function getSoldOutOrderItemName(items: Array<{ name?: unknown }>) {
     : null;
 }
 
-export function buildSoldOutRaw(raw: unknown, meta: SoldOutMeta) {
+export function buildInventoryRaw(raw: unknown, meta: InventoryMeta) {
   const base = asRecord(raw) ?? {};
+  const quantity = Math.max(0, Math.trunc(meta.quantity));
+  const now = new Date().toISOString();
+  const isSoldOut = meta.isSoldOut || quantity <= 0;
+
+  return {
+    ...base,
+    sold_out: isSoldOut,
+    soldOut: isSoldOut,
+    stock: isSoldOut ? 0 : quantity,
+    inventory: isSoldOut ? 0 : quantity,
+    quantity: isSoldOut ? 0 : quantity,
+    status: isSoldOut ? 'out_of_stock' : 'available',
+    inventory_updated_at: now,
+    inventoryUpdatedAt: now,
+    inventory_update_source: meta.source ?? 'admin',
+    inventoryUpdateSource: meta.source ?? 'admin',
+    ...(isSoldOut
+      ? {
+          sold_out_at: now,
+          soldOutAt: now,
+        }
+      : {
+          restocked_at: now,
+          restockedAt: now,
+        }),
+  };
+}
+
+export function buildSoldOutRaw(raw: unknown, meta: SoldOutMeta) {
+  const base = buildInventoryRaw(raw, {
+    quantity: 0,
+    isSoldOut: true,
+    source: `order:${meta.paymentMethod}`,
+  });
   const soldOutAt = new Date().toISOString();
 
   return {
@@ -163,7 +274,12 @@ export function buildSoldOutRaw(raw: unknown, meta: SoldOutMeta) {
 }
 
 export function buildAvailableRaw(raw: unknown, meta: RestockMeta) {
-  const base = asRecord(raw) ?? {};
+  const currentQuantity = getProductInventoryQuantity(raw);
+  const base = buildInventoryRaw(raw, {
+    quantity: currentQuantity !== null && currentQuantity > 0 ? currentQuantity : 1,
+    isSoldOut: false,
+    source: `restock:${meta.paymentMethod}`,
+  });
   const restockedAt = new Date().toISOString();
 
   return {

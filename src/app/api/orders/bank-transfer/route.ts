@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import {
   generateGuestOrderNumber,
@@ -6,9 +6,14 @@ import {
 } from '@/lib/orders/guestLookup';
 import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
 import {
+  extractPersistentProductIds,
   getSingleStockOrderViolation,
   getSoldOutOrderItemName,
 } from '@/lib/storefront/productAvailability';
+import {
+  fetchProductAvailabilitySnapshot,
+  isProductUnavailable,
+} from '@/lib/storefront/productAvailabilityDb';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -64,6 +69,19 @@ function getServerConfig() {
     return null;
   }
   return { url, serviceRoleKey };
+}
+
+function createOrderServiceClient() {
+  const config = getServerConfig();
+  if (!config) {
+    throw new Error(
+      '주문 저장용 Supabase 서버 설정이 없습니다. NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인하세요.',
+    );
+  }
+
+  return createClient(config.url, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -312,18 +330,11 @@ async function sendOrderEmail(payload: BankTransferOrderPayload, guestOrderNumbe
   }
 }
 
-async function persistOrder(payload: BankTransferOrderPayload, guestMeta: PersistGuestMeta) {
-  const config = getServerConfig();
-  if (!config) {
-    throw new Error(
-      '주문 저장용 Supabase 서버 설정이 없습니다. NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인하세요.',
-    );
-  }
-
-  const serviceClient = createClient(config.url, config.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
+async function persistOrder(
+  serviceClient: SupabaseClient,
+  payload: BankTransferOrderPayload,
+  guestMeta: PersistGuestMeta,
+) {
   const { error } = await serviceClient.from('orders').insert({
     order_code: payload.transactionId,
     channel: payload.channel,
@@ -361,6 +372,25 @@ async function persistOrder(payload: BankTransferOrderPayload, guestMeta: Persis
   }
 }
 
+async function ensureItemsAvailable(serviceClient: SupabaseClient, items: OrderItem[]) {
+  const productIds = extractPersistentProductIds(items);
+  if (productIds.length === 0) return;
+
+  const { rows } = await fetchProductAvailabilitySnapshot(serviceClient, productIds, {
+    includeTitle: true,
+  });
+  if (rows.length !== productIds.length) {
+    throw new Error('이미 판매 완료되었거나 더 이상 구매할 수 없는 상품이 포함되어 있습니다.');
+  }
+
+  const soldOutProduct = rows.find((row) => isProductUnavailable(row));
+  if (soldOutProduct) {
+    throw new Error(
+      `${soldOutProduct.title?.trim() || '선택한 상품'}은 이미 품절되어 주문할 수 없습니다.`,
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as unknown;
@@ -377,12 +407,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: singleStockViolation }, { status: 409 });
     }
 
-    const soldOutItemName = getSoldOutOrderItemName(payload.items);
-    if (soldOutItemName) {
-      return NextResponse.json(
-        { message: `${soldOutItemName}은 이미 품절되어 주문할 수 없습니다.` },
-        { status: 409 },
-      );
+    const serviceClient = createOrderServiceClient();
+    await ensureItemsAvailable(serviceClient, payload.items);
+
+    if (extractPersistentProductIds(payload.items).length === 0) {
+      const soldOutItemName = getSoldOutOrderItemName(payload.items);
+      if (soldOutItemName) {
+        return NextResponse.json(
+          { message: `${soldOutItemName}은 이미 품절되어 주문할 수 없습니다.` },
+          { status: 409 },
+        );
+      }
     }
 
     const guestOrderNumber =
@@ -392,10 +427,14 @@ export async function POST(request: Request) {
         ? hashGuestLookupPassword(payload.guestLookupPassword)
         : null;
 
-    await persistOrder(payload, {
-      guestOrderNumber,
-      guestPasswordHash,
-    });
+    await persistOrder(
+      serviceClient,
+      payload,
+      {
+        guestOrderNumber,
+        guestPasswordHash,
+      },
+    );
     await sendOrderEmail(payload, guestOrderNumber);
 
     return NextResponse.json({

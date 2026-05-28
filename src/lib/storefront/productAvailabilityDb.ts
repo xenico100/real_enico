@@ -3,6 +3,7 @@ import {
   buildAvailableRaw,
   buildSoldOutRaw,
   isProductMarkedSoldOut,
+  isProductMarkedAvailable,
   isProductTitleMarkedSoldOut,
 } from '@/lib/storefront/productAvailability';
 
@@ -83,7 +84,7 @@ export function isProductUnavailable(row: ProductAvailabilityRow) {
   return (
     row.is_published === false ||
     isProductMarkedSoldOut(row.raw) ||
-    isProductTitleMarkedSoldOut(row.title)
+    (isProductTitleMarkedSoldOut(row.title) && !isProductMarkedAvailable(row.raw))
   );
 }
 

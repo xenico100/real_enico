@@ -7,6 +7,7 @@ import { buildUnifiedProductDescription } from '@/lib/storefront/productDescript
 import {
   isProductTitleMarkedSoldOut,
   isProductMarkedSoldOut,
+  isProductMarkedAvailable,
 } from '@/lib/storefront/productAvailability';
 import type { StorefrontProductRow } from '@/lib/storefront/shared';
 
@@ -467,8 +468,8 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
 
   const title = row.title?.trim() || `상품 ${row.id}`;
   const isSoldOut =
-    isProductTitleMarkedSoldOut(title) ||
-    isProductMarkedSoldOut(row.raw);
+    isProductMarkedSoldOut(row.raw) ||
+    (isProductTitleMarkedSoldOut(title) && !isProductMarkedAvailable(row.raw));
   const numericPrice = Number(row.price);
   const basePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
   const price = isSoldOut ? 0 : basePrice;

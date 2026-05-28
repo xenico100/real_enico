@@ -75,6 +75,7 @@ function missingProductsTableMessage() {
     "  currency text default 'KRW',",
     "  images jsonb default '[]'::jsonb,",
     '  thumbnail_url text,',
+    "  raw jsonb default '{}'::jsonb,",
     '  is_published boolean default true,',
     '  created_at timestamptz default now(),',
     '  updated_at timestamptz default now()',

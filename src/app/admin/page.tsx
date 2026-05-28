@@ -2,7 +2,17 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Pencil, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
+import {
+  Loader2,
+  PackageCheck,
+  PackageX,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  Save,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { AccountAuthPanel } from '@/app/components/subculture/AccountAuthPanel';
 import {
@@ -12,6 +22,12 @@ import {
   type ProductCategory,
 } from '@/app/constants/productCategories';
 import { buildUnifiedProductDescription } from '@/lib/storefront/productDescription';
+import {
+  getProductInventoryQuantity,
+  isProductMarkedAvailable,
+  isProductMarkedSoldOut,
+  isProductTitleMarkedSoldOut,
+} from '@/lib/storefront/productAvailability';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type ProductRow = {
@@ -23,6 +39,7 @@ type ProductRow = {
   price: number | string | null;
   currency: string | null;
   images: unknown;
+  raw: unknown;
   is_published: boolean | null;
   created_at: string | null;
   updated_at: string | null;
@@ -36,6 +53,11 @@ type ProductFormState = {
   currency: string;
   isPublished: boolean;
   images: string[];
+};
+
+type ProductInventoryDraft = {
+  quantity: string;
+  isSoldOut: boolean;
 };
 
 type AdminRow = {
@@ -181,11 +203,41 @@ function mapProductRow(row: Record<string, unknown>): ProductRow {
     price: parsedPrice,
     currency: typeof row.currency === 'string' ? row.currency : 'KRW',
     images: row.images,
+    raw: row.raw ?? null,
     is_published:
       typeof row.is_published === 'boolean' ? row.is_published : true,
     created_at: typeof row.created_at === 'string' ? row.created_at : null,
     updated_at: typeof row.updated_at === 'string' ? row.updated_at : null,
   };
+}
+
+function getInventoryStatus(product: ProductRow) {
+  const quantity = getProductInventoryQuantity(product.raw);
+  const rawSoldOut = isProductMarkedSoldOut(product.raw);
+  const titleSoldOut =
+    isProductTitleMarkedSoldOut(product.title) && !isProductMarkedAvailable(product.raw);
+  const isSoldOut = rawSoldOut || titleSoldOut;
+
+  return {
+    quantity,
+    isSoldOut,
+    reason: rawSoldOut ? 'DB 품절' : titleSoldOut ? '기존 품절 목록' : '판매 가능',
+  };
+}
+
+function createInventoryDraft(product: ProductRow): ProductInventoryDraft {
+  const status = getInventoryStatus(product);
+  return {
+    quantity: String(status.quantity ?? (status.isSoldOut ? 0 : 1)),
+    isSoldOut: status.isSoldOut,
+  };
+}
+
+function buildInventoryDrafts(products: ProductRow[]) {
+  return products.reduce<Record<string, ProductInventoryDraft>>((acc, product) => {
+    acc[product.id] = createInventoryDraft(product);
+    return acc;
+  }, {});
 }
 
 function AdminConsoleInner() {
@@ -199,10 +251,12 @@ function AdminConsoleInner() {
   const [isUploading, setIsUploading] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormState>(emptyForm);
+  const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, ProductInventoryDraft>>({});
+  const [savingInventoryId, setSavingInventoryId] = useState<string | null>(null);
   const [manualImageUrl, setManualImageUrl] = useState('');
   const [pageMessage, setPageMessage] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
-  const [workspaceView, setWorkspaceView] = useState<'editor' | 'list'>('list');
+  const [workspaceView, setWorkspaceView] = useState<'editor' | 'list' | 'inventory'>('list');
   const [listCategoryFilter, setListCategoryFilter] = useState<'전체' | ProductCategory>('전체');
   const [dailyStatsRows, setDailyStatsRows] = useState<DailyStatsRow[]>([]);
   const [dailyStatsSummary, setDailyStatsSummary] = useState<DailyStatsSummary | null>(null);
@@ -309,6 +363,7 @@ function AdminConsoleInner() {
 
         const mapped = (Array.isArray(payload.products) ? payload.products : []).map(mapProductRow);
         setProducts(mapped);
+        setInventoryDrafts(buildInventoryDrafts(mapped));
         return;
       }
 
@@ -324,6 +379,7 @@ function AdminConsoleInner() {
       const mapped = ((data ?? []) as Array<Record<string, unknown>>).map(mapProductRow);
 
       setProducts(mapped);
+      setInventoryDrafts(buildInventoryDrafts(mapped));
     } catch (error) {
       setPageError(getErrorMessage(error, '상품 목록을 불러오지 못했습니다.'));
     } finally {
@@ -600,6 +656,80 @@ function AdminConsoleInner() {
     }
   };
 
+  const updateInventoryDraft = (productId: string, patch: Partial<ProductInventoryDraft>) => {
+    setInventoryDrafts((prev) => ({
+      ...prev,
+      [productId]: {
+        ...(prev[productId] ?? { quantity: '1', isSoldOut: false }),
+        ...patch,
+      },
+    }));
+  };
+
+  const handleSaveInventory = async (product: ProductRow) => {
+    if (!canManageProducts) {
+      setPageError('관리자만 재고를 저장할 수 있습니다.');
+      return;
+    }
+
+    const draft = inventoryDrafts[product.id] ?? createInventoryDraft(product);
+    const parsedQuantity = Number.parseInt(draft.quantity, 10);
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity < 0) {
+      setPageError('재고 수량은 0 이상의 숫자로 입력하세요.');
+      return;
+    }
+
+    setSavingInventoryId(product.id);
+    clearMessages();
+
+    try {
+      if (!session?.access_token) {
+        throw new Error('세션이 만료되었습니다. 다시 로그인해 주세요.');
+      }
+
+      const response = await fetch('/api/admin/products/inventory', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          id: product.id,
+          quantity: parsedQuantity,
+          isSoldOut: draft.isSoldOut,
+        }),
+      });
+
+      const result = (await response.json()) as {
+        message?: string;
+        product?: Record<string, unknown>;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.message || '재고 저장 실패');
+      }
+
+      if (result.product) {
+        const updatedProduct = mapProductRow(result.product);
+        setProducts((prev) =>
+          prev.map((item) => (item.id === updatedProduct.id ? updatedProduct : item)),
+        );
+        setInventoryDrafts((prev) => ({
+          ...prev,
+          [updatedProduct.id]: createInventoryDraft(updatedProduct),
+        }));
+      } else {
+        await loadProducts({ forcePublishedOnly: false });
+      }
+
+      setPageMessage(result.message || '재고 정보 저장 완료');
+    } catch (error) {
+      setPageError(getErrorMessage(error, '재고 저장 실패'));
+    } finally {
+      setSavingInventoryId(null);
+    }
+  };
+
   const handleDeleteProduct = async (productId: string) => {
     if (!canManageProducts) return;
     const confirmed = window.confirm('이 상품을 삭제할까요?');
@@ -627,6 +757,11 @@ function AdminConsoleInner() {
       }
 
       setProducts((prev) => prev.filter((product) => product.id !== productId));
+      setInventoryDrafts((prev) => {
+        const next = { ...prev };
+        delete next[productId];
+        return next;
+      });
       if (editingProductId === productId) {
         resetForm();
       }
@@ -752,34 +887,50 @@ function AdminConsoleInner() {
               <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.18em] text-[#00ffd1]">
                 작업 화면
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${canManageProducts ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'}`}>
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('editor')}
-                  className={`rounded-2xl px-4 py-4 text-sm font-mono transition-colors ${
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-4 text-sm font-mono transition-colors ${
                     workspaceView === 'editor'
                       ? 'border border-[#7bb8ff]/60 bg-[#7bb8ff]/15 text-[#eef6ff] shadow-[0_0_0_1px_rgba(123,184,255,0.2)]'
                       : 'border border-white/15 bg-[#171717] text-[#c8c8c8] hover:border-[#7bb8ff]/40 hover:text-[#eef6ff]'
                   }`}
                 >
+                  <Pencil size={14} />
                   수정 화면
                 </button>
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('list')}
-                  className={`rounded-2xl px-4 py-4 text-sm font-mono transition-colors ${
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-4 text-sm font-mono transition-colors ${
                     workspaceView === 'list'
                       ? 'border border-[#00ffd1]/60 bg-[#00ffd1]/15 text-[#ecfffa] shadow-[0_0_0_1px_rgba(0,255,209,0.18)]'
                       : 'border border-white/15 bg-[#171717] text-[#c8c8c8] hover:border-[#00ffd1]/40 hover:text-[#ecfffa]'
                   }`}
                 >
+                  <PackageCheck size={14} />
                   게시물 목록
                 </button>
+                {canManageProducts && (
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceView('inventory')}
+                    className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-4 text-sm font-mono transition-colors ${
+                      workspaceView === 'inventory'
+                        ? 'border border-[#ffdd66]/60 bg-[#ffdd66]/15 text-[#fff4c2] shadow-[0_0_0_1px_rgba(255,221,102,0.18)]'
+                        : 'border border-white/15 bg-[#171717] text-[#c8c8c8] hover:border-[#ffdd66]/40 hover:text-[#fff4c2]'
+                    }`}
+                  >
+                    <PackageX size={14} />
+                    재고 관리
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-            <div className={`mx-auto w-full max-w-4xl space-y-6 ${workspaceView === 'list' ? 'hidden' : ''}`}>
+            <div className={`mx-auto w-full max-w-4xl space-y-6 ${workspaceView !== 'editor' ? 'hidden' : ''}`}>
               <div className="rounded-[24px] border border-white/10 bg-[#111] p-5 md:p-6">
                 <p className="font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b] mb-3">
                   Access Status
@@ -1033,7 +1184,219 @@ function AdminConsoleInner() {
               )}
             </div>
 
-            <div className={`space-y-4 ${workspaceView === 'editor' ? 'hidden' : ''}`}>
+            <div className={`space-y-4 ${workspaceView !== 'inventory' ? 'hidden' : ''}`}>
+              <div className="rounded-[24px] border border-[#ffdd66]/25 bg-[#15130b] p-4 md:p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="font-mono text-[11px] uppercase tracking-widest text-[#ffdd66]">
+                      재고 관리
+                    </p>
+                    <p className="mt-2 font-mono text-sm text-[#d8d0ad]">
+                      상품별 재고 수량과 품절 상태를 바로 저장합니다.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadProducts({ forcePublishedOnly: false })}
+                    disabled={isLoadingProducts}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[#ffdd66]/35 bg-[#ffdd66]/10 px-3 py-2 font-mono text-xs text-[#fff2b0] transition-colors hover:bg-[#ffdd66]/20 disabled:opacity-50"
+                  >
+                    <RefreshCcw size={13} className={isLoadingProducts ? 'animate-spin' : ''} />
+                    새로고침
+                  </button>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(['전체', ...PRODUCT_CATEGORIES] as Array<'전체' | ProductCategory>).map(
+                    (category) => {
+                      const isActive = listCategoryFilter === category;
+                      const count =
+                        category === '전체'
+                          ? sortedProducts.length
+                          : (categoryCounts[category] ?? 0);
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => setListCategoryFilter(category)}
+                          className={`rounded-full px-3 py-1.5 text-[11px] font-mono border transition-colors ${
+                            isActive
+                              ? 'border-[#ffdd66] bg-[#ffdd66] text-black font-semibold'
+                              : 'border-[#4b4324] bg-[#111] text-[#d8d0ad] hover:border-[#ffdd66] hover:text-[#fff2b0]'
+                          }`}
+                        >
+                          {category} ({count})
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+
+              {!canManageProducts ? (
+                <div className="border border-[#333] bg-[#0a0a0a] p-8 font-mono text-xs text-[#b8b8b8] text-center">
+                  관리자 로그인 후 재고를 관리할 수 있습니다.
+                </div>
+              ) : isLoadingProducts ? (
+                <div className="border border-[#333] bg-[#0a0a0a] p-8 flex items-center justify-center gap-3 font-mono text-xs text-[#d8d8d8]">
+                  <Loader2 size={14} className="animate-spin text-[#ffdd66]" />
+                  재고 불러오는 중...
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="border border-[#333] bg-[#0a0a0a] p-8 font-mono text-xs text-[#b8b8b8] text-center">
+                  표시할 상품이 없습니다.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                  {filteredProducts.map((product) => {
+                    const imageList = normalizeImages(product.images);
+                    const status = getInventoryStatus(product);
+                    const draft = inventoryDrafts[product.id] ?? createInventoryDraft(product);
+                    const draftQuantity = Number.parseInt(draft.quantity, 10);
+                    const willBeSoldOut =
+                      draft.isSoldOut || (Number.isFinite(draftQuantity) && draftQuantity <= 0);
+                    const isSavingThis = savingInventoryId === product.id;
+
+                    return (
+                      <article
+                        key={`inventory-${product.id}`}
+                        className="rounded-[24px] border border-white/10 bg-[#121212] p-3 shadow-[0_18px_40px_rgba(0,0,0,0.2)] md:p-4"
+                      >
+                        <div className="grid grid-cols-[88px_1fr] gap-3">
+                          <div className="aspect-[3/4] overflow-hidden rounded-2xl border border-white/10 bg-black">
+                            {imageList[0] ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={imageList[0]}
+                                alt={product.title || 'product'}
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center font-mono text-[10px] text-[#8d8d8d]">
+                                NO IMAGE
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-full border px-2.5 py-1 font-mono text-[10px] ${
+                                  status.isSoldOut
+                                    ? 'border-red-400/45 bg-red-500/10 text-red-200'
+                                    : 'border-[#00ffd1]/45 bg-[#00ffd1]/10 text-[#bafff0]'
+                                }`}
+                              >
+                                {status.isSoldOut ? '품절' : '판매 가능'}
+                              </span>
+                              <span className="rounded-full border border-white/10 bg-[#181818] px-2.5 py-1 font-mono text-[10px] text-[#b8b8b8]">
+                                {status.reason}
+                              </span>
+                            </div>
+                            <h3 className="mt-3 line-clamp-2 break-words font-heading text-xl uppercase leading-tight tracking-tight text-[#f2f2f2]">
+                              {product.title || '(untitled)'}
+                            </h3>
+                            <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[#ffdd66]">
+                              {resolveProductCategory(product.category)}
+                            </p>
+                            <p className="mt-2 font-mono text-[10px] text-[#8f8f8f]">
+                              현재 재고: {status.quantity ?? '-'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+                          <label className="block">
+                            <span className="mb-2 block font-mono text-[10px] uppercase tracking-widest text-[#9b9b9b]">
+                              재고 수량
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={9999}
+                              inputMode="numeric"
+                              value={draft.quantity}
+                              onChange={(e) =>
+                                updateInventoryDraft(product.id, {
+                                  quantity: e.target.value,
+                                  isSoldOut:
+                                    Number.parseInt(e.target.value, 10) <= 0
+                                      ? true
+                                      : draft.isSoldOut,
+                                })
+                              }
+                              className="h-11 w-full rounded-xl border border-[#333] bg-black px-3 font-mono text-sm text-[#f1f1f1] focus:border-[#ffdd66] focus:outline-none"
+                            />
+                          </label>
+
+                          <label className="flex h-full min-h-[68px] items-center gap-3 rounded-xl border border-[#333] bg-[#0d0d0d] px-3 py-3">
+                            <input
+                              type="checkbox"
+                              checked={draft.isSoldOut}
+                              onChange={(e) =>
+                                updateInventoryDraft(product.id, {
+                                  isSoldOut: e.target.checked,
+                                  quantity: e.target.checked ? '0' : draft.quantity || '1',
+                                })
+                              }
+                              className="accent-[#ffdd66]"
+                            />
+                            <span className="font-mono text-xs text-[#e5e5e5]">품절</span>
+                          </label>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateInventoryDraft(product.id, {
+                                quantity: draft.quantity === '0' ? '1' : draft.quantity || '1',
+                                isSoldOut: false,
+                              })
+                            }
+                            className="inline-flex min-h-[42px] items-center justify-center gap-1 rounded-xl border border-[#00ffd1]/35 bg-[#00ffd1]/10 px-2 py-2 font-mono text-[11px] text-[#bafff0] transition-colors hover:bg-[#00ffd1]/20"
+                          >
+                            <PackageCheck size={12} />
+                            판매
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateInventoryDraft(product.id, {
+                                quantity: '0',
+                                isSoldOut: true,
+                              })
+                            }
+                            className="inline-flex min-h-[42px] items-center justify-center gap-1 rounded-xl border border-red-400/40 bg-red-500/10 px-2 py-2 font-mono text-[11px] text-red-200 transition-colors hover:bg-red-500/20"
+                          >
+                            <PackageX size={12} />
+                            품절
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveInventory(product)}
+                            disabled={isSavingThis}
+                            className={`inline-flex min-h-[42px] items-center justify-center gap-1 rounded-xl border px-2 py-2 font-mono text-[11px] transition-colors disabled:opacity-60 ${
+                              willBeSoldOut
+                                ? 'border-[#ffdd66]/45 bg-[#ffdd66]/15 text-[#fff2b0] hover:bg-[#ffdd66]/25'
+                                : 'border-white/15 bg-[#1b1b1b] text-[#f1f1f1] hover:border-[#ffdd66]/50 hover:text-[#fff2b0]'
+                            }`}
+                          >
+                            {isSavingThis ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Save size={12} />
+                            )}
+                            저장
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className={`space-y-4 ${workspaceView !== 'list' ? 'hidden' : ''}`}>
               <div className="rounded-[24px] border border-white/10 bg-[#111] p-4 md:p-5">
                 <div>
                   <p className="font-mono text-[11px] uppercase tracking-widest text-[#9b9b9b]">
@@ -1088,6 +1451,7 @@ function AdminConsoleInner() {
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
                   {filteredProducts.map((product) => {
                     const imageList = normalizeImages(product.images);
+                    const inventoryStatus = getInventoryStatus(product);
                     return (
                       <article
                         key={product.id}
@@ -1113,6 +1477,11 @@ function AdminConsoleInner() {
                               <span className="text-[#d8d8d8]">DRAFT</span>
                             )}
                           </div>
+                          {inventoryStatus.isSoldOut && (
+                            <div className="absolute right-2 top-2 rounded-full border border-red-400/45 bg-black/80 px-2.5 py-1 text-[10px] font-mono text-red-200">
+                              SOLD OUT
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-3 p-3 md:p-4">
@@ -1162,6 +1531,14 @@ function AdminConsoleInner() {
                             <div className="rounded-xl border border-white/10 bg-[#181818] p-3">
                               <p className="mb-1 text-[#9b9b9b]">이미지</p>
                               <p className="text-[#e5e5e5]">{imageList.length} files</p>
+                            </div>
+                            <div className="rounded-xl border border-white/10 bg-[#181818] p-3 sm:col-span-2">
+                              <p className="mb-1 text-[#9b9b9b]">재고</p>
+                              <p className={inventoryStatus.isSoldOut ? 'text-red-200' : 'text-[#e5e5e5]'}>
+                                {inventoryStatus.isSoldOut
+                                  ? '품절'
+                                  : `${inventoryStatus.quantity ?? '-'}개`}
+                              </p>
                             </div>
                           </div>
 
