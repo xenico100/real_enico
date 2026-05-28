@@ -16,9 +16,10 @@ type MyPageTab =
   | 'profile'
   | 'dailyStats'
   | 'members'
+  | 'inventory'
   | 'adminOrders';
 
-type AdminComposerType = 'products' | 'collections';
+type AdminComposerType = 'products' | 'collections' | 'inventory';
 type AdminOrderView = 'new' | 'shipping' | 'cancelled';
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
@@ -171,6 +172,19 @@ function isDesignatedAdmin(email: string | null | undefined) {
   const normalized = (email || '').trim().toLowerCase();
   if (!normalized) return false;
   return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
+}
+
+function getAdminComposerHref(type: AdminComposerType, embedded = false) {
+  const embeddedParam = embedded ? 'embedded=1&' : '';
+  if (type === 'collections') return embedded ? '/admin/collections?embedded=1' : '/admin/collections';
+  if (type === 'inventory') return `/admin?${embeddedParam}view=inventory`;
+  return embedded ? '/admin?embedded=1' : '/admin';
+}
+
+function getAdminComposerLabel(type: AdminComposerType) {
+  if (type === 'collections') return '컬렉션 게시물 목록';
+  if (type === 'inventory') return '재고관리';
+  return '의류 게시물 목록';
 }
 
 function getShippingStatusLabel(status: ShippingStatus) {
@@ -699,6 +713,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   if (isPrimaryAdmin) {
     tabs.push({ id: 'members', label: '회원관리', count: members.length });
     tabs.push({ id: 'adminOrders', label: '배송관리', count: adminOrders.length });
+    tabs.push({ id: 'inventory', label: '재고관리' });
   }
   if (isDesignatedAdminUser) {
     tabs.push({ id: 'dailyStats', label: '일일데이터', count: dailyStatsRows.length });
@@ -750,7 +765,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   const openAdminComposer = (type: AdminComposerType) => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      window.location.href = type === 'products' ? '/admin' : '/admin/collections';
+      window.location.href = getAdminComposerHref(type);
       return;
     }
 
@@ -1230,7 +1245,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   useEffect(() => {
     if (
-      (!isPrimaryAdmin && (activeTab === 'members' || activeTab === 'adminOrders')) ||
+      (!isPrimaryAdmin &&
+        (activeTab === 'members' || activeTab === 'adminOrders' || activeTab === 'inventory')) ||
       (!isDesignatedAdminUser && activeTab === 'dailyStats')
     ) {
       setActiveTab('profile');
@@ -2229,6 +2245,45 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         )}
       </div>
     ),
+    inventory: (
+      <div className="space-y-4">
+        {!isPrimaryAdmin ? (
+          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
+            관리자 계정에서만 접근 가능한 탭입니다.
+          </div>
+        ) : (
+          <>
+            <div className="rounded-[14px] border border-[#ffdd66]/35 bg-[#ffdd66]/10 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[#ffdd66]">
+                    재고관리
+                  </p>
+                  <p className="mt-2 text-xs text-[#d8d0ad]">
+                    수량 수정과 품절 처리를 여기서 바로 할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openAdminComposer('inventory')}
+                  className="rounded-[10px] border border-[#ffdd66]/45 bg-[#15130b] px-4 py-3 text-xs text-[#fff2b0] transition-colors hover:bg-[#221d0e]"
+                >
+                  크게 열기
+                </button>
+              </div>
+            </div>
+
+            <div className="h-[min(760px,68vh)] overflow-hidden rounded-[14px] border border-white/15 bg-[#050505]">
+              <iframe
+                src={getAdminComposerHref('inventory', true)}
+                className="h-full w-full border-0 bg-[#050505]"
+                title="inventory-admin"
+              />
+            </div>
+          </>
+        )}
+      </div>
+    ),
     members: (
       <div className="space-y-4">
         {!isPrimaryAdmin ? (
@@ -2265,7 +2320,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => openAdminComposer('products')}
@@ -2273,6 +2328,14 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               >
                 <p className="font-semibold">의류 게시물 편집 열기</p>
                 <p className="mt-1 text-xs text-[#aeb5bf]">의류 게시글 작성/수정/삭제</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => openAdminComposer('inventory')}
+                className="rounded-[8px] border-2 border-[#ffdd66] bg-[linear-gradient(180deg,#221d0e_0%,#15130b_100%)] p-4 text-left text-sm text-[#fff2b0] shadow-[0_0_0_1px_rgba(255,221,102,0.16)] hover:border-[#fff2b0] hover:bg-[#2a230f] transition-colors"
+              >
+                <p className="font-semibold">재고관리 열기</p>
+                <p className="mt-1 text-xs text-[#d8d0ad]">수량 수정/품절 처리</p>
               </button>
               <button
                 type="button"
@@ -2480,7 +2543,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
               {tabs.map((tab) => {
                 const active = activeTab === tab.id;
                 return (
@@ -2506,13 +2569,20 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             {isPrimaryAdmin && (
               <div className="rounded-[16px] border border-[#727884] bg-[linear-gradient(180deg,#17191c_0%,#101113_100%)] p-4 md:p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:min-w-[520px]">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 md:min-w-[680px]">
                     <button
                       type="button"
                       onClick={() => openAdminComposer('products')}
                       className="rounded-[14px] border border-[#8a93a2] bg-[#15181c] px-4 py-3 text-center text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
                     >
                       의류 게시물 목록
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAdminComposer('inventory')}
+                      className="rounded-[14px] border border-[#ffdd66]/70 bg-[#1b170d] px-4 py-3 text-center text-sm text-[#fff2b0] hover:border-[#fff2b0] hover:bg-[#241e0f] transition-colors"
+                    >
+                      재고관리 열기
                     </button>
                     <button
                       type="button"
@@ -2583,6 +2653,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setAdminComposer('inventory')}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                    adminComposer === 'inventory'
+                      ? 'bg-[#ffdd66]/20 border border-[#ffdd66]/50 text-[#fff2b0]'
+                      : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
+                  }`}
+                >
+                  재고관리
+                </button>
+                <button
+                  type="button"
                   onClick={() => setAdminComposer('collections')}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
                     adminComposer === 'collections'
@@ -2593,7 +2674,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                   컬렉션 게시물 목록
                 </button>
                 <p className="hidden md:block text-[11px] text-[#8a8a8a] ml-2">
-                  현재 보기: {adminComposer === 'products' ? '의류 게시물 목록' : '컬렉션 게시물 목록'}
+                  현재 보기: {getAdminComposerLabel(adminComposer)}
                 </p>
               </div>
 
@@ -2608,9 +2689,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
             <div className="h-[calc(100%-64px)]">
               <iframe
-                src={adminComposer === 'products' ? '/admin?embedded=1' : '/admin/collections?embedded=1'}
+                src={getAdminComposerHref(adminComposer, true)}
                 className="w-full h-full border-0 bg-[#050505]"
-                title={adminComposer === 'products' ? 'products-admin' : 'collections-admin'}
+                title={`${adminComposer}-admin`}
               />
             </div>
           </div>

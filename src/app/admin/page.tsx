@@ -391,6 +391,14 @@ function AdminConsoleInner() {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     setIsEmbedded(params.get('embedded') === '1');
+    const requestedView = params.get('view');
+    if (
+      requestedView === 'editor' ||
+      requestedView === 'list' ||
+      requestedView === 'inventory'
+    ) {
+      setWorkspaceView(requestedView);
+    }
   }, []);
 
   useEffect(() => {
