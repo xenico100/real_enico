@@ -138,7 +138,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
       style={viewportStyle || { top: 0, bottom: 0 }}
       role="dialog"
       aria-modal="true"
-      aria-label="단체랜덤채팅"
+      aria-label="단체 랜덤 채팅 커뮤니티"
     >
       <div
         className="pointer-events-auto flex h-[min(72vh,760px)] w-full max-w-[min(560px,92vw)] flex-col overflow-hidden rounded-[24px] border border-[#232734] bg-[#050912] text-[#f3f6ff] shadow-[0_28px_120px_rgba(0,0,0,0.62)]"
@@ -161,7 +161,7 @@ export function RandomChatModal({ open, onClose }: RandomChatModalProps) {
               </div>
 
               <div className="min-w-0">
-                <p className="text-[15px] md:text-base font-semibold truncate">단체랜덤채팅</p>
+                <p className="text-[15px] md:text-base font-semibold truncate">단체 랜덤 채팅 커뮤니티</p>
                 <div className="flex items-center gap-1.5 text-[11px] text-[#9aa7bf]">
                   <span>{statusText}</span>
                   <span>·</span>

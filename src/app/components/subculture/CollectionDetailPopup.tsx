@@ -184,7 +184,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
           <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-h-0 p-3 md:p-5">
               <div
-                className="relative flex h-full min-h-[46vh] items-center justify-center overflow-hidden rounded-[26px] border border-[#73e1ce]/40 bg-[#d5fff3] p-3 md:p-5"
+                className="relative flex h-full min-h-[46vh] items-center justify-center overflow-hidden rounded-[26px] border border-white/10 bg-black/80 p-3 md:p-5 shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]"
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
@@ -192,7 +192,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                 <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.15),transparent)]" />
                 <div className="pointer-events-none absolute inset-[12px] rounded-[20px] border border-black/10" />
                 {prevPreviewImage ? (
-                  <div className="pointer-events-none absolute left-[-4%] top-[11%] z-[1] h-[78%] w-[28%] overflow-hidden rounded-[16px] border border-[#00ffd1]/20 bg-[#effffb]/50 opacity-40 shadow-[0_20px_50px_rgba(0,0,0,0.12)] blur-[0.2px] md:left-[2%] md:w-[22%]">
+                  <div className="pointer-events-none absolute left-[-4%] top-[11%] z-[1] h-[78%] w-[28%] overflow-hidden rounded-[16px] border border-white/10 bg-black/50 opacity-40 shadow-[0_20px_50px_rgba(0,0,0,0.4)] md:left-[2%] md:w-[22%]">
                     <Image
                       src={prevPreviewImage}
                       alt="이전 컬렉션 미리보기"
@@ -201,14 +201,14 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                       sizes="20vw"
                       className="object-cover"
                     />
-                    <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(213,255,243,0.82),rgba(213,255,243,0.18))]" />
-                    <div className="absolute bottom-3 left-3 font-mono text-[10px] uppercase tracking-[0.28em] text-[#1c5a52]">
+                    <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.85),rgba(0,0,0,0.25))]" />
+                    <div className="absolute bottom-3 left-3 font-mono text-[10px] uppercase tracking-[0.28em] text-white/70">
                       Prev
                     </div>
                   </div>
                 ) : null}
                 {nextPreviewImage ? (
-                  <div className="pointer-events-none absolute right-[-4%] top-[11%] z-[1] h-[78%] w-[28%] overflow-hidden rounded-[16px] border border-[#00ffd1]/20 bg-[#effffb]/50 opacity-40 shadow-[0_20px_50px_rgba(0,0,0,0.12)] blur-[0.2px] md:right-[2%] md:w-[22%]">
+                  <div className="pointer-events-none absolute right-[-4%] top-[11%] z-[1] h-[78%] w-[28%] overflow-hidden rounded-[16px] border border-white/10 bg-black/50 opacity-40 shadow-[0_20px_50px_rgba(0,0,0,0.4)] md:right-[2%] md:w-[22%]">
                     <Image
                       src={nextPreviewImage}
                       alt="다음 컬렉션 미리보기"
@@ -217,8 +217,8 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                       sizes="20vw"
                       className="object-cover"
                     />
-                    <div className="absolute inset-0 bg-[linear-gradient(270deg,rgba(213,255,243,0.82),rgba(213,255,243,0.18))]" />
-                    <div className="absolute bottom-3 right-3 font-mono text-[10px] uppercase tracking-[0.28em] text-[#1c5a52]">
+                    <div className="absolute inset-0 bg-[linear-gradient(270deg,rgba(0,0,0,0.85),rgba(0,0,0,0.25))]" />
+                    <div className="absolute bottom-3 right-3 font-mono text-[10px] uppercase tracking-[0.28em] text-white/70">
                       Next
                     </div>
                   </div>
@@ -230,7 +230,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                       type="button"
                       onClick={prevImage}
                       disabled={!hasMultipleImages}
-                      className="absolute left-2 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-[#00ffd1]/25 bg-[#effffb]/70 text-[#103531] backdrop-blur transition-colors hover:bg-[#f8fffd] disabled:cursor-not-allowed disabled:opacity-30 md:left-5"
+                      className="absolute left-2 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30 md:left-5"
                       aria-label="이전 페이지 보기"
                     >
                       <ChevronLeft size={20} />
@@ -242,22 +242,19 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                         custom={direction}
                         initial={{
                           opacity: 0,
-                          x: direction >= 0 ? 70 : -70,
-                          rotateY: direction >= 0 ? -12 : 12,
-                          scale: 0.985,
-                        }}
-                        animate={{ opacity: 1, x: 0, rotateY: 0, scale: 1 }}
-                        exit={{
-                          opacity: 0,
-                          x: direction >= 0 ? -55 : 55,
-                          rotateY: direction >= 0 ? 10 : -10,
+                          x: direction >= 0 ? 30 : -30,
                           scale: 0.99,
                         }}
-                        transition={{ duration: 0.28, ease: 'easeOut' }}
-                        style={{ transformPerspective: 1600, transformStyle: 'preserve-3d' }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{
+                          opacity: 0,
+                          x: direction >= 0 ? -20 : 20,
+                          scale: 0.99,
+                        }}
+                        transition={{ duration: 0.22, ease: 'easeOut' }}
                         className="absolute inset-y-[20px] left-[16%] right-[16%] md:inset-y-[30px] md:left-[18%] md:right-[18%]"
                       >
-                        <div className="relative h-full w-full overflow-hidden rounded-[18px] border border-[#00ffd1]/20 bg-[#f2fffb] shadow-[0_25px_60px_rgba(0,0,0,0.18)]">
+                        <div className="relative h-full w-full overflow-hidden rounded-[18px] border border-white/10 bg-black/40 shadow-[0_25px_60px_rgba(0,0,0,0.4)]">
                           <Image
                             src={imageList[safeImageIndex]}
                             alt={`${collection.title} 컬렉션 이미지 ${safeImageIndex + 1}`}
@@ -275,7 +272,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                       type="button"
                       onClick={nextImage}
                       disabled={!hasMultipleImages}
-                      className="absolute right-2 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-[#00ffd1]/25 bg-[#effffb]/70 text-[#103531] backdrop-blur transition-colors hover:bg-[#f8fffd] disabled:cursor-not-allowed disabled:opacity-30 md:right-5"
+                      className="absolute right-2 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30 md:right-5"
                       aria-label="다음 페이지 보기"
                     >
                       <ChevronRight size={20} />
@@ -287,7 +284,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                   </div>
                 )}
 
-                <div className="pointer-events-none absolute bottom-4 left-4 rounded-full border border-[#00ffd1]/25 bg-[#effffb]/72 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.3em] text-[#15443e] backdrop-blur md:bottom-6 md:left-6">
+                <div className="pointer-events-none absolute bottom-4 left-4 rounded-full border border-white/15 bg-black/70 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.3em] text-white/80 backdrop-blur md:bottom-6 md:left-6">
                   Page {hasImages ? String(safeImageIndex + 1).padStart(2, '0') : '00'}
                 </div>
               </div>

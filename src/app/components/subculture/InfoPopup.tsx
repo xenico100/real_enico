@@ -85,16 +85,10 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
           
           <h3 className="text-[#00ffd1] text-xl font-bold mb-4 uppercase">브랜드 소개</h3>
           <p className="text-sm leading-relaxed mb-4">
-            저같은 사람도 옷을 만듭니다. 몰입하세요.
-          </p>
-          <p className="text-sm leading-relaxed mb-4">
-            enico veck은 서브컬처를 좋아하는 사람들,
-            그리고 각자의 특별함을 가진 사람들을 모아
-            하나의 가족처럼 연결하려는 디자이너 브랜드입니다.
+            한국의 다양한 서브컬처를 하나의 컬렉션으로 기록합니다.
           </p>
           <p className="text-sm leading-relaxed">
-            옷을 통해 취향과 정체성을 함께 나누고,
-            오래 함께할 수 있는 커뮤니티를 만드는 것을 목표로 합니다.
+            모든 제품은 디자이너가 직접 패턴 설계부터 제작까지 전 과정을 손수 완성하는 핸드메이드 피스로, 각 컬렉션은 하나의 앨범처럼 하나의 이야기와 시대의 감각을 담아 선보입니다.
           </p>
         </div>
       </div>
@@ -107,7 +101,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
         >
           <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#222]">
             <div>
-              <h4 className="text-sm font-bold uppercase text-[#00ffd1]">연락 게시글 작성</h4>
+              <h4 className="text-sm font-bold uppercase text-[#00ffd1]">의뢰 게시글 작성</h4>
               <p className="text-xs text-[#999] mt-2">
                 작성 후 전송하면 `{CONTACT_EMAIL}`로 직접 도착합니다.
               </p>
@@ -264,7 +258,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
                  {type === 'about'
                    ? 'ENICO VECK'
                      : type === 'contact'
-                       ? '통신_링크'
+                       ? '의뢰_접수'
                        : myPageTitle}
                </span>
              </div>
