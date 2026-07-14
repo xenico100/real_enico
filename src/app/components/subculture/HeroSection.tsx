@@ -82,7 +82,7 @@ export function HeroSection() {
             Warning: High-Stimulation Content
           </div>
           <p className="max-w-md font-mono text-xs leading-relaxed text-[#888] md:text-sm">
-            Looking at clothes by a YouTuber who makes clothes in a semi-basement studio apartment.
+            어서오세요. 환영합니다.
           </p>
         </div>
 
