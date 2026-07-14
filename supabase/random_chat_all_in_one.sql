@@ -156,10 +156,6 @@ begin
   select r.id into v_room
   from public.chat_rooms r
   where r.status = 'active'
-  and (
-    select count(*) from public.chat_room_members m
-    where m.room_id = r.id
-  ) < 4
   order by r.created_at asc
   limit 1
   for update skip locked;
@@ -252,11 +248,8 @@ grant execute on function public.purge_closed_rooms(int) to service_role;
 -- =========================================
 -- CRON JOBS
 -- =========================================
-select cron.schedule(
-  'close_idle_chat_rooms',
-  '*/5 * * * *',
-  $$select public.close_idle_rooms(30);$$
-);
+-- 주의: 하루 1개 방 유지 및 하루마다 초기화를 위해 close_idle_chat_rooms(30분 유휴 종료)는 사용하지 않습니다.
+-- 방 초기화는 매일 /api/chat/daily-report 크론 실행 시 이메일 발송 직후 진행됩니다.
 
 select cron.schedule(
   'purge_closed_chat_rooms',

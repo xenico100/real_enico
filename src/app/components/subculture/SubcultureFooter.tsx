@@ -11,35 +11,35 @@ const FOOTER_FIELDS = [
 
 export function SubcultureFooter() {
   return (
-    <footer className="relative border-t border-[#17332f] bg-[linear-gradient(180deg,#07110f_0%,#050505_100%)]">
-      <div className="absolute inset-0 opacity-[0.08] bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:20px_20px]" />
+    <footer className="relative border-t border-[#d1d5db] bg-[linear-gradient(180deg,#ffffff_0%,#f8f9fa_100%)]">
+      <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(rgba(0,0,0,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.08)_1px,transparent_1px)] bg-[size:20px_20px]" />
 
       <div className="relative z-10 px-4 py-10 md:px-10 md:py-14">
-        <div className="flex flex-col gap-4 border border-[#1f3a35] bg-[#081311]/90 p-5 md:flex-row md:items-end md:justify-between md:p-7">
+        <div className="flex flex-col gap-4 border border-[#d1d5db] bg-white p-5 md:flex-row md:items-end md:justify-between md:p-7 shadow-sm">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#00ffd1]">
+            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#b8001f] font-bold">
               Shop Info
             </p>
-            <h2 className="mt-2 font-heading text-base uppercase tracking-[0.06em] text-[#b6bfbd] md:text-lg">
+            <h2 className="mt-2 font-heading text-base uppercase tracking-[0.06em] text-[#111827] md:text-lg">
               Monangsangin
             </h2>
-            <p className="mt-1 break-all text-[9px] leading-relaxed text-[#6f7977] md:text-[10px]">
+            <p className="mt-1 break-all text-[9px] leading-relaxed text-[#4b5563] md:text-[10px]">
               morba9850@gmail.com. Copyright © Enico Veck. All rights reserved.
             </p>
           </div>
 
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#5d8d84]">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#b8001f] font-semibold">
             ENICO VECK STORELINE
           </p>
         </div>
 
-        <div className="grid gap-3 border-x border-b border-[#17332f] bg-[#050908]/96 p-4 md:grid-cols-2 md:p-7 xl:grid-cols-4">
+        <div className="grid gap-3 border-x border-b border-[#d1d5db] bg-[#f8f9fa] p-4 md:grid-cols-2 md:p-7 xl:grid-cols-4 shadow-sm">
           {FOOTER_FIELDS.map((field) => (
-            <div key={field.label} className="border border-[#18312c] bg-[#0a1513] px-4 py-4">
-              <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#68716f] md:text-[10px]">
+            <div key={field.label} className="border border-[#e5e7eb] bg-white px-4 py-4 shadow-sm">
+              <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#4b5563] md:text-[10px] font-semibold">
                 {field.label}
               </p>
-              <p className="mt-1.5 break-words text-[11px] font-normal leading-relaxed text-[#9ea7a5] md:text-xs">
+              <p className="mt-1.5 break-words text-[11px] font-bold leading-relaxed text-[#111827] md:text-xs">
                 {field.value}
               </p>
             </div>

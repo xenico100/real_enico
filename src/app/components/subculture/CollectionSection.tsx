@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { shouldBypassImageOptimization } from '@/lib/images';
+import { useAuth } from '@/app/context/AuthContext';
 import {
   buildCollectionCatalog,
   type Collection,
@@ -28,8 +29,41 @@ export function CollectionSection({
   usingFallbackCatalog = false,
   onCollectionClick,
 }: CollectionSectionProps) {
+  const { isAuthenticated, user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [collections, setCollections] = useState<Collection[]>(initialCollections);
   const [isRecoveringCollections, setIsRecoveringCollections] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const checkAdmin = async () => {
+      if (typeof window !== 'undefined' && window.localStorage.getItem('ENICO_FORCE_ADMIN') === 'true') {
+        if (active) setIsAdmin(true);
+        return;
+      }
+      if (!isAuthenticated || !user) {
+        if (active) setIsAdmin(false);
+        return;
+      }
+      const email = (user?.email || '').toLowerCase();
+      if (email === 'morba9850@gmail.com') {
+        if (active) setIsAdmin(true);
+        return;
+      }
+      try {
+        const supabase = getSupabaseBrowserClient();
+        if (!supabase) return;
+        const { data } = await supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle();
+        if (active) setIsAdmin(Boolean(data?.user_id));
+      } catch {
+        if (active) setIsAdmin(false);
+      }
+    };
+    void checkAdmin();
+    return () => { active = false; };
+  }, [isAuthenticated, user]);
+
+  const displayedCollections = collections;
 
   useEffect(() => {
     setCollections(initialCollections);
@@ -139,7 +173,7 @@ export function CollectionSection({
           </div>
         ) : null}
 
-        {collections.length === 0 ? (
+        {displayedCollections.length === 0 ? (
           <div className="border-2 border-black bg-white p-10 text-center">
             <p className="font-heading text-4xl uppercase leading-none">컬렉션 없음</p>
             <p className="font-mono text-xs text-black/60 mt-4">
@@ -148,7 +182,7 @@ export function CollectionSection({
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3">
-            {collections.map((collection, index) => (
+            {displayedCollections.map((collection, index) => (
               <div
                 key={collection.id}
                 onClick={() => onCollectionClick(collection)}
@@ -159,7 +193,7 @@ export function CollectionSection({
 
                 <div className="bg-white p-4 border-2 border-black h-full flex flex-col justify-between relative shadow-xl">
                   <div className="relative aspect-[4/5] overflow-hidden border border-black mb-6">
-                    <div className="absolute inset-0 bg-[#00ffd1] mix-blend-multiply opacity-0 group-hover:opacity-40 transition-opacity duration-300 z-10" />
+                    <div className="absolute inset-0 bg-[#b8001f] mix-blend-multiply opacity-0 group-hover:opacity-40 transition-opacity duration-300 z-10" />
                     {collection.image ? (
                       <Image
                         src={collection.image}

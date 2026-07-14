@@ -91,13 +91,10 @@ export default function App({
 
   return (
     <FashionCartProvider>
-      <div className="relative min-h-screen w-full overflow-x-hidden bg-[#050505] font-mono text-[#e5e5e5] selection:bg-[#00ffd1] selection:text-black">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_22%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.14] bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:28px_28px]" />
+      <div className="relative min-h-screen w-full overflow-x-hidden bg-[#f8f9fa] font-mono text-[#111827] selection:bg-[#b8001f] selection:text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,0,0,0.05),transparent_42%),linear-gradient(180deg,rgba(0,0,0,0.03),transparent_22%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.14] bg-[linear-gradient(rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.04)_1px,transparent_1px)] bg-[size:28px_28px]" />
 
-        <div className="relative z-50 bg-gradient-to-r from-[#ff007f] via-[#9900ff] to-[#00ffd1] px-4 py-2 text-center font-mono text-xs font-bold tracking-wider text-black shadow-[0_0_20px_rgba(255,0,127,0.5)] flex items-center justify-center gap-2">
-          <span>😈🖤 [KUROMI EXPERIMENTAL BRANCH] 실험용 Vercel 프리뷰 모드 가동 중! (main 실서버 안전 보장) 💖✨</span>
-        </div>
         <SubcultureHeader 
           onCartClick={() => setIsCartOpen(true)}
           onInfoClick={(type) => setActivePopup(type)}

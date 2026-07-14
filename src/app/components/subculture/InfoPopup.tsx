@@ -77,17 +77,17 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
   const content = {
     about: (
       <div className="space-y-8 font-mono">
-        <div className="border border-[#00ffd1] p-6 bg-[#0a0a0a] relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-2 h-2 bg-[#00ffd1]" />
-          <div className="absolute top-0 right-0 w-2 h-2 bg-[#00ffd1]" />
-          <div className="absolute bottom-0 left-0 w-2 h-2 bg-[#00ffd1]" />
-          <div className="absolute bottom-0 right-0 w-2 h-2 bg-[#00ffd1]" />
+        <div className="border border-[#b8001f] p-6 bg-white shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-2 h-2 bg-[#b8001f]" />
+          <div className="absolute top-0 right-0 w-2 h-2 bg-[#b8001f]" />
+          <div className="absolute bottom-0 left-0 w-2 h-2 bg-[#b8001f]" />
+          <div className="absolute bottom-0 right-0 w-2 h-2 bg-[#b8001f]" />
           
-          <h3 className="text-[#00ffd1] text-xl font-bold mb-4 uppercase">브랜드 소개</h3>
-          <p className="text-sm leading-relaxed mb-4">
+          <h3 className="text-[#b8001f] text-xl font-bold mb-4 uppercase">브랜드 소개</h3>
+          <p className="text-sm leading-relaxed mb-4 text-[#374151]">
             한국의 다양한 서브컬처를 하나의 컬렉션으로 기록합니다.
           </p>
-          <p className="text-sm leading-relaxed">
+          <p className="text-sm leading-relaxed text-[#374151]">
             모든 제품은 디자이너가 직접 패턴 설계부터 제작까지 전 과정을 손수 완성하는 핸드메이드 피스로, 각 컬렉션은 하나의 앨범처럼 하나의 이야기와 시대의 감각을 담아 선보입니다.
           </p>
         </div>
@@ -97,25 +97,25 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
       <div className="space-y-8 font-mono">
         <form
           onSubmit={handleSendContact}
-          className="border border-[#333] p-6 bg-[#0a0a0a] space-y-4"
+          className="border border-[#d1d5db] p-6 bg-white shadow-sm space-y-4"
         >
-          <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#222]">
+          <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#d1d5db]">
             <div>
-              <h4 className="text-sm font-bold uppercase text-[#00ffd1]">의뢰 게시글 작성</h4>
-              <p className="text-xs text-[#999] mt-2">
+              <h4 className="text-sm font-bold uppercase text-[#b8001f]">의뢰 게시글 작성</h4>
+              <p className="text-xs text-[#6b7280] mt-2 font-medium">
                 작성 후 전송하면 `{CONTACT_EMAIL}`로 직접 도착합니다.
               </p>
             </div>
-            <p className="text-[10px] text-[#666] uppercase tracking-widest">문의 글쓰기</p>
+            <p className="text-[10px] text-[#4b5563] uppercase tracking-widest font-bold">문의 글쓰기</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#666] mb-2 uppercase">문의 유형</label>
+              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">문의 유형</label>
               <select
                 value={contactCategory}
                 onChange={(event) => setContactCategory(event.target.value)}
-                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] font-medium"
                 required
               >
                 <option>멤버십/맞춤제작</option>
@@ -125,12 +125,12 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] text-[#666] mb-2 uppercase">작성자</label>
+              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">작성자</label>
               <input
                 type="text"
                 value={contactName}
                 onChange={(event) => setContactName(event.target.value)}
-                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] font-medium"
                 placeholder="성함"
                 required
               />
@@ -139,47 +139,47 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#666] mb-2 uppercase">회신 이메일</label>
+              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">회신 이메일</label>
               <input
                 type="email"
                 value={contactReplyEmail}
                 onChange={(event) => setContactReplyEmail(event.target.value)}
-                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] font-medium"
                 placeholder="회신 받을 이메일"
                 required
               />
             </div>
             <div>
-              <label className="block text-[10px] text-[#666] mb-2 uppercase">연락처 (선택)</label>
+              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">연락처 (선택)</label>
               <input
                 type="tel"
                 value={contactPhone}
                 onChange={(event) => setContactPhone(event.target.value)}
-                className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+                className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] font-medium"
                 placeholder="010-0000-0000"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[10px] text-[#666] mb-2 uppercase">제목</label>
+            <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">제목</label>
             <input
               type="text"
               value={contactSubject}
               onChange={(event) => setContactSubject(event.target.value)}
-              className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5]"
+              className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] font-medium"
               placeholder="게시글 제목"
               required
             />
           </div>
 
           <div>
-            <label className="block text-[10px] text-[#666] mb-2 uppercase">내용</label>
+            <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">내용</label>
             <textarea
               value={contactBody}
               onChange={(event) => setContactBody(event.target.value)}
               rows={9}
-              className="w-full bg-black border border-[#333] py-3 px-3 text-sm focus:outline-none focus:border-[#00ffd1] text-[#e5e5e5] resize-y"
+              className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] resize-y font-medium"
               placeholder="문의/제안 내용을 작성하세요"
               required
             />
@@ -187,10 +187,10 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
 
           {(contactMessage || contactError) && (
             <div
-              className={`border p-3 text-xs ${
+              className={`border p-3 text-xs font-semibold ${
                 contactError
-                  ? 'border-red-700 bg-red-950/20 text-red-300'
-                  : 'border-[#00ffd1]/40 bg-[#00ffd1]/5 text-[#bafff0]'
+                  ? 'border-red-500 bg-red-50 text-red-800'
+                  : 'border-[#b8001f]/40 bg-[#fff1f2] text-[#8f0018]'
               }`}
             >
               {contactError || contactMessage}
@@ -200,7 +200,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
           <button
             type="submit"
             disabled={isContactSubmitting}
-            className="w-full py-3 border border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black transition-colors text-xs uppercase tracking-widest"
+            className="w-full py-3 border border-[#b8001f] text-[#b8001f] hover:bg-[#b8001f] hover:text-white transition-colors text-xs uppercase tracking-widest font-bold shadow-sm"
           >
             {isContactSubmitting ? '전송 중...' : '게시글 전송'}
           </button>
@@ -218,7 +218,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className={`fixed inset-0 z-[100] flex bg-black/95 backdrop-blur-xl ${
+        className={`fixed inset-0 z-[100] flex bg-white/90 backdrop-blur-xl ${
           type === 'mypage'
             ? 'items-start justify-center overflow-y-auto overscroll-contain px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)] md:items-center md:overflow-hidden md:p-4'
             : 'items-center justify-center p-4'
@@ -237,24 +237,24 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
               : 'max-w-2xl'
           } flex ${
             type === 'mypage' ? 'min-h-[92dvh] md:h-[92vh] md:max-h-[92vh]' : 'max-h-[92vh]'
-          } flex-col border border-[#333] bg-[#050505] shadow-2xl shadow-[#00ffd1]/5 ${
+          } flex-col border border-[#d1d5db] bg-white text-[#111827] shadow-2xl shadow-[#b8001f]/10 ${
             type === 'mypage' ? 'overflow-visible md:overflow-hidden' : 'overflow-hidden'
           }`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="relative min-h-[76px] border-b border-[#333] bg-[#0a0a0a] px-4 py-3 md:h-16 md:px-6 md:py-0">
+          <div className="relative min-h-[76px] border-b border-[#d1d5db] bg-[#f8f9fa] px-4 py-3 md:h-16 md:px-6 md:py-0">
              <div className="flex min-w-0 flex-col gap-2 pr-14 md:h-full md:flex-row md:items-center md:gap-3">
                {type === 'mypage' && (
                  <button
                    onClick={onClose}
-                   className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-[#333] bg-black px-2.5 py-1.5 text-xs text-[#ddd] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1]"
+                   className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2.5 py-1.5 text-xs text-[#111827] font-semibold transition-colors hover:border-[#b8001f] hover:text-[#b8001f] shadow-sm"
                  >
                    <ChevronLeft size={14} />
                    뒤로가기
                  </button>
                )}
-               <span className="font-heading text-xl uppercase tracking-tighter text-[#e5e5e5] md:text-2xl truncate">
+               <span className="font-heading text-xl uppercase tracking-tighter text-[#111827] md:text-2xl truncate font-black">
                  {type === 'about'
                    ? 'ENICO VECK'
                      : type === 'contact'
@@ -264,7 +264,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
              </div>
              <button
                onClick={onClose}
-               className="absolute right-4 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#333] bg-black text-white transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] md:top-1/2 md:right-6 md:-translate-y-1/2"
+               className="absolute right-4 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] transition-colors hover:border-[#b8001f] hover:text-[#b8001f] md:top-1/2 md:right-6 md:-translate-y-1/2 shadow-sm"
              >
                <X size={24} />
              </button>
@@ -283,7 +283,7 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
 
           {/* Footer Decoration */}
           {type !== 'mypage' && (
-            <div className="h-2 bg-[repeating-linear-gradient(45deg,#000,#000_10px,#333_10px,#333_20px)] border-t border-[#333]" />
+            <div className="h-2 bg-[repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6_10px,#e5e7eb_10px,#e5e7eb_20px)] border-t border-[#d1d5db]" />
           )}
           
         </motion.div>

@@ -341,6 +341,17 @@ async function handleReport(request: Request) {
 
     await sendDigestEmail({ subject, text });
 
+    // 이메일 리포트 발송 직후, 하루 동안 유지되던 활성 채팅방을 초기화('closed')
+    // 다음 입장 사용자가 새 하루를 위한 단 1개의 새 방을 열게 됨 (방변경 없이 하루 1방 유지)
+    const { error: resetRoomsError } = await supabase
+      .from('chat_rooms')
+      .update({ status: 'closed' })
+      .eq('status', 'active');
+
+    if (resetRoomsError) {
+      console.error('일일 리포트 발송 후 채팅방 초기화 실패:', resetRoomsError);
+    }
+
     const flagValue = {
       imported: true,
       last_report_kst_date: reportDateKst,

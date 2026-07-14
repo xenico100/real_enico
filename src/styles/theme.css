@@ -7,36 +7,36 @@
   --font-heading: 'Anton', sans-serif;
   --font-body: 'Space Mono', monospace;
 
-  --background: #050505;
-  --foreground: #e5e5e5;
+  --background: #f8f9fa;
+  --foreground: #111827;
   
-  /* Soap Pink / Mayhem Pink */
-  --primary: #00ffd1;
-  --primary-foreground: #000000;
+  /* Sensual Deep Crimson Red */
+  --primary: #b8001f;
+  --primary-foreground: #ffffff;
   
-  /* Industrial Concrete */
-  --secondary: #2a2a2a;
-  --secondary-foreground: #e5e5e5;
+  /* Light Industrial Concrete */
+  --secondary: #e5e7eb;
+  --secondary-foreground: #111827;
   
-  /* Dried Blood / Bruise */
-  --destructive: #8a0000;
+  /* Destructive */
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   
-  --muted: #1a1a1a;
-  --muted-foreground: #888888;
+  --muted: #f3f4f6;
+  --muted-foreground: #4b5563;
   
-  --accent: #00ffd1;
-  --accent-foreground: #000000;
+  --accent: #b8001f;
+  --accent-foreground: #ffffff;
   
-  --card: #0a0a0a;
-  --card-foreground: #e5e5e5;
+  --card: #ffffff;
+  --card-foreground: #111827;
   
-  --popover: #0a0a0a;
-  --popover-foreground: #e5e5e5;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
   
-  --border: #333333;
-  --input: #1a1a1a;
-  --ring: #00ffd1;
+  --border: #e5e7eb;
+  --input: #f3f4f6;
+  --ring: #b8001f;
   
   --radius: 0px; /* Sharp edges for industrial feel */
 }

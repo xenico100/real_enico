@@ -14,8 +14,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #f8f9fa;
+    --foreground: #111827;
   }
 }
 
@@ -28,7 +28,7 @@ body {
 .checkout-scroll-area {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: #00ffd1 #0b0b0b;
+  scrollbar-color: #b8001f #f3f4f6;
 }
 
 .checkout-scroll-area::-webkit-scrollbar {
@@ -36,16 +36,16 @@ body {
 }
 
 .checkout-scroll-area::-webkit-scrollbar-track {
-  background: #0b0b0b;
-  border-left: 1px solid #232323;
+  background: #f3f4f6;
+  border-left: 1px solid #e5e7eb;
 }
 
 .checkout-scroll-area::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #00ffd1 0%, #0ca38a 100%);
-  border: 2px solid #0b0b0b;
+  background: linear-gradient(180deg, #b8001f 0%, #9a0019 100%);
+  border: 2px solid #f3f4f6;
   border-radius: 999px;
 }
 
 .checkout-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #7effef 0%, #00ffd1 100%);
+  background: linear-gradient(180deg, #d93853 0%, #b8001f 100%);
 }

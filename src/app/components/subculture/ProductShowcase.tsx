@@ -101,7 +101,7 @@ function ProductCard({
     <motion.div
       layout
       onClick={() => onProductClick(product)}
-      className="group relative cursor-pointer overflow-hidden bg-[#111] border border-[#333] transition-colors duration-300 hover:border-[#00ffd1]"
+      className="group relative cursor-pointer overflow-hidden bg-white border border-[#d1d5db] shadow-sm transition-all duration-300 hover:border-[#b8001f] hover:shadow-md"
     >
       <AnimatePresence>
         {isCartBurstVisible ? (
@@ -116,20 +116,20 @@ function ProductCard({
               initial={{ opacity: 0.78, scale: 0.88 }}
               animate={{ opacity: 0, scale: 1.24 }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
-              className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(0,255,209,0.38)_0%,rgba(0,255,209,0.16)_32%,rgba(0,255,209,0)_74%)]"
+              className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(184,0,31,0.38)_0%,rgba(184,0,31,0.16)_32%,rgba(184,0,31,0)_74%)]"
             />
             <motion.div
               initial={{ opacity: 0.45, x: '-100%' }}
               animate={{ opacity: 0, x: '125%' }}
               transition={{ duration: 0.72, ease: 'easeOut' }}
-              className="absolute inset-y-0 left-[-22%] w-[44%] bg-[linear-gradient(90deg,transparent,rgba(170,255,243,0.8),transparent)] blur-md"
+              className="absolute inset-y-0 left-[-22%] w-[44%] bg-[linear-gradient(90deg,transparent,rgba(255,180,195,0.8),transparent)] blur-md"
             />
           </motion.div>
         ) : null}
       </AnimatePresence>
 
-      <div className="relative overflow-hidden bg-black aspect-[1080/1350]">
-        <div className="absolute inset-0 bg-[#00ffd1] mix-blend-color opacity-0 z-10 transition-opacity duration-300 group-hover:opacity-20" />
+      <div className="relative overflow-hidden bg-[#f8f9fa] aspect-[1080/1350]">
+        <div className="absolute inset-0 bg-[#b8001f] mix-blend-color opacity-0 z-10 transition-opacity duration-300 group-hover:opacity-20" />
 
         <Image
           src={product.image}
@@ -137,33 +137,33 @@ function ProductCard({
           fill
           unoptimized={shouldUseDirectImage}
           sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
-          className="object-contain object-center bg-black"
+          className="object-contain object-center bg-[#f8f9fa]"
         />
 
         <div className="pointer-events-none absolute inset-0 z-20 opacity-0 transition-opacity duration-100 mix-blend-exclusion group-hover:opacity-100">
-          <div className="h-full w-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#000_3px)] opacity-20" />
+          <div className="h-full w-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#fff_3px)] opacity-20" />
         </div>
       </div>
 
       <div className="relative overflow-hidden p-2 md:p-4">
-        <div className="absolute inset-0 z-0 bg-[#0a0a0a]" />
+        <div className="absolute inset-0 z-0 bg-white" />
 
         <div className="relative z-10 flex flex-col gap-1.5 md:gap-2">
-          <h3 className="line-clamp-2 font-heading text-[11px] uppercase leading-tight text-[#e5e5e5] transition-colors group-hover:text-[#00ffd1] md:text-xl md:leading-none">
+          <h3 className="line-clamp-2 font-heading text-[11px] uppercase leading-tight text-[#111827] transition-colors group-hover:text-[#b8001f] md:text-xl md:leading-none font-bold">
             {product.name}
           </h3>
 
           <div className="mt-1 flex items-center justify-between md:mt-2">
-            <span className="truncate font-mono text-[9px] text-[#888] md:text-xs">
+            <span className="truncate font-mono text-[9px] text-[#4b5563] md:text-xs font-semibold">
               {getCategoryLabel(product.category)}
             </span>
             <div className="flex items-center gap-2">
               {isSoldOut ? (
-                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[#ff8888] md:text-[10px]">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[#dc2626] md:text-[10px]">
                   품절
                 </span>
               ) : null}
-              <span className="whitespace-nowrap font-mono text-[10px] font-bold text-[#e5e5e5] md:text-sm">
+              <span className="whitespace-nowrap font-mono text-[10px] font-bold text-[#111827] md:text-sm">
                 {product.price.toLocaleString('ko-KR')}원
               </span>
             </div>
@@ -178,7 +178,7 @@ function ProductCard({
                   animate={{ opacity: 1, y: -10, scale: 1 }}
                   exit={{ opacity: 0, y: -18, scale: 0.96 }}
                   transition={{ duration: 0.55, ease: 'easeOut' }}
-                  className="pointer-events-none absolute right-2 top-0 z-20 rounded-full border border-[#b8fff2] bg-[#d9fff8] px-2.5 py-1 font-mono text-[9px] font-black uppercase tracking-[0.22em] text-[#033c33] shadow-[0_10px_24px_rgba(0,255,209,0.28)]"
+                  className="pointer-events-none absolute right-2 top-0 z-20 rounded-full border border-[#d93853] bg-[#ffe6eb] px-2.5 py-1 font-mono text-[9px] font-black uppercase tracking-[0.22em] text-[#6e0013] shadow-[0_10px_24px_rgba(184,0,31,0.28)]"
                 >
                   + cart
                 </motion.span>
@@ -198,21 +198,21 @@ function ProductCard({
                   ? {
                       scale: [1, 0.97, 1.04, 1],
                       boxShadow: [
-                        '0 0 0 rgba(0,255,209,0)',
-                        '0 0 0 rgba(0,255,209,0)',
-                        '0 0 30px rgba(0,255,209,0.38)',
-                        '0 0 0 rgba(0,255,209,0)',
+                        '0 0 0 rgba(184,0,31,0)',
+                        '0 0 0 rgba(184,0,31,0)',
+                        '0 0 30px rgba(184,0,31,0.38)',
+                        '0 0 0 rgba(184,0,31,0)',
                       ],
                     }
-                  : { scale: 1, boxShadow: '0 0 0 rgba(0,255,209,0)' }
+                  : { scale: 1, boxShadow: '0 0 0 rgba(184,0,31,0)' }
               }
               transition={{ duration: 0.72, ease: 'easeOut' }}
-              className={`relative w-full overflow-hidden border px-2 py-2 text-[10px] font-mono uppercase tracking-widest transition-[color,background-color,border-color,transform] md:text-xs ${
+              className={`relative w-full overflow-hidden border px-2 py-2 text-[10px] font-mono uppercase tracking-widest transition-[color,background-color,border-color,transform] md:text-xs font-bold ${
                 isSoldOut
-                  ? 'cursor-not-allowed border-[#6d2d2d] bg-[#1f0e0e] text-[#ffabab]'
+                  ? 'cursor-not-allowed border-[#f87171] bg-[#fef2f2] text-[#991b1b]'
                   : isInCart
-                    ? 'cursor-default border-[#5ce9d1] bg-[#032a23] text-[#d4fff6]'
-                    : 'border-[#00ffd1] text-[#00ffd1] hover:bg-[#00ffd1] hover:text-black'
+                    ? 'cursor-default border-[#d93853] bg-[#fff1f2] text-[#8f0018]'
+                    : 'border-[#b8001f] text-[#b8001f] hover:bg-[#b8001f] hover:text-white'
               }`}
             >
               <AnimatePresence>
@@ -223,7 +223,7 @@ function ProductCard({
                     animate={{ opacity: 0, x: '115%' }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.58, ease: 'easeOut' }}
-                    className="pointer-events-none absolute inset-y-0 left-[-25%] w-[48%] bg-[linear-gradient(90deg,transparent,rgba(224,255,249,0.95),transparent)]"
+                    className="pointer-events-none absolute inset-y-0 left-[-25%] w-[48%] bg-[linear-gradient(90deg,transparent,rgba(255,224,235,0.95),transparent)]"
                   />
                 ) : null}
               </AnimatePresence>
@@ -384,33 +384,33 @@ export function ProductShowcase({
   return (
     <section
       id="clothes-section"
-      className="py-20 bg-[#050505] min-h-screen border-t border-[#333] scroll-mt-24"
+      className="py-20 bg-[#f8f9fa] min-h-screen border-t border-[#d1d5db] scroll-mt-24"
     >
       <div className="px-4 md:px-10">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#333] pb-4">
+        <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#d1d5db] pb-4">
           <div>
-            <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-heading font-black text-[#e5e5e5] uppercase tracking-tighter leading-[0.86]">
+            <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-heading font-black text-[#111827] uppercase tracking-tighter leading-[0.86]">
               Apparel
             </h2>
           </div>
 
           <div className="w-full md:w-auto mt-8 md:mt-0 md:min-w-[560px] flex flex-col gap-3">
-            <div className="relative overflow-hidden border border-[#2a2a2a] bg-[#0a0a0a] text-[#f3f3f3] shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
-              <div className="absolute inset-0 opacity-[0.08] bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:18px_18px]" />
+            <div className="relative overflow-hidden border border-[#d1d5db] bg-white text-[#111827] shadow-sm">
+              <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(rgba(0,0,0,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.08)_1px,transparent_1px)] bg-[size:18px_18px]" />
 
-              <div className="relative flex items-end justify-between gap-4 border-b border-[#242424] px-4 py-4">
+              <div className="relative flex items-end justify-between gap-4 border-b border-[#e5e7eb] px-4 py-4">
                 <div>
-                  <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#6f6f6f]">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#4b5563] font-bold">
                     Category
                   </p>
-                  <p className="mt-2 font-heading text-[1.9rem] uppercase leading-none tracking-tight text-white">
+                  <p className="mt-2 font-heading text-[1.9rem] uppercase leading-none tracking-tight text-[#111827]">
                     Categories
                   </p>
                 </div>
 
-                <p className="shrink-0 font-heading text-3xl leading-none text-[#00ffd1]">
+                <p className="shrink-0 font-heading text-3xl leading-none text-[#b8001f]">
                   {filteredProducts.length}
-                  <span className="ml-1 text-xl text-[#5d5d5d]">/ {visibleCatalogProducts.length}</span>
+                  <span className="ml-1 text-xl text-[#4b5563]">/ {visibleCatalogProducts.length}</span>
                 </p>
               </div>
 
@@ -430,20 +430,20 @@ export function ProductShowcase({
                         }}
                         className={`group relative overflow-hidden border px-3 py-3 text-left transition-all duration-200 ${
                           isActive
-                            ? 'border-[#00ffd1] bg-[#00ffd1] text-black shadow-[0_0_24px_rgba(0,255,209,0.18)]'
-                            : 'border-[#2e2e2e] bg-[#111] text-[#f1f1f1] hover:border-[#00ffd1]/60 hover:text-white'
+                            ? 'border-[#b8001f] bg-[#b8001f] text-white shadow-[0_0_24px_rgba(184,0,31,0.18)]'
+                            : 'border-[#d1d5db] bg-[#f3f4f6] text-[#111827] hover:border-[#b8001f]/60 hover:bg-white hover:text-[#b8001f]'
                         }`}
                       >
                         <span
                           className={`absolute left-0 top-0 h-full w-[3px] ${
                             isActive
-                              ? 'bg-black'
-                              : 'bg-[#00ffd1]/0 group-hover:bg-[#00ffd1]/65'
+                              ? 'bg-white'
+                              : 'bg-[#b8001f]/0 group-hover:bg-[#b8001f]/65'
                           }`}
                         />
                         <span
-                          className={`block font-mono text-[10px] uppercase tracking-[0.2em] ${
-                            isActive ? 'text-black/60' : 'text-[#6a6a6a]'
+                          className={`block font-mono text-[10px] uppercase tracking-[0.2em] font-bold ${
+                            isActive ? 'text-white/80' : 'text-[#4b5563]'
                           }`}
                         >
                           {String(index + 1).padStart(2, '0')}
@@ -452,8 +452,8 @@ export function ProductShowcase({
                           {getCategoryLabel(category)}
                         </span>
                         <span
-                          className={`mt-3 block font-mono text-[11px] ${
-                            isActive ? 'text-black/70' : 'text-[#8e8e8e]'
+                          className={`mt-3 block font-mono text-[11px] font-bold ${
+                            isActive ? 'text-white/90' : 'text-[#4b5563]'
                           }`}
                         >
                           {String(categoryCounts[category]).padStart(2, '0')}
@@ -468,19 +468,19 @@ export function ProductShowcase({
         </div>
 
         {usingFallbackCatalog ? (
-          <div className="mb-6 border border-[#333] bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] text-[#9a9a9a]">
+          <div className="mb-6 border border-[#d1d5db] bg-white shadow-sm px-4 py-3 font-mono text-[11px] text-[#4b5563] font-semibold">
             {isRecoveringProducts
               ? '실제 의류 게시물을 다시 불러오는 중입니다...'
-              : '실제 의류 게시물을 찾지 못했습니다. 샘플 이미지는 더 이상 표시하지 않습니다.'}
+              : '실제 의류 게시물을 찾지 못했습니다. 샘플 images는 더 이상 표시하지 않습니다.'}
           </div>
         ) : null}
 
         {visibleCatalogProducts.length === 0 ? (
-          <div className="border border-[#333] bg-[#0a0a0a] px-4 py-10 text-center font-mono text-sm text-[#9a9a9a]">
+          <div className="border border-[#d1d5db] bg-white shadow-sm px-4 py-10 text-center font-mono text-sm text-[#4b5563] font-semibold">
             표시할 의류 게시물이 없습니다.
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="border border-[#333] bg-[#0a0a0a] px-4 py-10 text-center font-mono text-sm text-[#9a9a9a]">
+          <div className="border border-[#d1d5db] bg-white shadow-sm px-4 py-10 text-center font-mono text-sm text-[#4b5563] font-semibold">
             이 탭에 표시할 의류 게시물이 없습니다.
           </div>
         ) : (

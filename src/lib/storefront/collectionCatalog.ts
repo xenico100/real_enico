@@ -11,6 +11,7 @@ export interface Collection {
   releaseDate: string;
   fullDescription: string;
   createdAt?: string;
+  is3dTest?: boolean;
 }
 
 function normalizeCollectionImages(value: unknown, primaryImage?: string | null) {
