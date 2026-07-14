@@ -32,6 +32,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
   const navItems: NavItem[] = [
     { key: 'about', label: '소개', action: 'info' },
     { key: 'contact', label: '의뢰', action: 'info' },
+    { key: 'randomChat', label: '커뮤니티', action: 'randomChat' },
     { key: 'mypage', label: myPageLabel, action: 'info' },
   ];
   const isCartCelebrating = activeCartFeedbackSequence === lastAddedItem?.sequence;
