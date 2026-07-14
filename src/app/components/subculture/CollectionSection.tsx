@@ -148,7 +148,7 @@ export function CollectionSection({
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3">
-            {collections.map((collection) => (
+            {collections.map((collection, index) => (
               <div
                 key={collection.id}
                 onClick={() => onCollectionClick(collection)}
@@ -183,7 +183,7 @@ export function CollectionSection({
                           {collection.season || 'SEASONLESS'}
                         </span>
                         <span className="font-heading text-4xl leading-none">
-                          {String(collection.items).padStart(2, '0')}
+                          {String(index + 1).padStart(2, '0')}
                         </span>
                       </div>
 

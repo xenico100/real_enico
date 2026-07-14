@@ -10,6 +10,7 @@ export interface Collection {
   items: number;
   releaseDate: string;
   fullDescription: string;
+  createdAt?: string;
 }
 
 function normalizeCollectionImages(value: unknown, primaryImage?: string | null) {
@@ -53,20 +54,16 @@ function mapCollectionRow(row: StorefrontCollectionRow): Collection {
     items: Number.isFinite(numericItems) ? numericItems : 0,
     releaseDate: row.release_date?.trim() || '',
     fullDescription: row.full_description?.trim() || row.description?.trim() || '',
+    createdAt: row.created_at?.trim() || '',
   };
-}
-
-function isOtakuCollection(collection: Collection) {
-  const key = `${collection.title} ${collection.season}`.toLowerCase();
-  return key.includes('otaku');
 }
 
 export function buildCollectionCatalog(rows: StorefrontCollectionRow[]) {
   const collections = rows.map(mapCollectionRow);
   return [...collections].sort((a, b) => {
-    const aOtaku = isOtakuCollection(a) ? 1 : 0;
-    const bOtaku = isOtakuCollection(b) ? 1 : 0;
-    return bOtaku - aOtaku;
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return timeB - timeA;
   });
 }
 
