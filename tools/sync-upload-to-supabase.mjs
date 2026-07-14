@@ -61,7 +61,7 @@ function toAsciiSlug(value) {
 }
 
 function scoreImageName(filePath) {
-  const name = path.basename(filePath).toLowerCase();
+  const name = path.basename(filePath).normalize('NFC').toLowerCase();
   let score = 0;
   if (name.includes('썸네일') || name.includes('thumbnail') || name.includes('thumb')) score += 40;
   if (name.includes('main') || name.includes('메인')) score += 20;
