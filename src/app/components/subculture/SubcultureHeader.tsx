@@ -16,7 +16,8 @@ type InfoNavKey = 'about' | 'contact' | 'mypage';
 
 type NavItem =
   | { key: InfoNavKey; label: string; action: 'info' }
-  | { key: 'randomChat'; label: string; action: 'randomChat' };
+  | { key: 'randomChat'; label: string; action: 'randomChat' }
+  | { key: 'collection'; label: string; action: 'collection' };
 
 export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }: SubcultureHeaderProps) {
   const { cart, lastAddedItem } = useFashionCart();
@@ -34,6 +35,7 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
     { key: 'contact', label: '의뢰', action: 'info' },
     { key: 'randomChat', label: '커뮤니티', action: 'randomChat' },
     { key: 'mypage', label: myPageLabel, action: 'info' },
+    { key: 'collection', label: '컬렉션', action: 'collection' },
   ];
   const isCartCelebrating = activeCartFeedbackSequence === lastAddedItem?.sequence;
 
@@ -83,7 +85,14 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                     onRandomChatClick();
                     return;
                   }
-                  onInfoClick(item.key);
+                  if (item.action === 'collection') {
+                    const el = document.getElementById('collection-section');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth' });
+                    }
+                    return;
+                  }
+                  onInfoClick(item.key as InfoNavKey);
                 }}
                 className={`group relative w-full overflow-hidden text-right px-2 py-1.5 uppercase tracking-widest border transition-[color,background-color,border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:shadow-[0_0_26px_rgba(184,0,31,0.24)] ${
                   isFunctional
@@ -216,8 +225,13 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                   onClick={() => {
                     if (item.action === 'randomChat') {
                       onRandomChatClick();
+                    } else if (item.action === 'collection') {
+                      const el = document.getElementById('collection-section');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth' });
+                      }
                     } else {
-                      onInfoClick(item.key);
+                      onInfoClick(item.key as InfoNavKey);
                     }
                     setMenuOpen(false);
                   }}
