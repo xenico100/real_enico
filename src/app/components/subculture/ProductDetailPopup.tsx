@@ -141,14 +141,17 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-white/90 backdrop-blur-md z-[60] flex items-start md:items-center justify-center p-0 md:p-8 overflow-y-auto md:overflow-hidden"
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 bg-black/55 z-[60] flex items-start md:items-center justify-center p-0 md:p-8 overflow-y-auto md:overflow-hidden"
         data-lenis-prevent
         onClick={onClose}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          style={{ willChange: 'transform, opacity' }}
           className="relative w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] bg-white border border-[#d1d5db] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#b8001f]/10"
           onClick={(e) => e.stopPropagation()}
         >
@@ -200,7 +203,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
               /* 3D Viewer Mode */
               <div className="flex-1 min-h-[400px] md:min-h-0">
                 <Viewer3D
-                  modelUrl="/3d/bomber_jacket.glb"
+                  modelUrl="https://style.clo-set.com/viewer/embed/11024b9ad1d64010bee24d5b32b64f0c"
                   title={product.name}
                   embedded
                 />
@@ -274,6 +277,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                           src={image}
                           alt={`${product.name} 썸네일 ${index + 1}`}
                           fill
+                          loading="lazy"
                           unoptimized={shouldBypassImageOptimization(image)}
                           sizes="(max-width: 768px) 25vw, 12vw"
                           className="object-contain bg-[#f8f9fa]"
@@ -470,6 +474,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                               src={image}
                               alt={`${product.name} 상세보기 ${index + 1}`}
                               fill
+                              loading="lazy"
                               unoptimized={shouldBypassImageOptimization(image)}
                               sizes="(max-width: 768px) 100vw, 50vw"
                               className="object-contain bg-white"
