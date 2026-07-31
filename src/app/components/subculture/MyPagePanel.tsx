@@ -1,12 +1,23 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import { AccountAuthPanel } from './AccountAuthPanel';
+import styles from './MyPagePanel.module.css';
 
 type MyPageTab =
   | 'overview'
@@ -21,8 +32,43 @@ type MyPageTab =
 
 type AdminComposerType = 'products' | 'collections' | 'inventory';
 type AdminOrderView = 'new' | 'shipping' | 'cancelled';
+type AdminCapabilities = {
+  canManageCatalog: boolean;
+  canManageMembers: boolean;
+  canManageOrders: boolean;
+  canViewDailyStats: boolean;
+};
+type AdminAccessState = {
+  userId: string;
+  status: 'idle' | 'loading' | 'resolved' | 'error';
+  capabilities: AdminCapabilities;
+  error: string | null;
+};
+
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
-const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
+const EMPTY_ADMIN_CAPABILITIES: AdminCapabilities = {
+  canManageCatalog: false,
+  canManageMembers: false,
+  canManageOrders: false,
+  canViewDailyStats: false,
+};
+const PRIMARY_ADMIN_CAPABILITIES: AdminCapabilities = {
+  canManageCatalog: true,
+  canManageMembers: true,
+  canManageOrders: true,
+  canViewDailyStats: true,
+};
+const MY_PAGE_TAB_LABELS: Record<MyPageTab, string> = {
+  overview: '요약',
+  profile: '계정',
+  orders: '주문',
+  cart: '장바구니',
+  saved: '저장 게시물',
+  dailyStats: '일일통계',
+  members: '회원관리',
+  inventory: '재고관리',
+  adminOrders: '배송관리',
+};
 const DEFAULT_BANK_ACCOUNT_HOLDER = '백형석';
 const DEFAULT_SHIPPING_COMPANY = '우체국';
 
@@ -129,11 +175,11 @@ type AdminOrderDraft = {
 };
 
 const VISIT_SOURCE_CHART_SEGMENTS = [
-  { key: 'instagram', label: '인스타그램', color: '#ff5aa5' },
-  { key: 'youtube', label: '유튜브', color: '#ff4d4d' },
-  { key: 'threads', label: '쓰레드', color: '#f6f2eb' },
-  { key: 'twitter', label: '트위터', color: '#63b8ff' },
-  { key: 'other', label: '그 외', color: '#00ffd1' },
+  { key: 'instagram', label: '인스타그램', color: '#b8001f' },
+  { key: 'youtube', label: '유튜브', color: '#111827' },
+  { key: 'threads', label: '쓰레드', color: '#4b5563' },
+  { key: 'twitter', label: '트위터', color: '#d1d5db' },
+  { key: 'other', label: '그 외', color: '#f8f9fa' },
 ] as const;
 
 const EMPTY_VISIT_SOURCE_BREAKDOWN: VisitSourceBreakdown = {
@@ -166,12 +212,6 @@ function formatDateTime(value: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
-}
-
-function isDesignatedAdmin(email: string | null | undefined) {
-  const normalized = (email || '').trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
 }
 
 function getAdminComposerHref(type: AdminComposerType, embedded = false) {
@@ -457,7 +497,11 @@ function formatKrw(value: number | string | null | undefined) {
   return `${(Number.isFinite(amount) ? amount : 0).toLocaleString('ko-KR')}원`;
 }
 
-function buildVisitSourceChartStyle(breakdown: VisitSourceBreakdown): CSSProperties {
+type VisitChartStyle = CSSProperties & {
+  '--visit-chart-background': string;
+};
+
+function buildVisitSourceChartStyle(breakdown: VisitSourceBreakdown): VisitChartStyle {
   const total =
     breakdown.instagram +
     breakdown.youtube +
@@ -467,7 +511,7 @@ function buildVisitSourceChartStyle(breakdown: VisitSourceBreakdown): CSSPropert
 
   if (total <= 0) {
     return {
-      background: 'conic-gradient(#1a1a1a 0deg 360deg)',
+      '--visit-chart-background': 'conic-gradient(#d1d5db 0deg 360deg)',
     };
   }
 
@@ -481,7 +525,7 @@ function buildVisitSourceChartStyle(breakdown: VisitSourceBreakdown): CSSPropert
   });
 
   return {
-    background: `conic-gradient(${segments.join(', ')})`,
+    '--visit-chart-background': `conic-gradient(${segments.join(', ')})`,
   };
 }
 
@@ -512,7 +556,7 @@ function VisitSourceDonutCard({
       <div className="flex items-center gap-4">
         <div className="relative h-28 w-28 shrink-0">
           <div
-            className="h-full w-full rounded-full border border-white/10 shadow-[inset_0_0_20px_rgba(0,0,0,0.25)]"
+            className={`${styles.visitChart} h-full w-full rounded-full border border-[#d1d5db]`}
             style={chartStyle}
           />
           <div className="absolute inset-[18%] flex items-center justify-center rounded-full border border-[#1f2d2a] bg-[#050808] text-center">
@@ -537,8 +581,8 @@ function VisitSourceDonutCard({
               >
                 <div className="flex items-center gap-2 text-[#d8d8d8]">
                   <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: color }}
+                    className={`${styles.legendSwatch} h-2.5 w-2.5 rounded-full`}
+                    style={{ '--legend-swatch-color': color } as CSSProperties}
                   />
                   <span>{label}</span>
                 </div>
@@ -582,6 +626,10 @@ function createAdminOrderDraft(order: OrderRecord): AdminOrderDraft {
   };
 }
 
+function normalizeInitialTab(initialTab: MyPageTab | undefined): MyPageTab {
+  return !initialTab || initialTab === 'saved' ? 'overview' : initialTab;
+}
+
 type MyPagePanelProps = {
   onBack?: () => void;
   initialTab?: MyPageTab;
@@ -599,7 +647,18 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     updateAccountProfile,
   } = useAuth();
   const { cart } = useFashionCart();
-  const [activeTab, setActiveTab] = useState<MyPageTab>(initialTab || 'profile');
+  const tabIdPrefix = useId();
+  const memberOrdersRequestIdRef = useRef(0);
+  const memberOrdersAbortControllerRef = useRef<AbortController | null>(null);
+  const memberOrderMutationIdRef = useRef(0);
+  const [activeTab, setActiveTab] = useState<MyPageTab>(() => normalizeInitialTab(initialTab));
+  const [adminAccess, setAdminAccess] = useState<AdminAccessState>({
+    userId: '',
+    status: 'idle',
+    capabilities: EMPTY_ADMIN_CAPABILITIES,
+    error: null,
+  });
+  const [adminAccessRetryKey, setAdminAccessRetryKey] = useState(0);
   const [accountPhone, setAccountPhone] = useState('');
   const [accountAddress, setAccountAddress] = useState('');
   const [accountProfileMessage, setAccountProfileMessage] = useState<string | null>(null);
@@ -611,12 +670,15 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const [membersLoaded, setMembersLoaded] = useState(false);
   const [memberMessage, setMemberMessage] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
-  const [memberOrders, setMemberOrders] = useState<MemberOrderRecord[]>([]);
-  const [memberOrdersLoaded, setMemberOrdersLoaded] = useState(false);
-  const [isLoadingMemberOrders, setIsLoadingMemberOrders] = useState(false);
-  const [memberOrderMessage, setMemberOrderMessage] = useState<string | null>(null);
-  const [memberOrderError, setMemberOrderError] = useState<string | null>(null);
-  const [cancellingMemberOrderId, setCancellingMemberOrderId] = useState<string | null>(null);
+  const [memberOrdersUserId, setMemberOrdersUserId] = useState(user?.id || '');
+  const [storedMemberOrders, setMemberOrders] = useState<MemberOrderRecord[]>([]);
+  const [storedMemberOrdersLoaded, setMemberOrdersLoaded] = useState(false);
+  const [storedIsLoadingMemberOrders, setIsLoadingMemberOrders] = useState(false);
+  const [storedMemberOrderMessage, setMemberOrderMessage] = useState<string | null>(null);
+  const [storedMemberOrderError, setMemberOrderError] = useState<string | null>(null);
+  const [storedCancellingMemberOrderId, setCancellingMemberOrderId] = useState<string | null>(
+    null,
+  );
   const [adminOrders, setAdminOrders] = useState<AdminOrderRecord[]>([]);
   const [adminOrderDrafts, setAdminOrderDrafts] = useState<Record<string, AdminOrderDraft>>({});
   const [adminOrdersLoaded, setAdminOrdersLoaded] = useState(false);
@@ -632,8 +694,41 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const [dailyStatsMessage, setDailyStatsMessage] = useState<string | null>(null);
   const [dailyStatsError, setDailyStatsError] = useState<string | null>(null);
   const [adminComposer, setAdminComposer] = useState<AdminComposerType | null>(null);
-  const isPrimaryAdmin = (user?.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL;
-  const isDesignatedAdminUser = isDesignatedAdmin(user?.email);
+  const currentUserId = user?.id || '';
+  const isMemberOrderStateCurrent = memberOrdersUserId === currentUserId;
+  const memberOrders = isMemberOrderStateCurrent ? storedMemberOrders : [];
+  const memberOrdersLoaded = isMemberOrderStateCurrent ? storedMemberOrdersLoaded : false;
+  const isLoadingMemberOrders = isMemberOrderStateCurrent
+    ? storedIsLoadingMemberOrders
+    : false;
+  const memberOrderMessage = isMemberOrderStateCurrent ? storedMemberOrderMessage : null;
+  const memberOrderError = isMemberOrderStateCurrent ? storedMemberOrderError : null;
+  const cancellingMemberOrderId = isMemberOrderStateCurrent
+    ? storedCancellingMemberOrderId
+    : null;
+  const normalizedUserEmail = (user?.email || '').trim().toLowerCase();
+  const isPrimaryAdmin = normalizedUserEmail === PRIMARY_ADMIN_EMAIL;
+  const capabilities = isPrimaryAdmin
+    ? PRIMARY_ADMIN_CAPABILITIES
+    : adminAccess.userId === user?.id
+      ? adminAccess.capabilities
+      : EMPTY_ADMIN_CAPABILITIES;
+  const {
+    canManageCatalog,
+    canManageMembers,
+    canManageOrders,
+    canViewDailyStats,
+  } = capabilities;
+  const isAdminAccessResolved =
+    isPrimaryAdmin ||
+    (adminAccess.userId === currentUserId &&
+      (adminAccess.status === 'resolved' || adminAccess.status === 'error'));
+  const adminAccessError =
+    !isPrimaryAdmin &&
+    adminAccess.userId === currentUserId &&
+    adminAccess.status === 'error'
+      ? adminAccess.error
+      : null;
 
   const userDisplayName = useMemo(() => {
     if (!user) return null;
@@ -662,9 +757,108 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   }, [userAddress, userPhone]);
 
   useEffect(() => {
-    if (!initialTab) return;
-    setActiveTab(initialTab);
+    setActiveTab(normalizeInitialTab(initialTab));
   }, [initialTab]);
+
+  useEffect(() => {
+    memberOrdersRequestIdRef.current += 1;
+    memberOrderMutationIdRef.current += 1;
+    memberOrdersAbortControllerRef.current?.abort();
+    memberOrdersAbortControllerRef.current = null;
+
+    setMemberOrdersUserId(currentUserId);
+    setMemberOrders([]);
+    setMemberOrdersLoaded(false);
+    setIsLoadingMemberOrders(false);
+    setMemberOrderMessage(null);
+    setMemberOrderError(null);
+    setCancellingMemberOrderId(null);
+
+    return () => {
+      memberOrdersRequestIdRef.current += 1;
+      memberOrderMutationIdRef.current += 1;
+      memberOrdersAbortControllerRef.current?.abort();
+      memberOrdersAbortControllerRef.current = null;
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    const accessToken = session?.access_token || '';
+
+    if (!currentUserId || !accessToken) {
+      setAdminAccess({
+        userId: currentUserId,
+        status: 'resolved',
+        capabilities: EMPTY_ADMIN_CAPABILITIES,
+        error: null,
+      });
+      return;
+    }
+
+    if (isPrimaryAdmin) {
+      setAdminAccess({
+        userId: currentUserId,
+        status: 'resolved',
+        capabilities: PRIMARY_ADMIN_CAPABILITIES,
+        error: null,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    setAdminAccess({
+      userId: currentUserId,
+      status: 'loading',
+      capabilities: EMPTY_ADMIN_CAPABILITIES,
+      error: null,
+    });
+
+    const loadAdminAccess = async () => {
+      try {
+        const response = await fetch('/api/admin/access', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as Partial<AdminCapabilities> & {
+          message?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.message || '관리자 권한 확인 실패');
+        }
+
+        setAdminAccess({
+          userId: currentUserId,
+          status: 'resolved',
+          capabilities: {
+            canManageCatalog: payload.canManageCatalog === true,
+            canManageMembers: payload.canManageMembers === true,
+            canManageOrders: payload.canManageOrders === true,
+            canViewDailyStats: payload.canViewDailyStats === true,
+          },
+          error: null,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setAdminAccess({
+          userId: currentUserId,
+          status: 'error',
+          capabilities: EMPTY_ADMIN_CAPABILITIES,
+          error: error instanceof Error ? error.message : '관리자 권한 확인 실패',
+        });
+      }
+    };
+
+    void loadAdminAccess();
+
+    return () => {
+      controller.abort();
+    };
+  }, [adminAccessRetryKey, currentUserId, isPrimaryAdmin, session?.access_token]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const adminOrderViewCounts = useMemo(
@@ -706,18 +900,45 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const latestDailyStats = dailyStatsRows[0] || null;
   const dailyStatsRangeLabel = `${Math.max(dailyStatsRows.length, 0)}일`;
 
-  const tabs: { id: MyPageTab; label: string; count?: number }[] = [
+  const tabs: { id: MyPageTab; label: string; count?: number; countSuffix?: string }[] = [
+    { id: 'overview', label: '요약' },
     { id: 'profile', label: '계정' },
     { id: 'orders', label: '주문', count: memberOrders.length },
+    { id: 'cart', label: '장바구니', count: cart.length, countSuffix: '개' },
   ];
-  if (isPrimaryAdmin) {
+  if (canManageMembers) {
     tabs.push({ id: 'members', label: '회원관리', count: members.length });
+  }
+  if (canManageOrders) {
     tabs.push({ id: 'adminOrders', label: '배송관리', count: adminOrders.length });
+  }
+  if (canManageCatalog) {
     tabs.push({ id: 'inventory', label: '재고관리' });
   }
-  if (isDesignatedAdminUser) {
-    tabs.push({ id: 'dailyStats', label: '일일데이터', count: dailyStatsRows.length });
+  if (canViewDailyStats) {
+    tabs.push({ id: 'dailyStats', label: '일일통계', count: dailyStatsRows.length });
   }
+  const hasAdminTools =
+    canManageCatalog || canManageMembers || canManageOrders || canViewDailyStats;
+  const renderedActiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : 'overview';
+  const tabPanelId = `${tabIdPrefix}-panel`;
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+    event.preventDefault();
+    let nextIndex = index;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = tabs.length - 1;
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+
+    const nextTab = tabs[nextIndex];
+    setActiveTab(nextTab.id);
+    requestAnimationFrame(() => {
+      document.getElementById(`${tabIdPrefix}-tab-${nextTab.id}`)?.focus();
+    });
+  };
 
   const resetMemberMessages = () => {
     setMemberMessage(null);
@@ -764,6 +985,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const openAdminComposer = (type: AdminComposerType) => {
+    if (!canManageCatalog) return;
+    if (type === 'collections' && !isPrimaryAdmin) return;
+
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       window.location.href = getAdminComposerHref(type);
       return;
@@ -773,7 +997,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const loadDailyStats = useCallback(async () => {
-    if (!isDesignatedAdminUser) return;
+    if (!canViewDailyStats) return;
     if (!session?.access_token) return;
 
     resetDailyStatsMessages();
@@ -806,10 +1030,10 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     } finally {
       setIsLoadingDailyStats(false);
     }
-  }, [isDesignatedAdminUser, session?.access_token]);
+  }, [canViewDailyStats, session?.access_token]);
 
   const loadMembers = useCallback(async () => {
-    if (!isPrimaryAdmin) return;
+    if (!canManageMembers) return;
     if (!session?.access_token) return;
 
     resetMemberMessages();
@@ -845,7 +1069,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     } finally {
       setIsLoadingMembers(false);
     }
-  }, [isPrimaryAdmin, session?.access_token]);
+  }, [canManageMembers, session?.access_token]);
 
   const updateMemberDraft = (
     memberId: string,
@@ -868,6 +1092,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const handleSaveMember = async (memberId: string) => {
+    if (!canManageMembers) return;
     if (!session?.access_token) return;
     const draft = memberDrafts[memberId];
     if (!draft) return;
@@ -918,6 +1143,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const handleDeleteMember = async (memberId: string) => {
+    if (!canManageMembers) return;
     if (!session?.access_token) return;
 
     const confirmed = window.confirm('해당 회원을 삭제할까요? 이 작업은 되돌릴 수 없습니다.');
@@ -952,16 +1178,29 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const loadMemberOrders = useCallback(async () => {
-    if (!session?.access_token) return;
+    const userId = currentUserId;
+    const accessToken = session?.access_token || '';
+    if (!userId || !accessToken) return;
 
-    resetMemberOrderMessages();
+    const requestId = memberOrdersRequestIdRef.current + 1;
+    memberOrdersRequestIdRef.current = requestId;
+    memberOrdersAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    memberOrdersAbortControllerRef.current = controller;
+
+    setMemberOrdersUserId(userId);
+    setMemberOrderMessage(null);
+    setMemberOrderError(null);
     setIsLoadingMemberOrders(true);
+
     try {
       const response = await fetch('/api/orders/my', {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
+        cache: 'no-store',
+        signal: controller.signal,
       });
 
       const payload = (await response.json()) as {
@@ -971,17 +1210,24 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
       if (!response.ok) {
         throw new Error(payload.message || '주문 내역 로드 실패');
       }
+      if (controller.signal.aborted || memberOrdersRequestIdRef.current !== requestId) return;
 
       const nextOrders = Array.isArray(payload.orders) ? payload.orders : [];
       setMemberOrders(nextOrders);
       setMemberOrdersLoaded(true);
       setMemberOrderMessage(`주문 ${nextOrders.length}건 로드 완료`);
     } catch (error) {
+      if (controller.signal.aborted || memberOrdersRequestIdRef.current !== requestId) return;
       setMemberOrderError(error instanceof Error ? error.message : '주문 내역 로드 실패');
     } finally {
-      setIsLoadingMemberOrders(false);
+      if (!controller.signal.aborted && memberOrdersRequestIdRef.current === requestId) {
+        setIsLoadingMemberOrders(false);
+        if (memberOrdersAbortControllerRef.current === controller) {
+          memberOrdersAbortControllerRef.current = null;
+        }
+      }
     }
-  }, [session?.access_token]);
+  }, [currentUserId, session?.access_token]);
 
   const updateAdminOrderDraft = (
     orderId: string,
@@ -1037,6 +1283,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const handleSaveOrderShipping = async (orderId: string) => {
+    if (!canManageOrders) return;
     if (!session?.access_token) return;
     const draft = adminOrderDrafts[orderId];
     if (!draft) return;
@@ -1084,7 +1331,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const handleCancelMemberOrder = async (order: MemberOrderRecord) => {
-    if (!session?.access_token) return;
+    const userId = currentUserId;
+    const accessToken = session?.access_token || '';
+    if (!userId || !accessToken) return;
 
     const cancelState = getMemberOrderCancelState(order);
     if (!cancelState.enabled) return;
@@ -1101,6 +1350,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           );
     if (!confirmed) return;
 
+    const mutationId = memberOrderMutationIdRef.current + 1;
+    memberOrderMutationIdRef.current = mutationId;
     resetMemberOrderMessages();
     setCancellingMemberOrderId(order.id);
 
@@ -1109,7 +1360,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           id: order.id,
@@ -1121,6 +1372,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         message?: string;
         order?: MemberOrderRecord;
       };
+      if (memberOrderMutationIdRef.current !== mutationId) return;
 
       if (!response.ok) {
         throw new Error(payload.message || '주문취소 실패');
@@ -1134,13 +1386,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
       setMemberOrderMessage(payload.message || '주문취소가 완료되었습니다.');
     } catch (error) {
+      if (memberOrderMutationIdRef.current !== mutationId) return;
       setMemberOrderError(error instanceof Error ? error.message : '주문취소 실패');
     } finally {
-      setCancellingMemberOrderId(null);
+      if (memberOrderMutationIdRef.current === mutationId) {
+        setCancellingMemberOrderId(null);
+      }
     }
   };
 
   const handleCancelAdminOrder = async (order: AdminOrderRecord) => {
+    if (!canManageOrders) return;
     if (!session?.access_token) return;
 
     const cancelState = getAdminOrderCancelState(order);
@@ -1203,7 +1459,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   const loadAdminOrders = useCallback(async () => {
-    if (!isPrimaryAdmin) return;
+    if (!canManageOrders) return;
     if (!session?.access_token) return;
 
     resetAdminOrderMessages();
@@ -1241,44 +1497,60 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     } finally {
       setIsLoadingAdminOrders(false);
     }
-  }, [isPrimaryAdmin, session?.access_token]);
+  }, [canManageOrders, session?.access_token]);
 
   useEffect(() => {
-    if (
-      (!isPrimaryAdmin &&
-        (activeTab === 'members' || activeTab === 'adminOrders' || activeTab === 'inventory')) ||
-      (!isDesignatedAdminUser && activeTab === 'dailyStats')
-    ) {
-      setActiveTab('profile');
+    if (!isAdminAccessResolved) return;
+
+    const lacksTabAccess =
+      (activeTab === 'members' && !canManageMembers) ||
+      (activeTab === 'adminOrders' && !canManageOrders) ||
+      (activeTab === 'inventory' && !canManageCatalog) ||
+      (activeTab === 'dailyStats' && !canViewDailyStats);
+
+    if (lacksTabAccess) {
+      setActiveTab('overview');
     }
-  }, [activeTab, isDesignatedAdminUser, isPrimaryAdmin]);
+  }, [
+    activeTab,
+    canManageCatalog,
+    canManageMembers,
+    canManageOrders,
+    canViewDailyStats,
+    isAdminAccessResolved,
+  ]);
 
   useEffect(() => {
-    if (!isPrimaryAdmin) return;
+    if (!isAdminAccessResolved || canManageCatalog) return;
+    setAdminComposer(null);
+  }, [canManageCatalog, isAdminAccessResolved]);
+
+  useEffect(() => {
+    if (!canManageMembers) return;
     if (activeTab !== 'members') return;
     if (membersLoaded) return;
     void loadMembers();
-  }, [activeTab, isPrimaryAdmin, membersLoaded, loadMembers]);
+  }, [activeTab, canManageMembers, membersLoaded, loadMembers]);
 
   useEffect(() => {
-    if (activeTab !== 'orders') return;
+    if (activeTab !== 'overview' && activeTab !== 'orders') return;
     if (memberOrdersLoaded) return;
     void loadMemberOrders();
   }, [activeTab, memberOrdersLoaded, loadMemberOrders]);
 
   useEffect(() => {
-    if (!isPrimaryAdmin) return;
+    if (!canManageOrders) return;
     if (activeTab !== 'adminOrders') return;
     if (adminOrdersLoaded) return;
     void loadAdminOrders();
-  }, [activeTab, adminOrdersLoaded, isPrimaryAdmin, loadAdminOrders]);
+  }, [activeTab, adminOrdersLoaded, canManageOrders, loadAdminOrders]);
 
   useEffect(() => {
-    if (!isDesignatedAdminUser) return;
+    if (!canViewDailyStats) return;
     if (activeTab !== 'dailyStats') return;
     if (dailyStatsLoaded) return;
     void loadDailyStats();
-  }, [activeTab, dailyStatsLoaded, isDesignatedAdminUser, loadDailyStats]);
+  }, [activeTab, dailyStatsLoaded, canViewDailyStats, loadDailyStats]);
 
   if (!isAuthReady) {
     return (
@@ -1302,46 +1574,68 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   const tabContent: Record<MyPageTab, ReactNode> = {
     overview: (
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#9b9b9b] mb-1">가입일</p>
-            <p className="text-[#e5e5e5]">{formatDate(profile?.created_at || user.created_at)}</p>
-          </div>
-          <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#9b9b9b] mb-1">로그인 방식</p>
-            <p className="text-[#e5e5e5] uppercase">{profile?.provider === 'google' ? '구글' : '이메일'}</p>
-          </div>
-          <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#9b9b9b] mb-1">장바구니 품목</p>
-            <p className="text-[#e5e5e5]">{cart.length}개</p>
-          </div>
-          <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#9b9b9b] mb-1">장바구니 합계</p>
-            <p className="text-[#00ffd1]">{cartSubtotal.toLocaleString('ko-KR')}원</p>
-          </div>
-        </div>
+      <div className={styles.overviewGrid}>
+        <article className={styles.overviewCard}>
+          <p className={styles.overviewKicker}>Account</p>
+          <p className={styles.overviewValue}>{userDisplayName}</p>
+          <p className={styles.overviewDescription}>
+            {user.email}
+            <br />
+            가입일 {formatDate(profile?.created_at || user.created_at)} ·{' '}
+            {profile?.provider === 'google' ? 'Google 로그인' : 'Email 로그인'}
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className={styles.overviewLink}
+          >
+            계정 정보 보기
+          </button>
+        </article>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="border border-[#333] bg-[#0f0f0f] p-4">
-            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">주문</p>
-            <p className="text-xs text-[#9a9a9a] leading-relaxed">
-              배송 상태, 주문 상세, 결제 영수증 카드가 들어갈 자리입니다.
-            </p>
-          </div>
-          <div className="border border-[#333] bg-[#0f0f0f] p-4">
-            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">저장 게시물</p>
-            <p className="text-xs text-[#9a9a9a] leading-relaxed">
-              의류 / 컬렉션 상세 게시글 저장 기능 연결 영역.
-            </p>
-          </div>
-          <div className="border border-[#333] bg-[#0f0f0f] p-4">
-            <p className="text-[10px] uppercase tracking-widest text-[#00ffd1] mb-2">결제</p>
-            <p className="text-xs text-[#9a9a9a] leading-relaxed">
-              장바구니와 결제 UI를 여기서 빠르게 확인할 수 있게 확장 가능.
-            </p>
-          </div>
-        </div>
+        <article className={styles.overviewCard}>
+          <p className={styles.overviewKicker}>Orders</p>
+          <p className={styles.overviewValue}>
+            {memberOrderError && !memberOrdersLoaded
+              ? '확인 불가'
+              : isLoadingMemberOrders && !memberOrdersLoaded
+                ? '확인 중'
+                : `${memberOrders.length.toLocaleString('ko-KR')}건`}
+          </p>
+          <p className={styles.overviewDescription}>
+            {memberOrderError && !memberOrdersLoaded
+              ? '주문 요약을 불러오지 못했습니다. 주문 탭에서 다시 시도해 주세요.'
+              : memberOrders[0]
+                ? `최근 주문 ${memberOrders[0].orderCode || memberOrders[0].guestOrderNumber || memberOrders[0].id} · ${getShippingStatusLabel(memberOrders[0].shippingStatus)}`
+                : memberOrdersLoaded
+                  ? '현재 계정에 연결된 주문 내역이 없습니다.'
+                  : '최근 주문과 배송 상태를 확인하고 있습니다.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveTab('orders')}
+            className={styles.overviewLink}
+          >
+            주문 / 배송조회
+          </button>
+        </article>
+
+        <article className={styles.overviewCard}>
+          <p className={styles.overviewKicker}>Cart</p>
+          <p className={styles.overviewValue}>{cart.length.toLocaleString('ko-KR')}개</p>
+          <p className={styles.overviewDescription}>
+            예상 상품 합계 {cartSubtotal.toLocaleString('ko-KR')}원
+            <br />
+            담아 둔 상품의 수량과 옵션을 결제 전에 확인하세요.
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveTab('cart')}
+            className={styles.overviewLink}
+          >
+            장바구니 보기
+          </button>
+        </article>
       </div>
     ),
     orders: (
@@ -1421,6 +1715,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                         {cancelState.visible ? (
                           <button
                             type="button"
+                            data-destructive="true"
                             onClick={() => void handleCancelMemberOrder(order)}
                             disabled={!cancelState.enabled || isCancelling}
                             className="rounded-[6px] border border-red-600/80 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-red-100 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-[#4b4f55] disabled:text-[#7c8188]"
@@ -1502,7 +1797,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             새 탭에서 보기
                           </a>
                         </div>
-                        <div className="relative aspect-[4/5] overflow-hidden rounded-[8px] border border-[#bcc5d0] bg-black">
+                        <div className={`${styles.mediaFrame} relative aspect-[4/5] overflow-hidden rounded-[8px] border border-[#bcc5d0] bg-black`}>
                           <Image
                             src={order.paymentReceiptUrl}
                             alt="이체확인 사진"
@@ -1544,10 +1839,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         <div className="border border-[#00ffd1]/40 bg-[#00ffd1]/5 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">장바구니 스냅샷</p>
-              
+              <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">장바구니</p>
               <p className="text-xs text-[#9a9a9a] mt-2">
-                장바구니 패널과 결제창으로 이어지는 기능성 탭입니다.
+                담아 둔 상품과 예상 결제 금액을 확인하세요. 상품 옵션은 결제 전에 한 번 더 확인해 주세요.
               </p>
             </div>
             <div className="text-right">
@@ -1563,8 +1857,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             <p className="text-[#e5e5e5]">{cartSubtotal.toLocaleString('ko-KR')}원</p>
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
-            <p className="text-[#9b9b9b] mb-1">결제 창</p>
-            <p className="text-[#00ffd1]">헤더 장바구니 패널 사용</p>
+            <p className="text-[#9b9b9b] mb-1">결제 안내</p>
+            <p className="text-[#00ffd1]">화면 상단 장바구니에서 결제를 진행할 수 있습니다.</p>
           </div>
         </div>
 
@@ -1572,7 +1866,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           <div className="space-y-2">
             {cart.map((item) => (
               <div key={`${item.id}-${item.selectedSize ?? ''}`} className="border border-[#333] bg-[#0f0f0f] p-3 flex items-center gap-3">
-                <div className="w-12 aspect-[4/5] border border-[#333] bg-black overflow-hidden shrink-0 relative">
+                <div className={`${styles.mediaFrame} w-12 aspect-[4/5] border border-[#333] bg-black overflow-hidden shrink-0 relative`}>
                   <Image
                     src={item.image}
                     alt=""
@@ -1688,9 +1982,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
     dailyStats: (
       <div className="space-y-4">
-        {!isDesignatedAdminUser ? (
+        {!canViewDailyStats ? (
           <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
-            관리자 계정에서만 접근 가능한 탭입니다.
+            {isAdminAccessResolved ? '일일 데이터 조회 권한이 없습니다.' : '관리자 권한을 확인하는 중입니다...'}
           </div>
         ) : (
           <>
@@ -1821,9 +2115,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     ),
     adminOrders: (
       <div className="space-y-4">
-        {!isPrimaryAdmin ? (
+        {!canManageOrders ? (
           <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
-            관리자 계정에서만 접근 가능한 탭입니다.
+            {isAdminAccessResolved ? '배송관리 권한이 없습니다.' : '관리자 권한을 확인하는 중입니다...'}
           </div>
         ) : (
           <>
@@ -1870,6 +2164,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     <button
                       type="button"
                       onClick={() => setAdminOrderView('new')}
+                      aria-pressed={adminOrderView === 'new'}
                       className={`rounded-[8px] border-2 px-4 py-4 text-left transition-colors ${
                         adminOrderView === 'new'
                           ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-white shadow-[0_0_0_1px_rgba(0,255,209,0.2)]'
@@ -1883,6 +2178,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     <button
                       type="button"
                       onClick={() => setAdminOrderView('shipping')}
+                      aria-pressed={adminOrderView === 'shipping'}
                       className={`rounded-[8px] border-2 px-4 py-4 text-left transition-colors ${
                         adminOrderView === 'shipping'
                           ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-white shadow-[0_0_0_1px_rgba(0,255,209,0.2)]'
@@ -1896,6 +2192,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     <button
                       type="button"
                       onClick={() => setAdminOrderView('cancelled')}
+                      aria-pressed={adminOrderView === 'cancelled'}
                       className={`rounded-[8px] border-2 px-4 py-4 text-left transition-colors ${
                         adminOrderView === 'cancelled'
                           ? 'border-[#00ffd1] bg-[#00ffd1]/10 text-white shadow-[0_0_0_1px_rgba(0,255,209,0.2)]'
@@ -2070,7 +2367,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                     새 탭에서 보기
                                   </a>
                                 </div>
-                                <div className="relative mt-5 aspect-[4/5] overflow-hidden rounded-[10px] border-2 border-[#cfd6df] bg-black">
+                                <div className={`${styles.mediaFrame} relative mt-5 aspect-[4/5] overflow-hidden rounded-[10px] border-2 border-[#cfd6df] bg-black`}>
                                   <Image
                                     src={order.paymentReceiptUrl}
                                     alt="이체확인 사진"
@@ -2221,6 +2518,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               </button>
                               <button
                                 type="button"
+                                data-destructive="true"
                                 onClick={() => void handleCancelAdminOrder(order)}
                                 disabled={isCancelling || !cancelState.visible || !cancelState.enabled}
                                 className="rounded-[12px] border border-red-700 px-4 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-[#3a3a3a] disabled:text-[#747474]"
@@ -2253,9 +2551,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     ),
     inventory: (
       <div className="space-y-4">
-        {!isPrimaryAdmin ? (
+        {!canManageCatalog ? (
           <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
-            관리자 계정에서만 접근 가능한 탭입니다.
+            {isAdminAccessResolved ? '카탈로그 관리 권한이 없습니다.' : '관리자 권한을 확인하는 중입니다...'}
           </div>
         ) : (
           <>
@@ -2279,7 +2577,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               </div>
             </div>
 
-            <div className="h-[min(760px,68vh)] overflow-hidden rounded-[14px] border border-white/15 bg-[#050505]">
+            <div className={`${styles.iframeFrame} h-[min(760px,68vh)] overflow-hidden rounded-[14px] border border-white/15 bg-[#050505]`}>
               <iframe
                 src={getAdminComposerHref('inventory', true)}
                 className="h-full w-full border-0 bg-[#050505]"
@@ -2292,9 +2590,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     ),
     members: (
       <div className="space-y-4">
-        {!isPrimaryAdmin ? (
+        {!canManageMembers ? (
           <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
-            관리자 계정에서만 접근 가능한 탭입니다.
+            {isAdminAccessResolved ? '회원관리 권한이 없습니다.' : '관리자 권한을 확인하는 중입니다...'}
           </div>
         ) : (
           <>
@@ -2474,6 +2772,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                           </button>
                           <button
                             type="button"
+                            data-destructive="true"
                             onClick={() => void handleDeleteMember(member.id)}
                             disabled={isLoadingMembers || member.isPrimaryAdmin}
                             className="rounded-[6px] border border-red-700 py-3 text-xs uppercase tracking-widest text-red-300 transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50"
@@ -2494,143 +2793,199 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   };
 
   return (
-    <div className="font-mono md:h-full md:min-h-0 md:overflow-hidden">
-      {onBack && !adminComposer ? (
-        <button
-          type="button"
-          onClick={onBack}
-          className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[165] inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black text-white shadow-[0_0_18px_rgba(0,0,0,0.45)] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] md:hidden"
-          aria-label="마이페이지 닫기"
-        >
-          ×
-        </button>
-      ) : null}
-
-      <div className="mx-auto flex w-full max-w-5xl flex-col rounded-[18px] border border-white/10 bg-[#0d0d0d] p-3 md:h-full md:min-h-0 md:overflow-hidden md:p-4">
-        <div className="rounded-[16px] border border-white/10 bg-[#121212] p-4 md:p-5">
+    <div className={`${styles.shell} font-mono md:h-full md:min-h-0 md:overflow-hidden`}>
+      <div
+        className={`${styles.panel} mx-auto flex w-full max-w-5xl flex-col p-3 md:h-full md:min-h-0 md:overflow-hidden md:p-4`}
+      >
+        <header className={`${styles.header} p-4 md:p-5`}>
           <div className="flex flex-col gap-4 text-center md:text-left">
             <div className="flex flex-col items-center gap-3 md:flex-row md:items-start md:justify-between">
               <div className="space-y-2">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-[#8e8e8e]">My Page</p>
+                <p className={styles.eyebrow}>My Page</p>
                 <div>
-                  <h3 className="text-2xl font-semibold text-[#f5f5f5]">{userDisplayName}</h3>
-                  <p className="mt-1 text-xs text-[#a5a5a5] break-all">{user.email}</p>
+                  <h3 className={`${styles.title} text-2xl`}>{userDisplayName}</h3>
+                  <p className={`${styles.meta} mt-1 break-all text-xs`}>{user.email}</p>
                 </div>
-                <p className="text-[11px] text-[#8a8a8a]">
+                <p className={`${styles.meta} text-[11px]`}>
                   장바구니 {cart.length}개 / {cartSubtotal.toLocaleString('ko-KR')}원
                 </p>
               </div>
 
-              <div className="grid w-full max-w-sm grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto md:min-w-[240px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onBack) {
-                      onBack();
-                      return;
-                    }
-                    if (typeof window !== 'undefined' && window.history.length > 1) {
-                      window.history.back();
-                    }
-                  }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-[#1b1b1b] px-3 py-3 text-sm text-[#e6e6e6] hover:bg-[#262626] transition-colors"
-                >
-                  <ChevronLeft size={16} />
-                  뒤로가기
-                </button>
+              <div className={styles.headerActions}>
+                {!onBack ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && window.history.length > 1) {
+                        window.history.back();
+                      }
+                    }}
+                    className={`${styles.headerButton} inline-flex items-center justify-center gap-1.5 px-3 text-sm`}
+                  >
+                    <ChevronLeft size={16} />
+                    뒤로가기
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => void signOut()}
                   disabled={isBusy}
-                  className="inline-flex items-center justify-center rounded-xl border border-red-500/50 bg-red-500/10 px-3 py-3 text-sm text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  className={`${styles.logoutButton} inline-flex items-center justify-center px-3 text-sm disabled:opacity-50`}
                 >
                   {isBusy ? '처리중...' : '로그아웃'}
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-              {tabs.map((tab) => {
-                const active = activeTab === tab.id;
+            {adminAccessError ? (
+              <div className={styles.adminAccessAlert} role="alert">
+                <div>
+                  <p className={styles.adminAccessAlertTitle}>
+                    관리자 기능을 불러오지 못했습니다
+                  </p>
+                  <p className={styles.adminAccessAlertMessage}>{adminAccessError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminAccessRetryKey((retryKey) => retryKey + 1)}
+                  className={styles.adminAccessRetryButton}
+                >
+                  권한 다시 확인
+                </button>
+              </div>
+            ) : null}
+
+            <div className={styles.tabList} role="tablist" aria-label="마이페이지 메뉴">
+              {tabs.map((tab, index) => {
+                const active = renderedActiveTab === tab.id;
+                const countLabel =
+                  typeof tab.count === 'number'
+                    ? `${tab.count.toLocaleString('ko-KR')}${tab.countSuffix || '건'}`
+                    : '메뉴';
+
                 return (
                   <button
                     key={tab.id}
+                    id={`${tabIdPrefix}-tab-${tab.id}`}
                     type="button"
+                    role="tab"
+                    aria-controls={tabPanelId}
+                    aria-selected={active}
+                    aria-label={`${MY_PAGE_TAB_LABELS[tab.id]} ${countLabel}`}
+                    tabIndex={active ? 0 : -1}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-[14px] border px-4 py-4 text-center transition-all ${
-                      active
-                        ? 'border-[#00ffd1]/75 bg-[linear-gradient(180deg,rgba(0,255,209,0.2),rgba(0,255,209,0.05))] text-white shadow-[0_0_0_1px_rgba(0,255,209,0.22)]'
-                        : 'border-[#6c727b] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] text-[#e6e6e6] hover:border-[#b8bec8] hover:bg-[#1b1d20]'
-                    }`}
+                    onKeyDown={(event) => handleTabKeyDown(event, index)}
+                    className={`${styles.tab} ${active ? styles.tabActive : ''}`}
                   >
-                    <span className="text-base font-semibold tracking-[-0.01em]">{tab.label}</span>
-                    <span className={`text-xs ${active ? 'text-[#bafff1]' : 'text-[#9ea4ad]'}`}>
-                      {typeof tab.count === 'number' ? `${tab.count}건` : '메뉴'}
-                    </span>
+                    <span className={styles.tabLabel}>{tab.label}</span>
+                    <span className={styles.tabMeta}>{countLabel}</span>
                   </button>
                 );
               })}
             </div>
 
-            {isPrimaryAdmin && (
-              <div className="rounded-[16px] border border-[#727884] bg-[linear-gradient(180deg,#17191c_0%,#101113_100%)] p-4 md:p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 md:min-w-[680px]">
+            {hasAdminTools ? (
+              <aside className={styles.quickActions} aria-label="관리자 빠른 작업">
+                <p className={`${styles.eyebrow} mb-3 text-left`}>Admin Quick Actions</p>
+                <div className={styles.quickActionGrid}>
+                  {canManageCatalog ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openAdminComposer('products')}
+                        className={styles.quickAction}
+                      >
+                        의류 카탈로그
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openAdminComposer('inventory')}
+                        className={styles.quickAction}
+                      >
+                        재고관리
+                      </button>
+                      {isPrimaryAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => openAdminComposer('collections')}
+                          className={styles.quickAction}
+                        >
+                          컬렉션 관리
+                        </button>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {canManageMembers ? (
                     <button
                       type="button"
-                      onClick={() => openAdminComposer('products')}
-                      className="rounded-[14px] border border-[#8a93a2] bg-[#15181c] px-4 py-3 text-center text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
+                      onClick={() => setActiveTab('members')}
+                      className={styles.quickAction}
                     >
-                      의류 게시물 목록
+                      회원관리
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openAdminComposer('inventory')}
-                      className="rounded-[14px] border border-[#ffdd66]/70 bg-[#1b170d] px-4 py-3 text-center text-sm text-[#fff2b0] hover:border-[#fff2b0] hover:bg-[#241e0f] transition-colors"
-                    >
-                      재고관리 열기
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openAdminComposer('collections')}
-                      className="rounded-[14px] border border-[#8a93a2] bg-[#15181c] px-4 py-3 text-center text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
-                    >
-                      컬렉션 게시물 목록
-                    </button>
+                  ) : null}
+                  {canManageOrders ? (
                     <button
                       type="button"
                       onClick={() => setActiveTab('adminOrders')}
-                      className="rounded-[14px] border border-[#8a93a2] bg-[#15181c] px-4 py-3 text-center text-sm text-[#eef2f8] hover:border-[#c4cad3] hover:bg-[#1a1d22] transition-colors"
+                      className={styles.quickAction}
                     >
-                      배송관리 열기
+                      배송관리
                     </button>
-                  </div>
+                  ) : null}
+                  {canViewDailyStats ? (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('dailyStats')}
+                      className={styles.quickAction}
+                    >
+                      일일통계
+                    </button>
+                  ) : null}
                 </div>
-              </div>
-            )}
+              </aside>
+            ) : null}
           </div>
-        </div>
+        </header>
 
-        <section className="mt-4 flex flex-col rounded-[18px] border border-[#727884] bg-[linear-gradient(180deg,#121416_0%,#0b0c0e_100%)] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] md:min-h-0 md:flex-1 md:overflow-hidden md:p-6">
-          <div className="mb-4 flex flex-col gap-2 rounded-[14px] border border-[#727884] bg-[linear-gradient(180deg,#1a1c20_0%,#121316_100%)] px-5 py-4 text-center md:flex-row md:items-center md:justify-between md:text-left">
-            <div>
-              <p className="text-lg font-semibold text-white">
-                {tabs.find((tab) => tab.id === activeTab)?.label || '계정'}
-              </p>
-            </div>
+        <section
+          className={`${styles.contentShell} mt-4 flex flex-col p-4 md:min-h-0 md:flex-1 md:overflow-hidden md:p-6`}
+        >
+          <div className={`${styles.contentHeading} mb-4 px-1 pb-4 text-center md:text-left`}>
+            <h4 className="text-lg">
+              {tabs.find((tab) => tab.id === renderedActiveTab)?.label ||
+                MY_PAGE_TAB_LABELS[renderedActiveTab]}
+            </h4>
           </div>
-          <div className="md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1">
-            {tabContent[activeTab]}
+          <div
+            id={tabPanelId}
+            role="tabpanel"
+            aria-labelledby={`${tabIdPrefix}-tab-${renderedActiveTab}`}
+            tabIndex={0}
+            className={`${styles.contentScroll} md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1`}
+          >
+            {tabContent[renderedActiveTab]}
           </div>
         </section>
       </div>
 
-      {adminComposer && (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center p-2 md:p-4">
+      {adminComposer && canManageCatalog && (
+        <div
+          className="fixed inset-0 z-[140] flex items-center justify-center p-2 md:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={getAdminComposerLabel(adminComposer)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            setAdminComposer(null);
+          }}
+        >
           <button
             type="button"
             onClick={() => setAdminComposer(null)}
-            className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[180] inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black text-white shadow-[0_0_18px_rgba(0,0,0,0.45)] transition-colors hover:border-[#00ffd1] hover:text-[#00ffd1] md:hidden"
+            className={`${styles.mobileClose} right-3 top-[calc(env(safe-area-inset-top)+12px)] md:hidden`}
             aria-label="관리자 페이지 닫기"
           >
             ×
@@ -2638,48 +2993,52 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
           <button
             type="button"
-            aria-label="close admin composer"
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            aria-label="관리자 페이지 닫기"
+            className={`${styles.composerBackdrop} absolute inset-0`}
             onClick={() => setAdminComposer(null)}
           />
 
-          <div className="relative h-[94vh] w-[98vw] overflow-hidden rounded-[16px] border border-white/15 bg-[#0d0d0d] shadow-[0_40px_120px_rgba(0,0,0,0.7)] md:h-[min(860px,90vh)] md:w-[min(1200px,95vw)] md:rounded-[18px]">
-            <div className="h-16 border-b border-white/10 bg-[#131313] flex items-center justify-between px-2 md:px-4">
-              <div className="flex items-center gap-2">
+          <div
+            className={`${styles.composerModal} relative h-[94vh] w-[98vw] overflow-hidden md:h-[min(860px,90vh)] md:w-[min(1200px,95vw)]`}
+          >
+            <div className={`${styles.composerHeader} flex h-16 items-center justify-between px-2 md:px-4`}>
+              <div className="flex min-w-0 items-center gap-2" role="group" aria-label="카탈로그 관리 보기">
                 <button
                   type="button"
+                  aria-pressed={adminComposer === 'products'}
+                  autoFocus={adminComposer === 'products'}
                   onClick={() => setAdminComposer('products')}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                    adminComposer === 'products'
-                      ? 'bg-[#7bb8ff]/20 border border-[#7bb8ff]/50 text-[#e8f3ff]'
-                      : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
+                  className={`${styles.composerTab} px-3 text-xs ${
+                    adminComposer === 'products' ? styles.composerTabActive : ''
                   }`}
                 >
-                  의류 게시물 목록
+                  의류 목록
                 </button>
                 <button
                   type="button"
+                  aria-pressed={adminComposer === 'inventory'}
+                  autoFocus={adminComposer === 'inventory'}
                   onClick={() => setAdminComposer('inventory')}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                    adminComposer === 'inventory'
-                      ? 'bg-[#ffdd66]/20 border border-[#ffdd66]/50 text-[#fff2b0]'
-                      : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
+                  className={`${styles.composerTab} px-3 text-xs ${
+                    adminComposer === 'inventory' ? styles.composerTabActive : ''
                   }`}
                 >
                   재고관리
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setAdminComposer('collections')}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                    adminComposer === 'collections'
-                      ? 'bg-[#7bb8ff]/20 border border-[#7bb8ff]/50 text-[#e8f3ff]'
-                      : 'bg-[#1a1a1a] border border-white/15 text-[#bdbdbd] hover:bg-[#222]'
-                  }`}
-                >
-                  컬렉션 게시물 목록
-                </button>
-                <p className="hidden md:block text-[11px] text-[#8a8a8a] ml-2">
+                {isPrimaryAdmin ? (
+                  <button
+                    type="button"
+                    aria-pressed={adminComposer === 'collections'}
+                    autoFocus={adminComposer === 'collections'}
+                    onClick={() => setAdminComposer('collections')}
+                    className={`${styles.composerTab} px-3 text-xs ${
+                      adminComposer === 'collections' ? styles.composerTabActive : ''
+                    }`}
+                  >
+                    컬렉션
+                  </button>
+                ) : null}
+                <p className={`${styles.meta} ml-2 hidden text-[11px] md:block`}>
                   현재 보기: {getAdminComposerLabel(adminComposer)}
                 </p>
               </div>
@@ -2687,16 +3046,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               <button
                 type="button"
                 onClick={() => setAdminComposer(null)}
-                className="h-8 w-8 rounded-lg border border-white/15 bg-[#1a1a1a] text-[#cfcfcf] hover:bg-[#262626]"
+                className={`${styles.composerClose} ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center`}
+                aria-label="관리자 페이지 닫기"
               >
                 ×
               </button>
             </div>
 
-            <div className="h-[calc(100%-64px)]">
+            <div className={`${styles.iframeFrame} h-[calc(100%-64px)]`}>
               <iframe
                 src={getAdminComposerHref(adminComposer, true)}
-                className="w-full h-full border-0 bg-[#050505]"
+                className="h-full w-full border-0 bg-[#050505]"
                 title={`${adminComposer}-admin`}
               />
             </div>
