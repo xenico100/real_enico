@@ -167,6 +167,7 @@ export function createGameServer(options: GameServerOptions = {}): GameServer {
         sessionId: payload.sessionId,
         nickname: validatedProfile.value.nickname,
         palette: validatedProfile.value.palette,
+        avatar: validatedProfile.value.avatar,
         bio: validatedProfile.value.bio,
         x: spawn.x,
         z: spawn.z,

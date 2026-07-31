@@ -1,5 +1,6 @@
 import {
   GAME_CONFIG,
+  isAvatarConfig,
   type InputPayload,
   type PlayerDirection,
   type PlayerProfile,
@@ -139,11 +140,15 @@ export function validateBio(raw: string): string {
 export function validateProfile(profile: PlayerProfile): ValidationResult<PlayerProfile> {
   const nickname = validateNickname(profile.nickname);
   if (!nickname.ok) return nickname;
+  if (!isAvatarConfig(profile.avatar)) {
+    return { ok: false, reason: '아바타 설정이 올바르지 않습니다.' };
+  }
   return {
     ok: true,
     value: {
       nickname: nickname.value,
       palette: profile.palette,
+      avatar: { ...profile.avatar },
       bio: validateBio(profile.bio),
     },
   };

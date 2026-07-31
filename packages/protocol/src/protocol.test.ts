@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_AVATAR,
   createId,
+  isAvatarConfig,
   isChatSendPayload,
   isEmoteSendPayload,
   isInputPayload,
@@ -12,9 +14,25 @@ describe('protocol guards', () => {
     expect(
       isJoinPayload({
         sessionId: 'local_session_123',
-        profile: { nickname: 'VECK USER', palette: 'crimson', bio: 'LOCAL ONLY' },
+        profile: {
+          nickname: 'VECK USER',
+          palette: 'crimson',
+          avatar: { ...DEFAULT_AVATAR },
+          bio: 'LOCAL ONLY',
+        },
       }),
     ).toBe(true);
+  });
+
+  it('rejects an unknown avatar option', () => {
+    const avatar = { ...DEFAULT_AVATAR, hairStyle: 'sideways' };
+    expect(isAvatarConfig(avatar)).toBe(false);
+    expect(
+      isJoinPayload({
+        sessionId: 'local_session_456',
+        profile: { nickname: 'VECK USER', palette: 'crimson', avatar, bio: '' },
+      }),
+    ).toBe(false);
   });
 
   it('rejects malformed realtime payloads', () => {

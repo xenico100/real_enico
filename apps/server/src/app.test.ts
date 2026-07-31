@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { io as createClient, type Socket } from 'socket.io-client';
-import type {
-  ClientToServerEvents,
-  ServerToClientEvents,
-  SessionReadyPayload,
-  WorldSnapshot,
+import {
+  DEFAULT_AVATAR,
+  type AvatarConfig,
+  type ClientToServerEvents,
+  type ServerToClientEvents,
+  type SessionReadyPayload,
+  type WorldSnapshot,
 } from '@enico/protocol';
 import { createGameServer, type GameServer } from './app';
 
@@ -45,7 +47,12 @@ function joinClient(socket: TestSocket, sessionId: string, nickname: string): Pr
     });
     socket.emit('player:join', {
       sessionId,
-      profile: { nickname, palette: 'crimson', bio: 'INTEGRATION TEST' },
+      profile: {
+        nickname,
+        palette: 'crimson',
+        avatar: { ...DEFAULT_AVATAR },
+        bio: 'INTEGRATION TEST',
+      },
     });
   });
 }
@@ -66,6 +73,12 @@ function waitForSnapshot(
       resolve(snapshot);
     };
     socket.on('world:snapshot', listener);
+  });
+}
+
+function waitForServerError(socket: TestSocket): Promise<string> {
+  return new Promise((resolve) => {
+    socket.once('server:error', (payload) => resolve(payload.code));
   });
 }
 
@@ -94,9 +107,11 @@ describe('local authoritative game server', () => {
     const beta = await connectClient(url);
     sockets.push(alpha, beta);
     const alphaReady = await joinClient(alpha, 'integration_alpha', 'ALPHA');
+    expect(alphaReady.snapshot.players[0]?.avatar).toEqual(DEFAULT_AVATAR);
     await joinClient(beta, 'integration_beta', 'BETA');
 
-    await waitForSnapshot(alpha, (snapshot) => snapshot.players.length === 2);
+    const joined = await waitForSnapshot(alpha, (snapshot) => snapshot.players.length === 2);
+    expect(joined.players.every((player) => player.avatar.hairStyle === DEFAULT_AVATAR.hairStyle)).toBe(true);
 
     const receivedChat = new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('chat timeout')), 3_000);
@@ -135,20 +150,39 @@ describe('local authoritative game server', () => {
     expect(afterLeave.players[0]?.nickname).toBe('ALPHA');
   });
 
-  it('rejects invalid identities without adding a player', async () => {
+  it('rejects invalid identities and avatar options without adding a player', async () => {
     server = createGameServer({ port: 0 });
     const url = await server.start();
     const socket = await connectClient(url);
     sockets.push(socket);
 
-    const error = new Promise<string>((resolve) => {
-      socket.once('server:error', (payload) => resolve(payload.code));
-    });
+    const invalidProfileError = waitForServerError(socket);
     socket.emit('player:join', {
       sessionId: 'invalid_profile_session',
-      profile: { nickname: '<x>', palette: 'crimson', bio: '' },
+      profile: {
+        nickname: '<x>',
+        palette: 'crimson',
+        avatar: { ...DEFAULT_AVATAR },
+        bio: '',
+      },
     });
-    await expect(error).resolves.toBe('INVALID_PROFILE');
+    await expect(invalidProfileError).resolves.toBe('INVALID_PROFILE');
+
+    const invalidAvatar = {
+      ...DEFAULT_AVATAR,
+      headAccessory: 'crown',
+    } as unknown as AvatarConfig;
+    const invalidJoinError = waitForServerError(socket);
+    socket.emit('player:join', {
+      sessionId: 'invalid_avatar_session',
+      profile: {
+        nickname: 'ALPHA',
+        palette: 'crimson',
+        avatar: invalidAvatar,
+        bio: '',
+      },
+    });
+    await expect(invalidJoinError).resolves.toBe('INVALID_JOIN');
     expect(server.getSnapshot().players).toHaveLength(0);
   });
 });

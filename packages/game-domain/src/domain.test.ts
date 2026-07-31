@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { GAME_CONFIG, type InputPayload } from '@enico/protocol';
+import {
+  DEFAULT_AVATAR,
+  GAME_CONFIG,
+  type InputPayload,
+  type PlayerProfile,
+} from '@enico/protocol';
 import {
   WORLD_COLLIDERS,
   canReceiveProximityMessage,
@@ -8,6 +13,7 @@ import {
   resolveMovement,
   validateChatText,
   validateNickname,
+  validateProfile,
 } from './index';
 
 const input = (partial: Partial<InputPayload>): InputPayload => ({
@@ -50,6 +56,27 @@ describe('social rules', () => {
     expect(validateNickname('  에니코 벡  ')).toEqual({ ok: true, value: '에니코 벡' });
     expect(validateNickname('<script>')).toMatchObject({ ok: false });
     expect(validateNickname('A')).toMatchObject({ ok: false });
+  });
+
+  it('normalizes a valid profile and rejects invalid avatar options', () => {
+    const valid = validateProfile({
+      nickname: '  ALPHA  ',
+      palette: 'crimson',
+      avatar: { ...DEFAULT_AVATAR },
+      bio: '  LOCAL   SOUL  ',
+    });
+    expect(valid).toMatchObject({
+      ok: true,
+      value: { nickname: 'ALPHA', avatar: DEFAULT_AVATAR, bio: 'LOCAL SOUL' },
+    });
+
+    const invalidProfile = {
+      nickname: 'ALPHA',
+      palette: 'crimson',
+      avatar: { ...DEFAULT_AVATAR, eyes: 'laser' },
+      bio: '',
+    } as unknown as PlayerProfile;
+    expect(validateProfile(invalidProfile)).toMatchObject({ ok: false });
   });
 
   it('normalizes chat and rejects control characters or oversized text', () => {

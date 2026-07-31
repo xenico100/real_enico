@@ -1,5 +1,7 @@
 import {
+  DEFAULT_AVATAR,
   createId,
+  isAvatarConfig,
   isPaletteId,
   type ChatMessage,
   type EmoteEvent,
@@ -17,8 +19,37 @@ import {
 import { validateProfile } from '@enico/game-domain';
 import { io, type Socket } from 'socket.io-client';
 
-const PROFILE_KEY = 'enico.pixel-square.profile.v1';
+const PROFILE_KEY = 'enico.pixel-square.profile.v2';
+const LEGACY_PROFILE_KEY = 'enico.pixel-square.profile.v1';
 const SESSION_KEY = 'enico.pixel-square.session.v1';
+
+interface StoredProfile {
+  profile: PlayerProfile;
+  repairedAvatar: boolean;
+}
+
+function normalizeStoredProfile(value: unknown): StoredProfile | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.nickname !== 'string' ||
+    typeof candidate.bio !== 'string' ||
+    !isPaletteId(candidate.palette)
+  ) {
+    return null;
+  }
+
+  const hasValidAvatar = isAvatarConfig(candidate.avatar);
+  const avatar = hasValidAvatar ? { ...candidate.avatar } : { ...DEFAULT_AVATAR };
+  const validated = validateProfile({
+    nickname: candidate.nickname,
+    palette: candidate.palette,
+    avatar,
+    bio: candidate.bio,
+  });
+  if (!validated.ok) return null;
+  return { profile: validated.value, repairedAvatar: !hasValidAvatar };
+}
 
 export interface IdentityProvider {
   loadProfile: () => PlayerProfile | null;
@@ -27,28 +58,40 @@ export interface IdentityProvider {
 }
 
 export class LocalIdentityProvider implements IdentityProvider {
-  loadProfile(): PlayerProfile | null {
+  private readProfile(key: string): StoredProfile | null {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
     try {
-      const raw = window.localStorage.getItem(PROFILE_KEY);
-      if (!raw) return null;
-      const candidate = JSON.parse(raw) as Partial<PlayerProfile>;
-      if (
-        typeof candidate.nickname !== 'string' ||
-        typeof candidate.bio !== 'string' ||
-        !isPaletteId(candidate.palette)
-      ) {
-        return null;
-      }
-      const validated = validateProfile(candidate as PlayerProfile);
-      return validated.ok ? validated.value : null;
+      const normalized = normalizeStoredProfile(JSON.parse(raw));
+      if (normalized) return normalized;
     } catch {
-      window.localStorage.removeItem(PROFILE_KEY);
-      return null;
+      // Invalid JSON is treated like any other corrupt local profile.
     }
+    window.localStorage.removeItem(key);
+    return null;
+  }
+
+  loadProfile(): PlayerProfile | null {
+    const current = this.readProfile(PROFILE_KEY);
+    if (current) {
+      if (current.repairedAvatar) this.saveProfile(current.profile);
+      window.localStorage.removeItem(LEGACY_PROFILE_KEY);
+      return current.profile;
+    }
+
+    const legacy = this.readProfile(LEGACY_PROFILE_KEY);
+    if (!legacy) return null;
+    this.saveProfile(legacy.profile);
+    window.localStorage.removeItem(LEGACY_PROFILE_KEY);
+    return legacy.profile;
   }
 
   saveProfile(profile: PlayerProfile): void {
-    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    const avatar = isAvatarConfig(profile.avatar) ? profile.avatar : DEFAULT_AVATAR;
+    window.localStorage.setItem(
+      PROFILE_KEY,
+      JSON.stringify({ ...profile, avatar: { ...avatar } }),
+    );
   }
 
   getSessionId(): string {

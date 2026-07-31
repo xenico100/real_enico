@@ -1,12 +1,22 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from 'react';
 import {
   EMOTES,
-  paletteById,
+  avatarAccent,
+  avatarOption,
+  type AvatarConfig,
   type EmoteId,
   type InputPayload,
   type PlayerProfile,
 } from '@enico/protocol';
 import { createIdentityProvider } from './adapters';
+import { AvatarPreview } from './AvatarPreview';
 import { EntryGate } from './EntryGate';
 import { WorldScene } from './WorldScene';
 import { useRealtimeWorld } from './useRealtimeWorld';
@@ -31,6 +41,12 @@ function formatClock(timestamp: number): string {
     minute: '2-digit',
     hour12: false,
   }).format(timestamp);
+}
+
+function avatarStyleSummary(avatar: AvatarConfig): string {
+  const hair = avatarOption('hairStyle', avatar.hairStyle).label;
+  const outfit = avatarOption('outfit', avatar.outfit).label;
+  return `${hair} / ${outfit}`;
 }
 
 export function App() {
@@ -62,12 +78,24 @@ export function App() {
     if (!activeProfile) return;
     const pressed = new Set<string>();
     let sequence = 0;
-    const relevant = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+    const relevant = new Set([
+      'KeyW',
+      'KeyA',
+      'KeyS',
+      'KeyD',
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+    ]);
 
     const clearMovement = () => pressed.clear();
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      const editing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      const editing =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable;
       if (event.key === 'Enter' && !editing) {
         event.preventDefault();
         clearMovement();
@@ -130,7 +158,8 @@ export function App() {
     return <EntryGate initialProfile={savedProfile} onEnter={enterWorld} />;
   }
 
-  const palette = paletteById(activeProfile.palette);
+  const activeAvatar = currentPlayer?.avatar ?? activeProfile.avatar;
+  const activeAccent = avatarAccent(activeAvatar);
   const latestNotice = worldState.notices.at(-1);
 
   return (
@@ -174,26 +203,27 @@ export function App() {
             <b data-testid="player-count">{String(orderedPlayers.length).padStart(2, '0')}</b>
           </div>
           <div className="player-list" data-testid="player-list">
-            {orderedPlayers.map((player, index) => {
-              const playerPalette = paletteById(player.palette);
-              return (
-                <button
-                  className={player.id === selectedPlayerId ? 'player-row is-active' : 'player-row'}
-                  data-testid={`player-${player.nickname}`}
-                  key={player.id}
-                  type="button"
-                  onClick={() => setSelectedPlayerId(player.id)}
-                >
-                  <span className="player-number">{String(index + 1).padStart(2, '0')}</span>
-                  <span className="player-signal" style={{ background: playerPalette.top }} />
-                  <span className="player-copy">
-                    <strong>{player.nickname}{player.id === worldState.playerId ? ' / YOU' : ''}</strong>
-                    <small>{player.bio || 'NO STATUS'}</small>
-                  </span>
-                  <span className="row-arrow">↗</span>
-                </button>
-              );
-            })}
+            {orderedPlayers.map((player, index) => (
+              <button
+                className={player.id === selectedPlayerId ? 'player-row is-active' : 'player-row'}
+                data-testid={`player-${player.nickname}`}
+                key={player.id}
+                type="button"
+                onClick={() => setSelectedPlayerId(player.id)}
+              >
+                <span className="player-number">{String(index + 1).padStart(2, '0')}</span>
+                <span
+                  className="player-signal"
+                  style={{ background: avatarAccent(player.avatar) }}
+                  title={avatarOption('outfitColor', player.avatar.outfitColor).label}
+                />
+                <span className="player-copy">
+                  <strong>{player.nickname}{player.id === worldState.playerId ? ' / YOU' : ''}</strong>
+                  <small>{player.bio || 'NO STATUS'}</small>
+                </span>
+                <span className="row-arrow">↗</span>
+              </button>
+            ))}
             {orderedPlayers.length === 0 ? (
               <div className="panel-empty">SYNCING<br />WORLD STATE...</div>
             ) : null}
@@ -276,18 +306,32 @@ export function App() {
         ) : null}
 
         {selectedPlayer ? (
-          <aside className="profile-card" data-testid="profile-card">
+          <aside
+            className="profile-card"
+            data-testid="profile-card"
+            data-avatar-hair={selectedPlayer.avatar.hairStyle}
+            data-avatar-outfit={selectedPlayer.avatar.outfit}
+            data-avatar-aura={selectedPlayer.avatar.aura}
+          >
             <button className="profile-close" type="button" onClick={() => setSelectedPlayerId(null)}>×</button>
             <div className="profile-card-index">LOCAL PROFILE / {selectedPlayer.id.slice(0, 5).toUpperCase()}</div>
-            <div className="profile-portrait" style={{ '--portrait-color': paletteById(selectedPlayer.palette).top } as React.CSSProperties}>
-              <span>{selectedPlayer.nickname.slice(0, 1).toUpperCase()}</span>
+            <div
+              className="profile-avatar-stage"
+              style={{ '--avatar-accent': avatarAccent(selectedPlayer.avatar) } as CSSProperties}
+            >
+              <AvatarPreview
+                avatar={selectedPlayer.avatar}
+                size={128}
+                testId="profile-avatar-preview"
+                label={`${selectedPlayer.nickname} avatar`}
+              />
             </div>
             <small>{selectedPlayer.id === worldState.playerId ? 'THIS IS YOU' : 'HUMAN SIGNAL DETECTED'}</small>
             <h2>{selectedPlayer.nickname}</h2>
             <p>{selectedPlayer.bio || '상태 메시지가 없습니다.'}</p>
             <dl>
               <div><dt>JOINED</dt><dd>{formatClock(selectedPlayer.joinedAt)}</dd></div>
-              <div><dt>STYLE</dt><dd>{paletteById(selectedPlayer.palette).label}</dd></div>
+              <div><dt>STYLE</dt><dd>{avatarStyleSummary(selectedPlayer.avatar)}</dd></div>
               <div><dt>RANGE</dt><dd>LOCAL NODE</dd></div>
             </dl>
           </aside>
@@ -296,7 +340,7 @@ export function App() {
 
       <footer className="game-footer">
         <div className="self-chip">
-          <span className="self-color" style={{ background: palette.top }} />
+          <span className="self-color" style={{ background: activeAccent }} />
           <b>{currentPlayer?.nickname ?? activeProfile.nickname}</b>
           <small>{currentPlayer ? `${currentPlayer.x.toFixed(1)} / ${currentPlayer.z.toFixed(1)}` : 'SYNCING'}</small>
         </div>

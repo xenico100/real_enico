@@ -1,6 +1,7 @@
 import {
   AVATAR_PALETTES,
   EMOTES,
+  createAvatarVariant,
   createId,
   type ClientToServerEvents,
   type InputPayload,
@@ -45,6 +46,7 @@ export async function connectBot(
         profile: {
           nickname: `BOT_${String(index + 1).padStart(2, '0')}`,
           palette: palette.id,
+          avatar: createAvatarVariant(index),
           bio: 'AUTOMATED LOCAL SOUL',
         },
       });

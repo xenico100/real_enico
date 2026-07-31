@@ -3,11 +3,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
-  paletteById,
+  avatarConfigKey,
+  type AvatarConfig,
   type EmoteId,
   type PlayerDirection,
   type PlayerSnapshot,
 } from '@enico/protocol';
+import { AVATAR_HEIGHT, AVATAR_WIDTH, drawAvatarFrame } from './avatarRenderer';
 import type { ActiveEmote, FloatingMessage } from './useRealtimeWorld';
 
 const DIRECTIONS: readonly PlayerDirection[] = ['north', 'south', 'east', 'west'];
@@ -19,44 +21,16 @@ const EMOTE_GLYPHS: Record<EmoteId, string> = {
 };
 
 function makeAvatarTexture(
-  paletteId: PlayerSnapshot['palette'],
+  avatar: AvatarConfig,
   direction: PlayerDirection,
   step: number,
 ): THREE.CanvasTexture {
-  const palette = paletteById(paletteId);
   const canvas = document.createElement('canvas');
-  canvas.width = 16;
-  canvas.height = 24;
+  canvas.width = AVATAR_WIDTH;
+  canvas.height = AVATAR_HEIGHT;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Canvas 2D context unavailable');
-  context.imageSmoothingEnabled = false;
-
-  const px = (x: number, y: number, width: number, height: number, color: string) => {
-    context.fillStyle = color;
-    context.fillRect(x, y, width, height);
-  };
-
-  const legShift = step === 0 ? 0 : 1;
-  px(5, 2, 6, 2, palette.hair);
-  px(4, 4, 8, 5, palette.hair);
-  px(5, 6, 6, 5, palette.skin);
-  if (direction !== 'north') {
-    const eyeY = 8;
-    if (direction === 'east') px(9, eyeY, 1, 1, '#171719');
-    else if (direction === 'west') px(6, eyeY, 1, 1, '#171719');
-    else {
-      px(6, eyeY, 1, 1, '#171719');
-      px(9, eyeY, 1, 1, '#171719');
-    }
-  }
-  px(4, 11, 8, 7, palette.top);
-  px(3, 12, 1, 5, palette.skin);
-  px(12, 12, 1, 5, palette.skin);
-  px(5, 13, 6, 2, palette.accent);
-  px(5, 18, 3, 4 - legShift, palette.bottoms);
-  px(8, 18 + legShift, 3, 4 - legShift, palette.bottoms);
-  px(4, 22 - legShift, 4, 2, '#111216');
-  px(8, 22 + legShift, 4, 2 - legShift, '#111216');
+  drawAvatarFrame(context, avatar, direction, step);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -88,30 +62,40 @@ function PixelAvatar({ player, current, selected, bubble, activeEmote, onSelect 
   const group = useRef<THREE.Group>(null);
   const sprite = useRef<THREE.Sprite>(null);
   const ring = useRef<THREE.Mesh>(null);
+  const targetPosition = useRef(new THREE.Vector3());
+  const activeTextureKey = useRef('');
+  const avatarKey = avatarConfigKey(player.avatar);
   const textures = useMemo(() => {
     const result = new Map<string, THREE.CanvasTexture>();
     for (const direction of DIRECTIONS) {
-      result.set(`${direction}-0`, makeAvatarTexture(player.palette, direction, 0));
-      result.set(`${direction}-1`, makeAvatarTexture(player.palette, direction, 1));
+      result.set(`${direction}-0`, makeAvatarTexture(player.avatar, direction, 0));
+      result.set(`${direction}-1`, makeAvatarTexture(player.avatar, direction, 1));
     }
     return result;
-  }, [player.palette]);
+  }, [avatarKey]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    activeTextureKey.current = '';
+    return () => {
       for (const texture of textures.values()) texture.dispose();
-    },
-    [textures],
-  );
+    };
+  }, [textures]);
 
   useFrame(({ clock }, delta) => {
     if (!group.current || !sprite.current) return;
-    const target = new THREE.Vector3(player.x, 0.02, player.z);
-    group.current.position.lerp(target, 1 - Math.exp(-delta * 15));
+    targetPosition.current.set(player.x, 0.02, player.z);
+    group.current.position.lerp(targetPosition.current, 1 - Math.exp(-delta * 15));
+
     const step = player.moving ? Math.floor(clock.elapsedTime * 7) % 2 : 0;
-    sprite.current.material.map = textures.get(`${player.direction}-${step}`) ?? null;
-    sprite.current.material.needsUpdate = true;
-    sprite.current.position.y = 1.02 + (player.moving ? Math.abs(Math.sin(clock.elapsedTime * 14)) * 0.045 : 0);
+    const textureKey = `${player.direction}-${step}`;
+    if (activeTextureKey.current !== textureKey) {
+      sprite.current.material.map = textures.get(textureKey) ?? null;
+      sprite.current.material.needsUpdate = true;
+      activeTextureKey.current = textureKey;
+    }
+
+    sprite.current.position.y =
+      1.06 + (player.moving ? Math.abs(Math.sin(clock.elapsedTime * 14)) * 0.045 : 0);
     if (ring.current) {
       ring.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 4) * 0.06);
     }
@@ -136,7 +120,7 @@ function PixelAvatar({ player, current, selected, bubble, activeEmote, onSelect 
           <meshBasicMaterial color={current ? '#b8001f' : '#f3e45d'} depthWrite={false} />
         </mesh>
       ) : null}
-      <sprite ref={sprite} scale={[1.34, 2.01, 1]} position={[0, 1.02, 0]}>
+      <sprite ref={sprite} scale={[1.65, 2.06, 1]} position={[0, 1.06, 0]}>
         <spriteMaterial transparent alphaTest={0.15} depthWrite={false} />
       </sprite>
       <Html center position={[0, 2.08, 0]} zIndexRange={[30, 0]}>

@@ -1,3 +1,6 @@
+import { isAvatarConfig, type AvatarConfig } from './avatar';
+export * from './avatar';
+
 export const GAME_CONFIG = {
   worldHalfSize: 11,
   playerRadius: 0.38,
@@ -65,6 +68,7 @@ export interface Vec2 {
 export interface PlayerProfile {
   nickname: string;
   palette: PaletteId;
+  avatar: AvatarConfig;
   bio: string;
 }
 
@@ -72,6 +76,7 @@ export interface PlayerSnapshot extends Vec2 {
   id: string;
   nickname: string;
   palette: PaletteId;
+  avatar: AvatarConfig;
   bio: string;
   direction: PlayerDirection;
   moving: boolean;
@@ -183,7 +188,8 @@ export function isJoinPayload(value: unknown): value is JoinPayload {
     value.sessionId.length <= 100 &&
     typeof value.profile.nickname === 'string' &&
     typeof value.profile.bio === 'string' &&
-    isPaletteId(value.profile.palette)
+    isPaletteId(value.profile.palette) &&
+    isAvatarConfig(value.profile.avatar)
   );
 }
 
