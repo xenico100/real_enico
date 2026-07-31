@@ -39,8 +39,9 @@ function normalizeStoredProfile(value: unknown): StoredProfile | null {
     return null;
   }
 
-  const hasValidAvatar = isAvatarConfig(candidate.avatar);
-  const avatar = hasValidAvatar ? { ...candidate.avatar } : { ...DEFAULT_AVATAR };
+  const candidateAvatar = candidate.avatar;
+  const hasValidAvatar = isAvatarConfig(candidateAvatar);
+  const avatar = hasValidAvatar ? { ...candidateAvatar } : { ...DEFAULT_AVATAR };
   const validated = validateProfile({
     nickname: candidate.nickname,
     palette: candidate.palette,

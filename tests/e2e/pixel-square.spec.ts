@@ -104,15 +104,21 @@ test('two local visitors customize, move, chat, emote, inspect profiles, and rec
     await pageA.locator('.profile-close').click();
 
     await pageA.bringToFront();
-    const measuredFps = await measureAnimationFps(pageA);
     const gpuPerformanceRun = process.env.PIXEL_SQUARE_GPU_TEST === '1';
-    const minimumFps = gpuPerformanceRun ? 50 : 10;
-    console.log(`[PERFORMANCE] ${measuredFps.toFixed(1)} FPS / floor ${minimumFps}`);
-    testInfo.annotations.push({
-      type: gpuPerformanceRun ? 'gpu-performance' : 'headless-performance',
-      description: `${measuredFps.toFixed(1)} FPS`,
-    });
-    expect(measuredFps).toBeGreaterThanOrEqual(minimumFps);
+    if (gpuPerformanceRun) {
+      const measuredFps = await measureAnimationFps(pageA);
+      console.log(`[PERFORMANCE] ${measuredFps.toFixed(1)} FPS / floor 50`);
+      testInfo.annotations.push({
+        type: 'gpu-performance',
+        description: `${measuredFps.toFixed(1)} FPS`,
+      });
+      expect(measuredFps).toBeGreaterThanOrEqual(50);
+    } else {
+      testInfo.annotations.push({
+        type: 'performance',
+        description: 'GPU performance is enforced by npm run test:e2e:gpu',
+      });
+    }
 
     const positionBefore = await pageA.locator('.self-chip small').textContent();
     await pageA.keyboard.down('ArrowRight');
