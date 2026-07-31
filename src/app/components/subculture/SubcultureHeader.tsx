@@ -24,7 +24,8 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
   const { isAuthenticated, isAuthReady } = useAuth();
   const cartCount = cart.length;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeCartFeedbackSequence, setActiveCartFeedbackSequence] = useState<number | null>(null);
+  const cartFeedbackSequence = lastAddedItem?.sequence ?? null;
+  const isCartCelebrating = cartFeedbackSequence !== null;
   const myPageLabel = isAuthenticated
     ? '마이페이지'
     : isAuthReady
@@ -37,23 +38,19 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
     { key: 'mypage', label: myPageLabel, action: 'info' },
     { key: 'collection', label: '컬렉션', action: 'collection' },
   ];
-  const isCartCelebrating = activeCartFeedbackSequence === lastAddedItem?.sequence;
 
   useEffect(() => {
-    if (!lastAddedItem) return;
+    if (!menuOpen) return;
 
-    setActiveCartFeedbackSequence(lastAddedItem.sequence);
-
-    const timeoutId = window.setTimeout(() => {
-      setActiveCartFeedbackSequence((current) =>
-        current === lastAddedItem.sequence ? null : current,
-      );
-    }, 1150);
-
-    return () => {
-      window.clearTimeout(timeoutId);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
     };
-  }, [lastAddedItem]);
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [menuOpen]);
 
   return (
     <>
@@ -167,6 +164,8 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
           <motion.button
             type="button"
             aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-navigation"
             animate={
               isCartCelebrating
                 ? { scale: [1, 0.94, 1.08, 1], rotate: [0, -4, 0] }
@@ -211,7 +210,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {menuOpen && (
-          <motion.div 
+          <motion.div
+            id="mobile-navigation"
+            role="dialog"
+            aria-modal="true"
+            aria-label="모바일 메뉴"
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}

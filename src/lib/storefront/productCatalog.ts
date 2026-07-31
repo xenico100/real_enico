@@ -11,6 +11,9 @@ import {
 } from '@/lib/storefront/productAvailability';
 import type { StorefrontProductRow } from '@/lib/storefront/shared';
 
+export type ProductModelVariantKey = 'm_168' | 'm_182' | 'f_std' | 'f_tall' | 'garment';
+export type ProductModelVariants = Partial<Record<ProductModelVariantKey, string>>;
+
 export interface Product {
   id: string;
   name: string;
@@ -23,6 +26,8 @@ export interface Product {
   updatedAt?: string | null;
   isSoldOut?: boolean;
   smartstoreUrl?: string;
+  modelUrl?: string;
+  modelVariants?: ProductModelVariants;
 }
 
 const FALLBACK_IMAGE_URL =
@@ -235,6 +240,41 @@ function extractRawText(raw: unknown, keys: string[]) {
   }
 
   return '';
+}
+
+function normalizeModelUrl(value: unknown) {
+  if (typeof value !== 'string') return undefined;
+  const modelUrl = value.trim();
+  if (!modelUrl) return undefined;
+
+  if (modelUrl.startsWith('/')) {
+    return modelUrl.startsWith('/3d/') ? modelUrl : undefined;
+  }
+
+  try {
+    const parsed = new URL(modelUrl);
+    return parsed.protocol === 'https:' ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractRawModelVariants(raw: unknown): ProductModelVariants | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const target = raw as Record<string, unknown>;
+  const candidate = target.modelVariants ?? target.model_variants ?? target['3dVariants'];
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined;
+
+  const record = candidate as Record<string, unknown>;
+  const result: ProductModelVariants = {};
+  const keys: ProductModelVariantKey[] = ['m_168', 'm_182', 'f_std', 'f_tall', 'garment'];
+
+  for (const key of keys) {
+    const modelUrl = normalizeModelUrl(record[key]);
+    if (modelUrl) result[key] = modelUrl;
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function extractRawImages(raw: unknown): string[] {
@@ -491,6 +531,8 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     updatedAt: row.updated_at ?? row.created_at ?? null,
     isSoldOut,
     smartstoreUrl: getSmartstoreUrlByTitle(title),
+    modelUrl: normalizeModelUrl(extractRawText(row.raw, ['modelUrl', 'model_url', 'clo3dUrl', '3dUrl'])),
+    modelVariants: extractRawModelVariants(row.raw),
   };
 }
 

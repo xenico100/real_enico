@@ -4,8 +4,10 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
+  useRef,
   type ReactNode,
 } from 'react';
 
@@ -37,6 +39,7 @@ interface FashionCartContextType {
 
 const FashionCartContext = createContext<FashionCartContextType | undefined>(undefined);
 const MAX_CART_ITEM_QUANTITY = 1;
+const CART_FEEDBACK_DURATION_MS = 950;
 
 interface FashionCartState {
   cart: FashionCartItem[];
@@ -48,7 +51,8 @@ type FashionCartAction =
   | { type: 'add'; item: FashionCartItem }
   | { type: 'remove'; id: string; selectedSize?: string | null }
   | { type: 'updateQuantity'; id: string; quantity: number; selectedSize?: string | null }
-  | { type: 'clear' };
+  | { type: 'clear' }
+  | { type: 'clearFeedback' };
 
 export function getFashionCartItemKey(id: string, selectedSize?: string | null) {
   return `${id}::${selectedSize?.trim() || ''}`;
@@ -136,7 +140,10 @@ function fashionCartReducer(
       return {
         ...state,
         cart: [],
+        lastAddedItem: null,
       };
+    case 'clearFeedback':
+      return state.lastAddedItem ? { ...state, lastAddedItem: null } : state;
     default:
       return state;
   }
@@ -148,9 +155,26 @@ export function FashionCartProvider({ children }: { children: ReactNode }) {
     lastAddedItem: null,
     additionSequence: 0,
   });
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const addToCart = useCallback((item: FashionCartItem) => {
     dispatch({ type: 'add', item });
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    feedbackTimeoutRef.current = setTimeout(() => {
+      dispatch({ type: 'clearFeedback' });
+      feedbackTimeoutRef.current = null;
+    }, CART_FEEDBACK_DURATION_MS);
   }, []);
 
   const removeFromCart = useCallback((id: string, selectedSize?: string | null) => {
@@ -162,6 +186,10 @@ export function FashionCartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearCart = useCallback(() => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
     dispatch({ type: 'clear' });
   }, []);
 

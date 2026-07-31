@@ -7,6 +7,11 @@ import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import { NICEPAY_TEST_PRODUCT_ID } from '@/lib/storefront/productCatalog';
+import {
+  getPayPalOrderAmount,
+  normalizeKrwPerUsd,
+  normalizePayPalCurrency,
+} from '@/lib/orders/paypalPricing';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -24,7 +29,8 @@ const BANK_ACCOUNT_HOLDER = '백형석';
 const NICEPAY_SDK_SCRIPT_ID = 'nicepay-sdk-script';
 const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
-const PAYPAL_CURRENCY = (process.env.NEXT_PUBLIC_PAYPAL_CURRENCY || 'USD').toUpperCase();
+const PAYPAL_CURRENCY = normalizePayPalCurrency(process.env.NEXT_PUBLIC_PAYPAL_CURRENCY);
+const PAYPAL_KRW_PER_USD = normalizeKrwPerUsd(process.env.NEXT_PUBLIC_PAYPAL_KRW_PER_USD);
 const DOMESTIC_REGION = '대한민국';
 const DOMESTIC_SHIPPING_FEE = 3000;
 const INTERNATIONAL_SHIPPING_FEE = 40000;
@@ -133,53 +139,6 @@ async function diagnosePaypalSdkLoad(scriptUrl: string) {
   }
 }
 
-function parsePayPalCapture(payload: unknown) {
-  if (!payload || typeof payload !== 'object') {
-    return {
-      status: null as string | null,
-      payerEmail: null as string | null,
-      captureId: null as string | null,
-      capturedAmount: {
-        currency: null as string | null,
-        value: null as string | null,
-      },
-    };
-  }
-
-  const target = payload as {
-    status?: unknown;
-    payer?: { email_address?: unknown };
-    purchase_units?: Array<{
-      amount?: { currency_code?: unknown; value?: unknown };
-      payments?: {
-        captures?: Array<{ id?: unknown }>;
-      };
-    }>;
-  };
-
-  const capture =
-    Array.isArray(target.purchase_units) &&
-    target.purchase_units[0] &&
-    target.purchase_units[0].payments &&
-    Array.isArray(target.purchase_units[0].payments?.captures)
-      ? target.purchase_units[0].payments?.captures?.[0]
-      : undefined;
-  const amount =
-    Array.isArray(target.purchase_units) && target.purchase_units[0]
-      ? target.purchase_units[0].amount
-      : undefined;
-
-  return {
-    status: typeof target.status === 'string' ? target.status : null,
-    payerEmail: typeof target.payer?.email_address === 'string' ? target.payer.email_address : null,
-    captureId: typeof capture?.id === 'string' ? capture.id : null,
-    capturedAmount: {
-      currency: typeof amount?.currency_code === 'string' ? amount.currency_code : null,
-      value: typeof amount?.value === 'string' ? amount.value : null,
-    },
-  };
-}
-
 function generateTransactionId() {
   return Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join('');
 }
@@ -204,45 +163,117 @@ function getNicepayErrorMessage(result: NicepayErrorResult | unknown) {
   return message || (code ? `NICE Payments 결제창 실행에 실패했습니다. (${code})` : 'NICE Payments 결제창 실행에 실패했습니다.');
 }
 
+const SDK_LOAD_TIMEOUT_MS = 15_000;
+let nicepaySdkPromise: Promise<void> | null = null;
+let paypalSdkPromise: Promise<void> | null = null;
+let paypalSdkPromiseUrl = '';
+
+function loadExternalSdk(options: {
+  scriptId: string;
+  scriptUrl: string;
+  isReady: () => boolean;
+  loadErrorMessage: string;
+  initializeErrorMessage: string;
+}) {
+  return new Promise<void>((resolve, reject) => {
+    if (options.isReady()) {
+      resolve();
+      return;
+    }
+
+    let script = document.getElementById(options.scriptId) as HTMLScriptElement | null;
+    if (script && script.src !== options.scriptUrl) {
+      script.remove();
+      script = null;
+    }
+
+    let settled = false;
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      script?.removeEventListener('load', handleLoad);
+      script?.removeEventListener('error', handleError);
+    };
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) {
+        if (!options.isReady()) script?.remove();
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+    const handleLoad = () => {
+      finish(
+        options.isReady()
+          ? undefined
+          : new Error(options.initializeErrorMessage),
+      );
+    };
+    const handleError = () => finish(new Error(options.loadErrorMessage));
+    const timeoutId = window.setTimeout(
+      () => finish(new Error(`${options.loadErrorMessage} 잠시 후 다시 시도해 주세요.`)),
+      SDK_LOAD_TIMEOUT_MS,
+    );
+
+    if (!script) {
+      script = document.createElement('script');
+      script.id = options.scriptId;
+      script.src = options.scriptUrl;
+      script.async = true;
+      document.body.appendChild(script);
+    }
+
+    script.addEventListener('load', handleLoad, { once: true });
+    script.addEventListener('error', handleError, { once: true });
+    if (options.isReady()) finish();
+  });
+}
+
 async function ensureNicepaySdkLoaded() {
   if (typeof window === 'undefined') {
     throw new Error('브라우저 환경에서만 NICE Payments를 실행할 수 있습니다.');
   }
+  if (window.AUTHNICE) return;
 
-  if (window.AUTHNICE) {
-    return;
+  if (!nicepaySdkPromise) {
+    nicepaySdkPromise = loadExternalSdk({
+      scriptId: NICEPAY_SDK_SCRIPT_ID,
+      scriptUrl: 'https://pay.nicepay.co.kr/v1/js/',
+      isReady: () => Boolean(window.AUTHNICE),
+      loadErrorMessage: 'NICE Payments SDK 로딩에 실패했습니다.',
+      initializeErrorMessage: 'NICE Payments SDK를 불러왔지만 초기화에 실패했습니다.',
+    }).catch((error) => {
+      nicepaySdkPromise = null;
+      throw error;
+    });
   }
 
-  await new Promise<void>((resolve, reject) => {
-    const existingScript = document.getElementById(NICEPAY_SDK_SCRIPT_ID) as HTMLScriptElement | null;
-    const handleLoad = () => {
-      if (!window.AUTHNICE) {
-        reject(new Error('NICE Payments SDK를 불러왔지만 초기화에 실패했습니다.'));
-        return;
-      }
-      resolve();
-    };
-    const handleError = () => {
-      reject(new Error('NICE Payments SDK 로딩에 실패했습니다.'));
-    };
+  await nicepaySdkPromise;
+}
 
-    if (existingScript) {
-      existingScript.addEventListener('load', handleLoad, { once: true });
-      existingScript.addEventListener('error', handleError, { once: true });
-      if (window.AUTHNICE) {
-        resolve();
-      }
-      return;
-    }
+async function ensurePaypalSdkLoaded(scriptUrl: string) {
+  if (typeof window === 'undefined') {
+    throw new Error('브라우저 환경에서만 PayPal을 실행할 수 있습니다.');
+  }
+  if (window.paypal) return;
 
-    const script = document.createElement('script');
-    script.id = NICEPAY_SDK_SCRIPT_ID;
-    script.src = 'https://pay.nicepay.co.kr/v1/js/';
-    script.async = true;
-    script.addEventListener('load', handleLoad, { once: true });
-    script.addEventListener('error', handleError, { once: true });
-    document.body.appendChild(script);
-  });
+  if (!paypalSdkPromise || paypalSdkPromiseUrl !== scriptUrl) {
+    paypalSdkPromiseUrl = scriptUrl;
+    paypalSdkPromise = loadExternalSdk({
+      scriptId: PAYPAL_SDK_SCRIPT_ID,
+      scriptUrl,
+      isReady: () => Boolean(window.paypal),
+      loadErrorMessage: 'PayPal SDK 로딩에 실패했습니다.',
+      initializeErrorMessage: 'PayPal SDK를 불러왔지만 버튼 초기화에 실패했습니다.',
+    }).catch((error) => {
+      paypalSdkPromise = null;
+      throw error;
+    });
+  }
+
+  await paypalSdkPromise;
 }
 
 function formatKrw(value: number) {
@@ -251,8 +282,13 @@ function formatKrw(value: number) {
 
 export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const { cart, removeFromCart, clearCart } = useFashionCart();
-  const { isAuthenticated, user, profile, updateAccountProfile } = useAuth();
+  const { session, isAuthenticated, user, profile, updateAccountProfile } = useAuth();
   const checkoutScrollRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
   const checkoutEmailInputRef = useRef<HTMLInputElement | null>(null);
@@ -289,6 +325,25 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     setCheckoutMessage(null);
     setCheckoutError(null);
     setGuestLookupPassword('');
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -371,71 +426,30 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       setPaypalError('PayPal Client ID가 설정되지 않았습니다.');
       return;
     }
-    if (typeof window === 'undefined') return;
 
-    if (window.paypal) {
-      setPaypalSdkReady(true);
-      setPaypalError(null);
-      return;
-    }
-
-    setPaypalSdkReady(false);
-
-    const existingScript = document.getElementById(PAYPAL_SDK_SCRIPT_ID) as HTMLScriptElement | null;
     const scriptUrl = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
       PAYPAL_CLIENT_ID,
     )}&currency=${encodeURIComponent(PAYPAL_CURRENCY)}&intent=capture&components=buttons&disable-funding=card`;
-    const handleLoad = () => {
-      if (!window.paypal) {
-        setPaypalError('PayPal SDK를 불러왔지만 버튼 초기화에 실패했습니다. 다시 시도해 주세요.');
-        return;
-      }
-      setPaypalSdkReady(true);
-      setPaypalError(null);
-    };
-    const handleError = () => {
-      setPaypalSdkReady(false);
-      void diagnosePaypalSdkLoad(scriptUrl).then((message) => {
-        setPaypalError(message);
+    let active = true;
+    setPaypalSdkReady(false);
+
+    void ensurePaypalSdkLoaded(scriptUrl)
+      .then(() => {
+        if (!active) return;
+        setPaypalSdkReady(true);
+        setPaypalError(null);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setPaypalSdkReady(false);
+        setPaypalError(error instanceof Error ? error.message : 'PayPal SDK 로딩에 실패했습니다.');
+        void diagnosePaypalSdkLoad(scriptUrl).then((message) => {
+          if (active) setPaypalError(message);
+        });
       });
-    };
-    const timeoutId = window.setTimeout(() => {
-      if (!window.paypal) {
-        setPaypalError('PayPal 버튼 로딩이 평소보다 느립니다. 잠시 후 다시 시도해 주세요.');
-      }
-    }, 15000);
-
-    if (existingScript) {
-      if (existingScript.src !== scriptUrl) {
-        existingScript.remove();
-      } else {
-        existingScript.addEventListener('load', handleLoad);
-        existingScript.addEventListener('error', handleError);
-
-        if (window.paypal) {
-          handleLoad();
-        }
-
-        return () => {
-          window.clearTimeout(timeoutId);
-          existingScript.removeEventListener('load', handleLoad);
-          existingScript.removeEventListener('error', handleError);
-        };
-      }
-    }
-
-    const script = document.createElement('script');
-    script.id = PAYPAL_SDK_SCRIPT_ID;
-    script.src = scriptUrl;
-    script.async = true;
-    script.addEventListener('load', handleLoad);
-    script.addEventListener('error', handleError);
-    document.body.appendChild(script);
 
     return () => {
-      window.clearTimeout(timeoutId);
-      script.removeEventListener('load', handleLoad);
-      script.removeEventListener('error', handleError);
+      active = false;
     };
   }, [isOpen, mode, paypalRetryNonce, shouldShowPaypal]);
 
@@ -454,10 +468,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const tax = 0;
   const total = subtotal + shipping;
   const itemCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
-  const paypalOrderAmount =
-    PAYPAL_CURRENCY === 'KRW'
-      ? Math.max(1, Math.round(total)).toString()
-      : Math.max(1, Math.round((total / 1350) * 100) / 100).toFixed(2);
+  const paypalOrderAmount = getPayPalOrderAmount(
+    total,
+    PAYPAL_CURRENCY,
+    PAYPAL_KRW_PER_USD,
+  );
 
   const announceCheckoutError = useCallback(
     (
@@ -561,7 +576,12 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     try {
       const response = await fetch('/api/orders/bank-transfer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(channel === 'member' && session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           transactionId,
           channel,
@@ -734,7 +754,12 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     try {
       const prepareResponse = await fetch('/api/orders/nicepay/prepare', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(channel === 'member' && session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
         body: JSON.stringify({
           transactionId,
           channel,
@@ -821,6 +846,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     checkoutPhone,
     guestLookupPassword,
     isAuthenticated,
+    session?.access_token,
     shipping,
     queueCheckoutDetailsSync,
     subtotal,
@@ -831,10 +857,57 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     validateCheckoutFields,
   ]);
 
+  const latestCheckoutRef = useRef({
+    canCheckout,
+    validateCheckoutFields,
+    isAuthenticated,
+    guestLookupPassword,
+    announceCheckoutError,
+    paypalOrderAmount,
+    transactionId,
+    checkoutName,
+    checkoutAddress,
+    checkoutPhone,
+    checkoutEmail,
+    checkoutCountry,
+    userEmail: user?.email || '',
+    accessToken: session?.access_token || '',
+    subtotal,
+    shipping,
+    tax,
+    total,
+    buildOrderItemsPayload,
+    syncCheckoutDetailsToAccount,
+    clearCart,
+  });
+  latestCheckoutRef.current = {
+    canCheckout,
+    validateCheckoutFields,
+    isAuthenticated,
+    guestLookupPassword,
+    announceCheckoutError,
+    paypalOrderAmount,
+    transactionId,
+    checkoutName,
+    checkoutAddress,
+    checkoutPhone,
+    checkoutEmail,
+    checkoutCountry,
+    userEmail: user?.email || '',
+    accessToken: session?.access_token || '',
+    subtotal,
+    shipping,
+    tax,
+    total,
+    buildOrderItemsPayload,
+    syncCheckoutDetailsToAccount,
+    clearCart,
+  };
+
   useEffect(() => {
     if (!isOpen || mode !== 'checkout') return;
     if (!paypalSdkReady || !window.paypal || !paypalContainerRef.current) return;
-    if (!canCheckout) return;
+    if (!latestCheckoutRef.current.canCheckout) return;
 
     setPaypalError(null);
     paypalContainerRef.current.innerHTML = '';
@@ -850,14 +923,15 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       onClick: async (_data, actions) => {
         setCheckoutError(null);
         setCheckoutMessage(null);
+        const latest = latestCheckoutRef.current;
 
-        if (!validateCheckoutFields()) {
+        if (!latest.validateCheckoutFields()) {
           await actions.reject();
           return;
         }
 
-        if (!isAuthenticated && guestLookupPassword.trim().length < 4) {
-          announceCheckoutError(
+        if (!latest.isAuthenticated && latest.guestLookupPassword.trim().length < 4) {
+          latest.announceCheckoutError(
             '비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.',
             guestPasswordInputRef.current,
           );
@@ -867,63 +941,64 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
         await actions.resolve();
       },
-      createOrder: async (_data, actions) =>
-        actions.order.create({
+      createOrder: async (_data, actions) => {
+        const latest = latestCheckoutRef.current;
+        return actions.order.create({
           purchase_units: [
             {
               amount: {
                 currency_code: PAYPAL_CURRENCY,
-                value: paypalOrderAmount,
+                value: latest.paypalOrderAmount,
               },
-              description: `ENICO VECK ORDER ${transactionId}`,
+              description: `ENICO VECK ORDER ${latest.transactionId}`,
             },
           ],
-        }),
-      onApprove: async (data, actions) => {
+        });
+      },
+      onApprove: async (data) => {
         setCheckoutError(null);
         setCheckoutMessage(null);
         setIsSubmittingOrder(true);
         try {
-          const capturePayload = await actions.order.capture();
-          const capture = parsePayPalCapture(capturePayload);
-          const normalizedName = checkoutName.trim();
-          const normalizedAddress = checkoutAddress.trim();
-          const normalizedPhone = checkoutPhone.trim();
-          const normalizedEmail =
-            capture.payerEmail || checkoutEmail.trim() || user?.email || '';
-          const channel: OrderChannel = isAuthenticated ? 'member' : 'guest';
-          const normalizedGuestLookupPassword = guestLookupPassword.trim();
+          const latest = latestCheckoutRef.current;
+          const normalizedName = latest.checkoutName.trim();
+          const normalizedAddress = latest.checkoutAddress.trim();
+          const normalizedPhone = latest.checkoutPhone.trim();
+          const normalizedEmail = latest.checkoutEmail.trim() || latest.userEmail;
+          const channel: OrderChannel = latest.isAuthenticated ? 'member' : 'guest';
+          const normalizedGuestLookupPassword = latest.guestLookupPassword.trim();
 
           const response = await fetch('/api/orders/paypal', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(channel === 'member' && latest.accessToken
+                ? { Authorization: `Bearer ${latest.accessToken}` }
+                : {}),
+            },
             body: JSON.stringify({
-              transactionId,
+              transactionId: latest.transactionId,
               channel,
               customer: {
                 name: normalizedName,
                 email: normalizedEmail,
                 phone: normalizedPhone,
-                country: checkoutCountry,
+                country: latest.checkoutCountry,
                 address: normalizedAddress,
               },
               pricing: {
-                subtotal,
-                shipping,
-                tax,
-                total,
+                subtotal: latest.subtotal,
+                shipping: latest.shipping,
+                tax: latest.tax,
+                total: latest.total,
                 currency: 'KRW',
               },
               guestLookupPassword:
                 channel === 'guest' ? normalizedGuestLookupPassword : undefined,
               paypal: {
                 orderId: data.orderID,
-                captureId: capture.captureId,
-                status: capture.status,
-                currency: capture.capturedAmount.currency || PAYPAL_CURRENCY,
-                value: capture.capturedAmount.value || paypalOrderAmount,
               },
-              items: buildOrderItemsPayload(),
+              items: latest.buildOrderItemsPayload(),
             }),
           });
 
@@ -939,10 +1014,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               'PayPal 결제가 완료되었습니다. 모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 배송조회할 수 있습니다.',
             );
           } else {
-            syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
+            latest.syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
             setCheckoutMessage('PayPal 결제가 완료되었습니다. 주문이 접수되었습니다.');
           }
-          clearCart();
+          latest.clearCart();
           setMode('cart');
           setCheckoutName('');
           setCheckoutAddress('');
@@ -974,38 +1049,14 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       }
       paypalButtonsInstanceRef.current = null;
     };
-  }, [
-    canCheckout,
-    cart,
-    checkoutAddress,
-    checkoutCountry,
-    checkoutEmail,
-    guestLookupPassword,
-    checkoutName,
-    checkoutPhone,
-    clearCart,
-    isAuthenticated,
-    isOpen,
-    mode,
-    paypalOrderAmount,
-    paypalSdkReady,
-    shipping,
-    subtotal,
-    tax,
-    total,
-    transactionId,
-    user?.email,
-    buildOrderItemsPayload,
-    announceCheckoutError,
-    syncCheckoutDetailsToAccount,
-    validateCheckoutFields,
-  ]);
+  }, [isOpen, mode, paypalSdkReady]);
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
           <motion.div
+            aria-hidden="true"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1014,6 +1065,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
           />
 
           <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cart-overlay-title"
+            tabIndex={-1}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
@@ -1026,11 +1082,17 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#b8001f]">
                     Secure Checkout
                   </p>
-                  <h2 className="mt-3 text-[1.85rem] font-heading font-black uppercase tracking-[0.01em] leading-[1.08] text-[#111827] md:text-[2.45rem]">
+                  <h2
+                    id="cart-overlay-title"
+                    className="mt-3 text-[1.85rem] font-heading font-black uppercase tracking-[0.01em] leading-[1.08] text-[#111827] md:text-[2.45rem]"
+                  >
                     {mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
                 </div>
                 <button
+                  ref={closeButtonRef}
+                  type="button"
+                  aria-label="장바구니 닫기"
                   onClick={onClose}
                   className="rounded-full border border-[#d1d5db] bg-white p-2.5 text-[#111827] transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white shadow-sm"
                 >
@@ -1078,6 +1140,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
               {(checkoutMessage || checkoutError) && (
                 <div
+                  role={checkoutError ? 'alert' : 'status'}
+                  aria-live={checkoutError ? 'assertive' : 'polite'}
                   className={`rounded-[20px] border px-4 py-3 text-sm leading-relaxed font-semibold whitespace-pre-line ${
                     checkoutError
                       ? 'border-red-500 bg-red-50 text-red-800'
@@ -1126,6 +1190,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                                 </div>
                                 <button
                                   type="button"
+                                  aria-label={`${item.name} 장바구니에서 삭제`}
                                   onClick={() => removeFromCart(item.id, item.selectedSize)}
                                   className="p-2 border border-[#d1d5db] bg-white text-[#6b7280] hover:text-[#b8001f] hover:border-[#b8001f] transition-colors shrink-0 rounded-lg shadow-sm"
                                 >
@@ -1161,12 +1226,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     <div className="grid grid-cols-2 gap-3">
                       <div className={`${CHECKOUT_FIELD_GROUP_CLASS} col-span-2`}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
-                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          <label htmlFor="checkout-email" className="block text-[13px] font-semibold tracking-[0.01em] text-[#111827]">
                             이메일
                           </label>
                         </div>
                         <div className={CHECKOUT_FIELD_BODY_CLASS}>
                           <input
+                            id="checkout-email"
                             ref={checkoutEmailInputRef}
                             type="email"
                             value={checkoutEmail}
@@ -1178,12 +1244,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
-                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          <label htmlFor="checkout-phone" className="block text-[13px] font-semibold tracking-[0.01em] text-[#111827]">
                             핸드폰 번호
                           </label>
                         </div>
                         <div className={CHECKOUT_FIELD_BODY_CLASS}>
                           <input
+                            id="checkout-phone"
                             ref={checkoutPhoneInputRef}
                             type="tel"
                             value={checkoutPhone}
@@ -1195,12 +1262,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
-                          <label className="block text-[13px] font-semibold tracking-[0.01em] text-[#e8edf6]">
+                          <label htmlFor="checkout-name" className="block text-[13px] font-semibold tracking-[0.01em] text-[#111827]">
                             수령인 이름
                           </label>
                         </div>
                         <div className={CHECKOUT_FIELD_BODY_CLASS}>
                           <input
+                            id="checkout-name"
                             ref={checkoutNameInputRef}
                             type="text"
                             value={checkoutName}
@@ -1221,7 +1289,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     <div className="grid grid-cols-2 gap-3">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
-                          <label className="block text-[13px] font-bold tracking-[0.01em] text-[#111827]">
+                          <label htmlFor="checkout-country" className="block text-[13px] font-bold tracking-[0.01em] text-[#111827]">
                             구역 (국가)
                           </label>
                           <p className="mt-2 text-[11px] font-medium leading-relaxed text-[#4b5563]">
@@ -1232,6 +1300,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </div>
                         <div className={CHECKOUT_FIELD_BODY_CLASS}>
                           <select
+                            id="checkout-country"
                             ref={checkoutRegionSelectRef}
                             value={checkoutCountry}
                             onChange={(e) => setCheckoutCountry(e.target.value)}
@@ -1260,7 +1329,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                       <div className={`${CHECKOUT_FIELD_GROUP_CLASS} col-span-2`}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
-                          <label className="block text-[13px] font-bold tracking-[0.01em] text-[#111827]">
+                          <label htmlFor="checkout-address" className="block text-[13px] font-bold tracking-[0.01em] text-[#111827]">
                             상세 주소
                           </label>
                           <p className="mt-2 text-[11px] font-medium leading-relaxed text-[#4b5563]">
@@ -1269,6 +1338,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </div>
                         <div className={CHECKOUT_FIELD_BODY_CLASS}>
                           <textarea
+                            id="checkout-address"
                             ref={checkoutAddressInputRef}
                             value={checkoutAddress}
                             onChange={(e) => setCheckoutAddress(e.target.value)}
@@ -1322,10 +1392,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                   <div className="space-y-2.5 md:space-y-3">
                     {!isAuthenticated && (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-3 py-3 shadow-sm">
-                        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.2em] text-[#b8001f]">
+                        <label htmlFor="guest-order-password" className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.2em] text-[#b8001f]">
                           비회원 주문조회 비밀번호
                         </label>
                         <input
+                          id="guest-order-password"
                           ref={guestPasswordInputRef}
                           type="password"
                           value={guestLookupPassword}
@@ -1367,7 +1438,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </button>
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-1.5 py-1.5 md:px-2.5 md:py-2.5 shadow-sm">
                         {nicepayError && (
-                          <p className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
+                          <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
                         )}
                         <button
                           type="button"
@@ -1399,13 +1470,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     {shouldShowPaypal ? (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
                         {paypalError && (
-                          <p className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{paypalError}</p>
+                          <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{paypalError}</p>
                         )}
                         <div>
                           <div
                             ref={paypalContainerRef}
                             className="min-h-[46px]"
-                            aria-label="paypal-sandbox-button"
+                            aria-label="PayPal 결제 버튼"
                           />
                         </div>
                         {paypalError && (

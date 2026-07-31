@@ -37,15 +37,21 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     productId: product.id,
     index: 0,
   }));
-  const [isCartBurstVisible, setIsCartBurstVisible] = useState(false);
+  const itemKey = getFashionCartItemKey(product.id, null);
+  const feedbackSequence =
+    lastAddedItem?.itemKey === itemKey ? lastAddedItem.sequence : null;
+  const isCartBurstVisible = feedbackSequence !== null;
   const [viewMode, setViewMode] = useState<'photo' | '3d'>('photo');
   const touchStartX = useRef<number | null>(null);
-  const itemKey = getFashionCartItemKey(product.id, null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const isInCart = cart.some(
     (item) => getFashionCartItemKey(item.id, item.selectedSize) === itemKey,
   );
   const isSoldOut = Boolean(product.isSoldOut);
   const smartstoreUrl = SMARTSTORE_HOME_URL;
+  const has3DModel = Boolean(product.modelUrl);
+  const activeViewMode = has3DModel ? viewMode : 'photo';
 
   const productImages = useMemo(() => {
     const normalized = Array.isArray(product.images)
@@ -74,17 +80,22 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   const shouldUseDirectActiveImage = shouldBypassImageOptimization(activeImage);
 
   useEffect(() => {
-    if (lastAddedItem?.itemKey !== itemKey) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
 
-    setIsCartBurstVisible(true);
-    const timeoutId = window.setTimeout(() => {
-      setIsCartBurstVisible(false);
-    }, 950);
-
-    return () => {
-      window.clearTimeout(timeoutId);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
     };
-  }, [itemKey, lastAddedItem]);
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [onClose]);
 
   const moveImage = (direction: 'next' | 'prev') => {
     if (!canSlide) return;
@@ -147,6 +158,11 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
         onClick={onClose}
       >
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-detail-title"
+          tabIndex={-1}
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.98 }}
@@ -164,7 +180,9 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           </button>
           {/* Close Button */}
           <button
+            type="button"
             onClick={onClose}
+            aria-label="상품 상세 닫기"
             className="absolute top-4 right-4 z-50 hidden bg-white p-2 text-[#111827] transition-all hover:border-[#b8001f] hover:text-[#b8001f] md:block md:border md:border-[#d1d5db] shadow-sm"
           >
             <X size={24} />
@@ -173,37 +191,56 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           {/* Left: Images (Shopping Gallery) + 3D Viewer */}
           <div className="w-full md:w-1/2 shrink-0 md:min-h-0 relative bg-[#f8f9fa] border-b md:border-b-0 md:border-r border-[#d1d5db] flex flex-col">
             {/* Photo / 3D Toggle Tab */}
-            <div className="flex border-b border-[#d1d5db] bg-white">
+            <div className="flex border-b border-[#d1d5db] bg-white" role="tablist" aria-label="상품 미디어 보기">
               <button
                 type="button"
+                role="tab"
+                id="product-photo-tab"
+                aria-selected={activeViewMode === 'photo'}
+                aria-controls="product-photo-panel"
                 onClick={() => setViewMode('photo')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-mono text-xs uppercase tracking-widest transition-all border-b-2 ${
-                  viewMode === 'photo'
+                  activeViewMode === 'photo'
                     ? 'border-[#b8001f] text-[#b8001f] font-bold bg-white'
                     : 'border-transparent text-[#4b5563] hover:text-[#b8001f] bg-[#f8f9fa]'
                 }`}
               >
-                📷 사진
+                <span aria-hidden="true">사진</span>
+                <span className="sr-only">상품 사진 보기</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('3d')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-mono text-xs uppercase tracking-widest transition-all border-b-2 ${
-                  viewMode === '3d'
-                    ? 'border-[#b8001f] text-[#b8001f] font-bold bg-white'
-                    : 'border-transparent text-[#4b5563] hover:text-[#b8001f] bg-[#f8f9fa]'
-                }`}
-              >
-                <Box size={14} />
-                3D 뷰어
-              </button>
+              {has3DModel ? (
+                <button
+                  type="button"
+                  role="tab"
+                  id="product-3d-tab"
+                  aria-selected={activeViewMode === '3d'}
+                  aria-controls="product-3d-panel"
+                  onClick={() => setViewMode('3d')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-mono text-xs uppercase tracking-widest transition-all border-b-2 ${
+                    activeViewMode === '3d'
+                      ? 'border-[#b8001f] text-[#b8001f] font-bold bg-white'
+                      : 'border-transparent text-[#4b5563] hover:text-[#b8001f] bg-[#f8f9fa]'
+                  }`}
+                >
+                  <Box size={14} aria-hidden="true" />
+                  3D 뷰어
+                </button>
+              ) : null}
             </div>
 
-            {viewMode === '3d' ? (
+            {activeViewMode === '3d' && product.modelUrl ? (
               /* 3D Viewer Mode */
-              <div className="flex-1 min-h-[400px] md:min-h-0">
+              <div
+                id="product-3d-panel"
+                role="tabpanel"
+                aria-labelledby="product-3d-tab"
+                className="flex-1 min-h-[400px] md:min-h-0"
+              >
                 <Viewer3D
-                  modelUrl="https://style.clo-set.com/viewer/embed/11024b9ad1d64010bee24d5b32b64f0c"
+                  key={`${product.id}-${product.modelUrl}`}
+                  modelUrl={product.modelUrl}
+                  variants={product.modelVariants}
+                  fallbackImageUrl={product.image}
                   title={product.name}
                   embedded
                 />
@@ -316,7 +353,10 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                 <span className="font-mono text-xs text-[#b8001f] animate-pulse font-bold">● 활성</span>
               </div>
 
-              <h2 className="max-w-[calc(100%-3.5rem)] pr-6 text-[2rem] md:text-[2.75rem] lg:text-5xl font-heading font-black uppercase leading-[0.92] mb-6 text-[#111827] tracking-[-0.03em] break-words">
+              <h2
+                id="product-detail-title"
+                className="max-w-[calc(100%-3.5rem)] pr-6 text-[2rem] md:text-[2.75rem] lg:text-5xl font-heading font-black uppercase leading-[0.92] mb-6 text-[#111827] tracking-[-0.03em] break-words"
+              >
                 {product.name}
               </h2>
 

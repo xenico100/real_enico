@@ -16,6 +16,8 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [direction, setDirection] = useState(0);
   const touchStartX = useRef<number | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const imageList =
     Array.isArray(collection.images) && collection.images.length > 0
@@ -54,31 +56,36 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
   };
 
   useEffect(() => {
-    setCurrentImageIndex(0);
-    setDirection(0);
-  }, [collection.id]);
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
 
-  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         onClose();
         return;
       }
 
+      if (!hasMultipleImages) return;
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        prevImage();
+        setDirection(-1);
+        setCurrentImageIndex((previous) => previous - 1);
       }
 
       if (event.key === 'ArrowRight') {
         event.preventDefault();
-        nextImage();
+        setDirection(1);
+        setCurrentImageIndex((previous) => previous + 1);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, hasImages, imageList.length, safeImageIndex]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [hasMultipleImages, onClose]);
 
   const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
     touchStartX.current = event.changedTouches[0]?.clientX ?? null;
@@ -109,6 +116,11 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
         onClick={onClose}
       >
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="collection-detail-title"
+          tabIndex={-1}
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 30, opacity: 0 }}
@@ -129,7 +141,10 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
               </div>
               <div className="mt-3 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
                 <div className="max-w-5xl">
-                  <h2 className="font-heading text-[2rem] uppercase leading-[0.88] tracking-[-0.04em] text-[#111827] md:text-[3.3rem] font-black">
+                  <h2
+                    id="collection-detail-title"
+                    className="font-heading text-[2rem] uppercase leading-[0.88] tracking-[-0.04em] text-[#111827] md:text-[3.3rem] font-black"
+                  >
                     {collection.title}
                   </h2>
                   {showDescription ? (

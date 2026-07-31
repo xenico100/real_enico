@@ -141,16 +141,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setErrorMessage(null);
   }, []);
 
-  const setSafeState = <T,>(
+  const setSafeState = useCallback(function setSafeState<T>(
     setter: (value: T) => void,
     value: T,
-  ) => {
+  ) {
     if (isMountedRef.current) {
       setter(value);
     }
-  };
+  }, []);
 
-  const fetchProfile = async (targetUser: User | null) => {
+  const fetchProfile = useCallback(async (targetUser: User | null) => {
     if (!targetUser) {
       setSafeState(setProfile, null);
       return;
@@ -176,15 +176,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setSafeState(setProfile, data ?? null);
-  };
+  }, [setSafeState]);
 
-  const syncSession = async (nextSession: Session | null) => {
+  const syncSession = useCallback(async (nextSession: Session | null) => {
     const nextUser = nextSession?.user ?? null;
     setSafeState(setSession, nextSession);
     setSafeState(setUser, nextUser);
     await fetchProfile(isAnonymousAuthUser(nextUser) ? null : nextUser);
     setSafeState(setIsAuthReady, true);
-  };
+  }, [fetchProfile, setSafeState]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -218,8 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [setSafeState, syncSession]);
 
   const runAction = async <T,>(fn: () => Promise<T>) => {
     clearMessages();

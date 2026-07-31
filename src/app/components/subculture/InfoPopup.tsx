@@ -1,10 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MyPagePanel } from './MyPagePanel';
 import { useAuth } from '@/app/context/AuthContext';
+
+const MyPagePanel = dynamic(
+  () => import('./MyPagePanel').then((module) => module.MyPagePanel),
+  { ssr: false, loading: () => <p role="status">마이페이지를 불러오는 중입니다...</p> },
+);
 
 interface InfoPopupProps {
   type: 'about' | 'contact' | 'mypage';
@@ -26,6 +31,26 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
   const [isContactSubmitting, setIsContactSubmitting] = useState(false);
   const [contactMessage, setContactMessage] = useState<string | null>(null);
   const [contactError, setContactError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [onClose]);
 
   const handleSendContact = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -111,8 +136,9 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">문의 유형</label>
+              <label htmlFor="contact-category" className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">문의 유형</label>
               <select
+                id="contact-category"
                 value={contactCategory}
                 onChange={(event) => setContactCategory(event.target.value)}
                 className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] font-medium"
@@ -125,8 +151,9 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">작성자</label>
+              <label htmlFor="contact-name" className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">작성자</label>
               <input
+                id="contact-name"
                 type="text"
                 value={contactName}
                 onChange={(event) => setContactName(event.target.value)}
@@ -139,8 +166,9 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">회신 이메일</label>
+              <label htmlFor="contact-email" className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">회신 이메일</label>
               <input
+                id="contact-email"
                 type="email"
                 value={contactReplyEmail}
                 onChange={(event) => setContactReplyEmail(event.target.value)}
@@ -150,8 +178,9 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
               />
             </div>
             <div>
-              <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">연락처 (선택)</label>
+              <label htmlFor="contact-phone" className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">연락처 (선택)</label>
               <input
+                id="contact-phone"
                 type="tel"
                 value={contactPhone}
                 onChange={(event) => setContactPhone(event.target.value)}
@@ -162,8 +191,9 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
           </div>
 
           <div>
-            <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">제목</label>
+            <label htmlFor="contact-subject" className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">제목</label>
             <input
+              id="contact-subject"
               type="text"
               value={contactSubject}
               onChange={(event) => setContactSubject(event.target.value)}
@@ -174,8 +204,9 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
           </div>
 
           <div>
-            <label className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">내용</label>
+            <label htmlFor="contact-body" className="block text-[10px] text-[#4b5563] font-bold mb-2 uppercase">내용</label>
             <textarea
+              id="contact-body"
               value={contactBody}
               onChange={(event) => setContactBody(event.target.value)}
               rows={9}
@@ -187,6 +218,8 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
 
           {(contactMessage || contactError) && (
             <div
+              role={contactError ? 'alert' : 'status'}
+              aria-live={contactError ? 'assertive' : 'polite'}
               className={`border p-3 text-xs font-semibold ${
                 contactError
                   ? 'border-red-500 bg-red-50 text-red-800'
@@ -226,6 +259,11 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
         onClick={onClose}
       >
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="info-popup-title"
+          tabIndex={-1}
           initial={{ scale: 0.9, opacity: 0, y: 50 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 50 }}
@@ -247,6 +285,8 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
              <div className="flex min-w-0 flex-col gap-2 pr-14 md:h-full md:flex-row md:items-center md:gap-3">
                {type === 'mypage' && (
                  <button
+                   type="button"
+                   aria-label="마이페이지 닫기"
                    onClick={onClose}
                    className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-[#d1d5db] bg-white px-2.5 py-1.5 text-xs text-[#111827] font-semibold transition-colors hover:border-[#b8001f] hover:text-[#b8001f] shadow-sm"
                  >
@@ -254,7 +294,10 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
                    뒤로가기
                  </button>
                )}
-               <span className="font-heading text-xl uppercase tracking-tighter text-[#111827] md:text-2xl truncate font-black">
+               <span
+                 id="info-popup-title"
+                 className="font-heading text-xl uppercase tracking-tighter text-[#111827] md:text-2xl truncate font-black"
+               >
                  {type === 'about'
                    ? 'ENICO VECK'
                      : type === 'contact'
@@ -263,6 +306,8 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
                </span>
              </div>
              <button
+               type="button"
+               aria-label="팝업 닫기"
                onClick={onClose}
                className="absolute right-4 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] transition-colors hover:border-[#b8001f] hover:text-[#b8001f] md:top-1/2 md:right-6 md:-translate-y-1/2 shadow-sm"
              >

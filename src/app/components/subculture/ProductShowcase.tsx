@@ -36,6 +36,7 @@ interface ProductShowcaseProps {
 export type { Product };
 
 const ALL_CATEGORY = '전체' as const;
+const EMPTY_PRODUCTS: Product[] = [];
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 type ProductFilterCategory = typeof ALL_CATEGORY | ProductCategory;
@@ -82,27 +83,21 @@ function ProductCard({
 }: ProductCardProps) {
   const shouldUseDirectImage = shouldBypassImageOptimization(product.image);
   const itemKey = getFashionCartItemKey(product.id, null);
-  const [isCartBurstVisible, setIsCartBurstVisible] = useState(false);
-
-  useEffect(() => {
-    if (cartFeedback?.itemKey !== itemKey) return;
-
-    setIsCartBurstVisible(true);
-    const timeoutId = window.setTimeout(() => {
-      setIsCartBurstVisible(false);
-    }, 950);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [cartFeedback, itemKey]);
+  const feedbackSequence =
+    cartFeedback?.itemKey === itemKey ? cartFeedback.sequence : null;
+  const isCartBurstVisible = feedbackSequence !== null;
 
   return (
     <motion.div
       layout
-      onClick={() => onProductClick(product)}
-      className="group relative cursor-pointer overflow-hidden bg-white border border-[#d1d5db] shadow-sm transition-all duration-300 hover:border-[#b8001f] hover:shadow-md"
+      className="group relative overflow-hidden bg-white border border-[#d1d5db] shadow-sm transition-all duration-300 hover:border-[#b8001f] hover:shadow-md"
     >
+      <button
+        type="button"
+        onClick={() => onProductClick(product)}
+        aria-label={`${product.name} 상세 보기`}
+        className="absolute inset-0 z-20 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#b8001f]"
+      />
       <AnimatePresence>
         {isCartBurstVisible ? (
           <motion.div
@@ -207,7 +202,7 @@ function ProductCard({
                   : { scale: 1, boxShadow: '0 0 0 rgba(184,0,31,0)' }
               }
               transition={{ duration: 0.72, ease: 'easeOut' }}
-              className={`relative w-full overflow-hidden border px-2 py-2 text-[10px] font-mono uppercase tracking-widest transition-[color,background-color,border-color,transform] md:text-xs font-bold ${
+              className={`relative z-30 w-full overflow-hidden border px-2 py-2 text-[10px] font-mono uppercase tracking-widest transition-[color,background-color,border-color,transform] md:text-xs font-bold ${
                 isSoldOut
                   ? 'cursor-not-allowed border-[#f87171] bg-[#fef2f2] text-[#991b1b]'
                   : isInCart
@@ -239,15 +234,23 @@ function ProductCard({
 }
 
 export function ProductShowcase({
-  initialProducts = [],
+  initialProducts,
   usingFallbackCatalog = false,
   onProductClick,
 }: ProductShowcaseProps) {
+  const sourceProducts = initialProducts ?? EMPTY_PRODUCTS;
   const { cart, addToCart, lastAddedItem } = useFashionCart();
   const { isAuthenticated, user } = useAuth();
   const [activeCategory, setActiveCategory] = useState<ProductFilterCategory>(ALL_CATEGORY);
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>(initialProducts);
+  const [recoveredCatalog, setRecoveredCatalog] = useState<{
+    source: Product[];
+    products: Product[];
+  } | null>(null);
   const [isRecoveringProducts, setIsRecoveringProducts] = useState(false);
+  const catalogProducts =
+    usingFallbackCatalog && recoveredCatalog?.source === sourceProducts
+      ? recoveredCatalog.products
+      : sourceProducts;
   const canViewNicepayTestProduct = isAuthenticated && isDesignatedAdmin(user?.email);
   const shouldShowNicepayTestProduct =
     canViewNicepayTestProduct &&
@@ -272,10 +275,6 @@ export function ProductShowcase({
   const cartProductKeys = new Set(
     cart.map((item) => getFashionCartItemKey(item.id, item.selectedSize)),
   );
-
-  useEffect(() => {
-    setCatalogProducts(initialProducts);
-  }, [initialProducts]);
 
   useEffect(() => {
     if (!usingFallbackCatalog) return;
@@ -339,7 +338,10 @@ export function ProductShowcase({
 
         const recoveredProducts = buildProductCatalog((data ?? []) as StorefrontProductRow[]);
         if (recoveredProducts.length > 0) {
-          setCatalogProducts(recoveredProducts);
+          setRecoveredCatalog({
+            source: sourceProducts,
+            products: recoveredProducts,
+          });
         }
       } finally {
         if (active) {
@@ -353,7 +355,7 @@ export function ProductShowcase({
     return () => {
       active = false;
     };
-  }, [usingFallbackCatalog]);
+  }, [sourceProducts, usingFallbackCatalog]);
 
   const productCards = filteredProducts.map((product) => {
     const isInCart = cartProductKeys.has(getFashionCartItemKey(product.id, null));

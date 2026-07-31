@@ -60,3 +60,17 @@ alter table public.orders
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
 create index if not exists orders_order_code_idx on public.orders (order_code);
 create unique index if not exists orders_guest_order_number_uidx on public.orders (guest_order_number);
+
+-- Orders are written only by trusted server routes using the service-role key.
+alter table public.orders enable row level security;
+revoke all privileges on table public.orders from anon, authenticated;
+
+-- Prevent retries or forged callbacks from recording the same payment twice.
+create unique index if not exists orders_payment_method_order_code_uidx
+  on public.orders (payment_method, order_code);
+create unique index if not exists orders_paypal_order_id_uidx
+  on public.orders (paypal_order_id)
+  where payment_method = 'paypal' and paypal_order_id is not null;
+create unique index if not exists orders_paypal_capture_id_uidx
+  on public.orders (paypal_capture_id)
+  where payment_method = 'paypal' and paypal_capture_id is not null;

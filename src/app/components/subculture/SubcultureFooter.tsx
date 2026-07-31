@@ -1,5 +1,3 @@
-'use client';
-
 const FOOTER_FIELDS = [
   { label: '상호', value: '몽상인' },
   { label: '대표자', value: '백형석' },

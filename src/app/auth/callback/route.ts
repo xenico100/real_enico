@@ -11,11 +11,11 @@ export async function GET(request: Request) {
   const type = searchParams.get('type');
   const defaultNextPath = type === 'recovery' ? '/auth/reset_password' : '/';
   const nextPath = searchParams.get('next') || defaultNextPath;
-  const safeNextPath = nextPath.startsWith('/') ? nextPath : '/';
+  const safeNextPath = nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
 
   const response = NextResponse.redirect(new URL(safeNextPath, requestUrl.origin));
 
-  if (code) {
+  if (code || (tokenHash && type)) {
     const cookieStore = await cookies();
 
     const supabase = createServerClient(

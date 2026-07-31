@@ -1503,10 +1503,13 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                           </a>
                         </div>
                         <div className="relative aspect-[4/5] overflow-hidden rounded-[8px] border border-[#bcc5d0] bg-black">
-                          <img
+                          <Image
                             src={order.paymentReceiptUrl}
                             alt="이체확인 사진"
-                            className="h-full w-full object-contain bg-black"
+                            fill
+                            sizes="(max-width: 768px) 100vw, 50vw"
+                            unoptimized={shouldBypassImageOptimization(order.paymentReceiptUrl)}
+                            className="object-contain bg-black"
                           />
                         </div>
                       </div>
@@ -2068,10 +2071,13 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                   </a>
                                 </div>
                                 <div className="relative mt-5 aspect-[4/5] overflow-hidden rounded-[10px] border-2 border-[#cfd6df] bg-black">
-                                  <img
+                                  <Image
                                     src={order.paymentReceiptUrl}
                                     alt="이체확인 사진"
-                                    className="h-full w-full object-contain bg-black"
+                                    fill
+                                    sizes="(max-width: 768px) 100vw, 50vw"
+                                    unoptimized={shouldBypassImageOptimization(order.paymentReceiptUrl)}
+                                    className="object-contain bg-black"
                                   />
                                 </div>
                               </section>

@@ -49,3 +49,20 @@ body {
 .checkout-scroll-area::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #d93853 0%, #b8001f 100%);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

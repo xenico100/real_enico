@@ -136,16 +136,18 @@ export default function App({
         )}
         
         {selectedProduct && (
-          <ProductDetailPopup 
-            product={selectedProduct} 
-            onClose={() => setSelectedProduct(null)} 
+          <ProductDetailPopup
+            key={selectedProduct.id}
+            product={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
           />
         )}
         
         {selectedCollection && (
-          <CollectionDetailPopup 
-            collection={selectedCollection} 
-            onClose={() => setSelectedCollection(null)} 
+          <CollectionDetailPopup
+            key={selectedCollection.id}
+            collection={selectedCollection}
+            onClose={() => setSelectedCollection(null)}
           />
         )}
 

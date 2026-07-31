@@ -1,9 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { shouldBypassImageOptimization } from '@/lib/images';
-import { useAuth } from '@/app/context/AuthContext';
 import {
   buildCollectionCatalog,
   type Collection,
@@ -24,50 +23,23 @@ interface CollectionSectionProps {
 
 export type { Collection };
 
+const EMPTY_COLLECTIONS: Collection[] = [];
+
 export function CollectionSection({
-  initialCollections = [],
+  initialCollections,
   usingFallbackCatalog = false,
   onCollectionClick,
 }: CollectionSectionProps) {
-  const { isAuthenticated, user } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [collections, setCollections] = useState<Collection[]>(initialCollections);
+  const sourceCollections = initialCollections ?? EMPTY_COLLECTIONS;
+  const [recoveredCatalog, setRecoveredCatalog] = useState<{
+    source: Collection[];
+    collections: Collection[];
+  } | null>(null);
   const [isRecoveringCollections, setIsRecoveringCollections] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const checkAdmin = async () => {
-      if (typeof window !== 'undefined' && window.localStorage.getItem('ENICO_FORCE_ADMIN') === 'true') {
-        if (active) setIsAdmin(true);
-        return;
-      }
-      if (!isAuthenticated || !user) {
-        if (active) setIsAdmin(false);
-        return;
-      }
-      const email = (user?.email || '').toLowerCase();
-      if (email === 'morba9850@gmail.com') {
-        if (active) setIsAdmin(true);
-        return;
-      }
-      try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) return;
-        const { data } = await supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle();
-        if (active) setIsAdmin(Boolean(data?.user_id));
-      } catch {
-        if (active) setIsAdmin(false);
-      }
-    };
-    void checkAdmin();
-    return () => { active = false; };
-  }, [isAuthenticated, user]);
-
-  const displayedCollections = collections;
-
-  useEffect(() => {
-    setCollections(initialCollections);
-  }, [initialCollections]);
+  const displayedCollections =
+    usingFallbackCatalog && recoveredCatalog?.source === sourceCollections
+      ? recoveredCatalog.collections
+      : sourceCollections;
 
   useEffect(() => {
     if (!usingFallbackCatalog) return;
@@ -133,7 +105,10 @@ export function CollectionSection({
           (data ?? []) as StorefrontCollectionRow[],
         );
         if (recoveredCollections.length > 0) {
-          setCollections(recoveredCollections);
+          setRecoveredCatalog({
+            source: sourceCollections,
+            collections: recoveredCollections,
+          });
         }
       } finally {
         if (active) {
@@ -147,7 +122,7 @@ export function CollectionSection({
     return () => {
       active = false;
     };
-  }, [usingFallbackCatalog]);
+  }, [sourceCollections, usingFallbackCatalog]);
 
   return (
     <section
@@ -185,8 +160,17 @@ export function CollectionSection({
             {displayedCollections.map((collection, index) => (
               <div
                 key={collection.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${collection.title} 컬렉션 상세 보기`}
                 onClick={() => onCollectionClick(collection)}
-                className="group cursor-pointer relative"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onCollectionClick(collection);
+                  }
+                }}
+                className="group cursor-pointer relative focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#b8001f]"
               >
                 <div className="absolute top-2 left-2 w-full h-full bg-black/10 -z-10 rotate-2 group-hover:rotate-4 transition-transform duration-300" />
                 <div className="absolute top-4 left-4 w-full h-full bg-black/5 -z-20 rotate-4 group-hover:rotate-6 transition-transform duration-300" />

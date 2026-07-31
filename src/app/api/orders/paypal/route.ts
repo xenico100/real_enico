@@ -1,252 +1,200 @@
+import { revalidateTag } from 'next/cache';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import {
   generateGuestOrderNumber,
   hashGuestLookupPassword,
 } from '@/lib/orders/guestLookup';
+import { capturePayPalOrder } from '@/lib/orders/paypalServer';
 import {
-  extractPersistentProductIds,
-  getSingleStockOrderViolation,
-  getSoldOutOrderItemName,
-} from '@/lib/storefront/productAvailability';
+  authenticateOrderRequest,
+  buildCanonicalOrder,
+  getOrderErrorStatus,
+  normalizeTransactionId,
+  OrderValidationError,
+  type CanonicalOrderItem,
+  type CanonicalOrderPricing,
+  type ClientOrderItem,
+  type ServerOrderChannel,
+} from '@/lib/orders/serverOrderValidation';
+import { extractPersistentProductIds } from '@/lib/storefront/productAvailability';
 import {
   fetchProductAvailabilitySnapshot,
-  isProductUnavailable,
+  markProductsSoldOut,
 } from '@/lib/storefront/productAvailabilityDb';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
 
-type OrderChannel = 'member' | 'guest';
-
-type OrderItem = {
-  id: string;
+type CustomerDetails = {
   name: string;
-  category: string;
-  selectedSize: string | null;
-  quantity: number;
-  unitPrice: number;
-  lineTotal: number;
+  email: string;
+  phone: string;
+  country: string;
+  address: string;
+};
+
+type PayPalDetails = {
+  orderId: string;
+  captureId: string;
+  status: string;
+  currency: string;
+  value: string;
 };
 
 type PayPalOrderPayload = {
   transactionId: string;
-  channel: OrderChannel;
+  channel: ServerOrderChannel;
+  customer: CustomerDetails;
+  pricing: CanonicalOrderPricing;
+  paypal: PayPalDetails;
+  items: CanonicalOrderItem[];
+};
+
+type ParsedPayPalRequest = {
+  transactionId: string;
+  channel: ServerOrderChannel;
   guestLookupPassword: string | null;
-  customer: {
-    name: string;
-    email: string;
-    phone: string;
-    country: string;
-    address: string;
-  };
-  pricing: {
-    subtotal: number;
-    shipping: number;
-    tax: number;
-    total: number;
-    currency: string;
-  };
+  customer: CustomerDetails;
+  clientTotal: number;
   paypal: {
     orderId: string;
     captureId: string | null;
-    status: string | null;
-    currency: string;
-    value: string;
   };
-  items: OrderItem[];
+  items: ClientOrderItem[];
 };
+
+type PayPalOrderBasePayload = Omit<PayPalOrderPayload, 'paypal'>;
 
 type PersistGuestMeta = {
   guestOrderNumber: string | null;
   guestPasswordHash: string | null;
 };
 
-function getServerConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
-    return null;
-  }
-  return { url, serviceRoleKey };
-}
+type ExistingPayPalOrder = {
+  id: string;
+  order_code: string;
+  paypal_order_id: string | null;
+  payment_status: string;
+  guest_order_number: string | null;
+  channel: ServerOrderChannel;
+  customer_email: string;
+  amount_total: number;
+};
 
 function createOrderServiceClient() {
-  const config = getServerConfig();
-  if (!config) {
-    throw new Error(
-      '주문 저장용 Supabase 서버 설정이 없습니다. NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인하세요.',
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) {
+    throw new OrderValidationError(
+      '주문 저장용 Supabase 서버 설정이 없습니다. SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인하세요.',
+      500,
     );
   }
 
-  return createClient(config.url, config.serviceRoleKey, {
+  return createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
+function normalizeRequiredText(value: unknown, label: string, maxLength: number) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (!normalized || normalized.length > maxLength) {
+    throw new OrderValidationError(`${label} 형식이 올바르지 않습니다.`);
+  }
+  return normalized;
 }
 
-function toNumber(value: unknown) {
-  return typeof value === 'number' ? value : Number(value);
+function parseItems(value: unknown): ClientOrderItem[] {
+  if (!Array.isArray(value)) {
+    throw new OrderValidationError('주문 상품 구성이 올바르지 않습니다.');
+  }
+
+  return value.map((valueItem) => {
+    if (!valueItem || typeof valueItem !== 'object') {
+      throw new OrderValidationError('주문 상품 구성이 올바르지 않습니다.');
+    }
+
+    const item = valueItem as Record<string, unknown>;
+    return {
+      id: normalizeRequiredText(item.id, '상품 ID', 100),
+      selectedSize:
+        typeof item.selectedSize === 'string' ? item.selectedSize.trim().slice(0, 40) || null : null,
+      quantity: Number(item.quantity),
+    };
+  });
+}
+
+function parseRequestBody(body: unknown): ParsedPayPalRequest {
+  if (!body || typeof body !== 'object') {
+    throw new OrderValidationError('PayPal 주문 요청 형식이 올바르지 않습니다.');
+  }
+
+  const payload = body as Record<string, unknown>;
+  const customer = payload.customer as Record<string, unknown> | null;
+  const pricing = payload.pricing as Record<string, unknown> | null;
+  const paypal = payload.paypal as Record<string, unknown> | null;
+  if (!customer || !pricing || !paypal) {
+    throw new OrderValidationError('PayPal 주문 요청 형식이 올바르지 않습니다.');
+  }
+
+  const channel = payload.channel;
+  if (channel !== 'member' && channel !== 'guest') {
+    throw new OrderValidationError('주문 유형이 올바르지 않습니다.');
+  }
+
+  const email = normalizeRequiredText(customer.email, '이메일', 320);
+  if (!email.includes('@')) {
+    throw new OrderValidationError('이메일 형식이 올바르지 않습니다.');
+  }
+
+  const clientTotal = Number(pricing.total);
+  if (!Number.isFinite(clientTotal) || clientTotal < 0) {
+    throw new OrderValidationError('주문 금액 형식이 올바르지 않습니다.');
+  }
+
+  const orderId = normalizeRequiredText(paypal.orderId, 'PayPal 주문 ID', 64);
+  const captureId =
+    typeof paypal.captureId === 'string' && paypal.captureId.trim()
+      ? paypal.captureId.trim()
+      : null;
+  if (captureId && !/^[A-Za-z0-9_-]{6,64}$/.test(captureId)) {
+    throw new OrderValidationError('PayPal capture ID 형식이 올바르지 않습니다.');
+  }
+
+  const guestLookupPassword =
+    channel === 'guest' && typeof payload.guestLookupPassword === 'string'
+      ? payload.guestLookupPassword.trim()
+      : null;
+  if (channel === 'guest' && (!guestLookupPassword || guestLookupPassword.length < 4 || guestLookupPassword.length > 128)) {
+    throw new OrderValidationError('비회원 주문조회 비밀번호는 4자 이상 128자 이하로 입력해 주세요.');
+  }
+
+  return {
+    transactionId: normalizeTransactionId(payload.transactionId),
+    channel,
+    guestLookupPassword,
+    customer: {
+      name: normalizeRequiredText(customer.name, '이름', 100),
+      email,
+      phone: normalizeRequiredText(customer.phone, '핸드폰 번호', 50),
+      country: normalizeRequiredText(customer.country, '국가/구역', 100),
+      address: normalizeRequiredText(customer.address, '주소', 500),
+    },
+    clientTotal,
+    paypal: { orderId, captureId },
+    items: parseItems(payload.items),
+  };
 }
 
 function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
-function normalizeGuestLookupPassword(payload: Partial<PayPalOrderPayload>) {
-  if (payload.channel !== 'guest') return null;
-  if (!isNonEmptyString(payload.guestLookupPassword)) return null;
-  const normalized = payload.guestLookupPassword.trim();
-  return normalized.length >= 4 ? normalized : null;
-}
-
-function validatePayload(body: unknown): PayPalOrderPayload | null {
-  if (!body || typeof body !== 'object') return null;
-  const payload = body as Partial<PayPalOrderPayload>;
-
-  if (
-    !isNonEmptyString(payload.transactionId) ||
-    (payload.channel !== 'member' && payload.channel !== 'guest')
-  ) {
-    return null;
-  }
-
-  const customer = payload.customer;
-  const pricing = payload.pricing;
-  const paypal = payload.paypal;
-  const items = payload.items;
-  const normalizedGuestLookupPassword = normalizeGuestLookupPassword(payload);
-
-  if (
-    !customer ||
-    !pricing ||
-    !paypal ||
-    !Array.isArray(items) ||
-    items.length === 0 ||
-    !isNonEmptyString(customer.name) ||
-    !isNonEmptyString(customer.email) ||
-    !isNonEmptyString(customer.phone) ||
-    !isNonEmptyString(customer.country) ||
-    !isNonEmptyString(customer.address) ||
-    !isNonEmptyString(pricing.currency) ||
-    !isNonEmptyString(paypal.orderId) ||
-    !isNonEmptyString(paypal.currency) ||
-    !isNonEmptyString(paypal.value)
-  ) {
-    return null;
-  }
-
-  if (payload.channel === 'guest' && !normalizedGuestLookupPassword) {
-    return null;
-  }
-
-  const subtotal = toNumber(pricing.subtotal);
-  const shipping = toNumber(pricing.shipping);
-  const tax = toNumber(pricing.tax);
-  const total = toNumber(pricing.total);
-
-  if (
-    Number.isNaN(subtotal) ||
-    Number.isNaN(shipping) ||
-    Number.isNaN(tax) ||
-    Number.isNaN(total)
-  ) {
-    return null;
-  }
-
-  const normalizedItems: OrderItem[] = [];
-  let subtotalFromItems = 0;
-  for (const item of items) {
-    if (!item || typeof item !== 'object') return null;
-    const target = item as Partial<OrderItem>;
-    if (
-      !isNonEmptyString(target.id) ||
-      !isNonEmptyString(target.name) ||
-      !isNonEmptyString(target.category)
-    ) {
-      return null;
-    }
-
-    const quantity = toNumber(target.quantity);
-    const unitPrice = toNumber(target.unitPrice);
-    const lineTotal = toNumber(target.lineTotal);
-
-    if (
-      Number.isNaN(quantity) ||
-      Number.isNaN(unitPrice) ||
-      Number.isNaN(lineTotal) ||
-      quantity <= 0 ||
-      quantity > 99 ||
-      unitPrice < 0 ||
-      lineTotal < 0
-    ) {
-      return null;
-    }
-
-    if (Math.round(unitPrice * quantity) !== Math.round(lineTotal)) {
-      return null;
-    }
-
-    normalizedItems.push({
-      id: target.id,
-      name: target.name,
-      category: target.category,
-      selectedSize: typeof target.selectedSize === 'string' ? target.selectedSize : null,
-      quantity,
-      unitPrice,
-      lineTotal,
-    });
-    subtotalFromItems += Math.round(lineTotal);
-  }
-
-  if (
-    subtotal < 0 ||
-    shipping < 0 ||
-    tax < 0 ||
-    total < 0 ||
-    Math.round(subtotal) !== subtotalFromItems ||
-    Math.round(subtotal + shipping + tax) !== Math.round(total) ||
-    pricing.currency.trim().toUpperCase() !== paypal.currency.trim().toUpperCase()
-  ) {
-    return null;
-  }
-
-  return {
-    transactionId: payload.transactionId.trim(),
-    channel: payload.channel,
-    guestLookupPassword: normalizedGuestLookupPassword,
-    customer: {
-      name: customer.name.trim(),
-      email: customer.email.trim(),
-      phone: customer.phone.trim(),
-      country: customer.country.trim(),
-      address: customer.address.trim(),
-    },
-    pricing: {
-      subtotal,
-      shipping,
-      tax,
-      total,
-      currency: pricing.currency.trim().toUpperCase(),
-    },
-    paypal: {
-      orderId: paypal.orderId.trim(),
-      captureId: typeof paypal.captureId === 'string' ? paypal.captureId : null,
-      status: typeof paypal.status === 'string' ? paypal.status : null,
-      currency: paypal.currency.trim().toUpperCase(),
-      value: paypal.value.trim(),
-    },
-    items: normalizedItems,
-  };
-}
-
 function buildRawPayload(payload: PayPalOrderPayload) {
   return {
     ...payload,
-    guestLookupPassword: payload.channel === 'guest' ? '[REDACTED]' : null,
+    verification: 'paypal_server_api',
   };
 }
 
@@ -262,10 +210,10 @@ function buildEmailText(payload: PayPalOrderPayload, guestOrderNumber: string | 
     `구매유형: ${payload.channel === 'member' ? '회원 구매' : '비회원 구매'}`,
     ...(guestOrderNumber ? [`비회원 주문조회 번호: ${guestOrderNumber}`] : []),
     '',
-    '[PayPal 결제 정보]',
+    '[PayPal 서버 검증 정보]',
     `Order ID: ${payload.paypal.orderId}`,
-    `Capture ID: ${payload.paypal.captureId || '-'}`,
-    `상태: ${payload.paypal.status || '-'}`,
+    `Capture ID: ${payload.paypal.captureId}`,
+    `상태: ${payload.paypal.status}`,
     `결제 금액: ${payload.paypal.value} ${payload.paypal.currency}`,
     '',
     '[주문자 정보]',
@@ -289,14 +237,12 @@ function buildEmailText(payload: PayPalOrderPayload, guestOrderNumber: string | 
 async function sendOrderEmail(payload: PayPalOrderPayload, guestOrderNumber: string | null) {
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
-    throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
+    throw new Error('RESEND_API_KEY가 설정되어 있지 않습니다.');
   }
 
   const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
   const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
-  const subject = `[PayPal 주문] ${payload.channel === 'member' ? '회원' : '비회원'} ${payload.transactionId}`;
-
-  const emailResponse = await fetch(RESEND_API_ENDPOINT, {
+  const response = await fetch(RESEND_API_ENDPOINT, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${resendApiKey}`,
@@ -305,135 +251,291 @@ async function sendOrderEmail(payload: PayPalOrderPayload, guestOrderNumber: str
     body: JSON.stringify({
       from,
       to: [to],
-      subject,
+      subject: `[PayPal 주문] ${payload.channel === 'member' ? '회원' : '비회원'} ${payload.transactionId}`,
       text: buildEmailText(payload, guestOrderNumber),
       reply_to: payload.customer.email,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
 
-  const responsePayload = (await emailResponse.json().catch(() => null)) as
-    | { error?: { message?: string } }
-    | null;
-
-  if (!emailResponse.ok) {
-    const detail = responsePayload?.error?.message || '메일 발송 API 응답 오류';
-    throw new Error(`주문 메일 발송 실패: ${detail}`);
+  if (!response.ok) {
+    const responsePayload = (await response.json().catch(() => null)) as
+      | { error?: { message?: string } }
+      | null;
+    throw new Error(responsePayload?.error?.message || '주문 메일 발송 API 응답 오류');
   }
 }
 
-async function persistOrder(
+async function findExistingOrder(
   serviceClient: SupabaseClient,
-  payload: PayPalOrderPayload,
-  guestMeta: PersistGuestMeta,
+  transactionId: string,
+  paypalOrderId: string,
 ) {
-  const { error } = await serviceClient.from('orders').insert({
-    order_code: payload.transactionId,
-    channel: payload.channel,
-    payment_method: 'paypal',
-    payment_status: payload.paypal.status || 'captured',
-    currency: payload.pricing.currency,
-    amount_subtotal: Math.round(payload.pricing.subtotal),
-    amount_shipping: Math.round(payload.pricing.shipping),
-    amount_tax: Math.round(payload.pricing.tax),
-    amount_total: Math.round(payload.pricing.total),
-    customer_name: payload.customer.name,
-    customer_email: payload.customer.email,
-    customer_phone: payload.customer.phone,
-    customer_country: payload.customer.country,
-    customer_address: payload.customer.address,
-    paypal_order_id: payload.paypal.orderId,
-    paypal_capture_id: payload.paypal.captureId,
-    paypal_currency: payload.paypal.currency,
-    paypal_value: payload.paypal.value,
-    guest_order_number: guestMeta.guestOrderNumber,
-    guest_password_hash: guestMeta.guestPasswordHash,
-    shipping_status: 'preparing',
-    items: payload.items,
-    raw_payload: buildRawPayload(payload),
-  });
+  const [byCode, byPayPalId] = await Promise.all([
+    serviceClient
+      .from('orders')
+      .select('id, order_code, paypal_order_id, payment_status, guest_order_number, channel, customer_email, amount_total')
+      .eq('payment_method', 'paypal')
+      .eq('order_code', transactionId)
+      .maybeSingle<ExistingPayPalOrder>(),
+    serviceClient
+      .from('orders')
+      .select('id, order_code, paypal_order_id, payment_status, guest_order_number, channel, customer_email, amount_total')
+      .eq('payment_method', 'paypal')
+      .eq('paypal_order_id', paypalOrderId)
+      .maybeSingle<ExistingPayPalOrder>(),
+  ]);
 
+  const error = byCode.error || byPayPalId.error;
   if (error) {
     if (error.code === '42P01') {
-      throw new Error('orders 테이블이 없습니다. sql/orders_setup.sql을 먼저 실행하세요.');
+      throw new OrderValidationError('orders 테이블이 없습니다. sql/orders_setup.sql을 먼저 실행하세요.', 500);
     }
-    if (error.code === '42703') {
-      throw new Error(
-        'orders 테이블 컬럼이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행해 주세요.',
-      );
-    }
-    throw new Error(`주문 저장 실패: ${error.message}`);
+    console.error('PayPal existing order lookup failed', error);
+    throw new OrderValidationError('기존 PayPal 주문 확인 중 오류가 발생했습니다.', 500);
   }
+
+  if (byCode.data && byPayPalId.data && byCode.data.id !== byPayPalId.data.id) {
+    throw new OrderValidationError('거래번호 또는 PayPal 주문 ID가 이미 사용되었습니다.', 409);
+  }
+
+  const existing = byCode.data || byPayPalId.data;
+  if (
+    existing &&
+    (existing.order_code !== transactionId || existing.paypal_order_id !== paypalOrderId)
+  ) {
+    throw new OrderValidationError('거래번호 또는 PayPal 주문 ID가 이미 사용되었습니다.', 409);
+  }
+  return existing;
 }
 
-async function ensureItemsAvailable(serviceClient: SupabaseClient, items: OrderItem[]) {
-  const productIds = extractPersistentProductIds(items);
-  if (productIds.length === 0) return;
+async function persistPendingOrder(
+  serviceClient: SupabaseClient,
+  payload: PayPalOrderBasePayload,
+  paypalOrderId: string,
+  guestMeta: PersistGuestMeta,
+) {
+  const { data, error } = await serviceClient
+    .from('orders')
+    .insert({
+      order_code: payload.transactionId,
+      channel: payload.channel,
+      payment_method: 'paypal',
+      payment_status: 'pending_payment',
+      currency: payload.pricing.currency,
+      amount_subtotal: payload.pricing.subtotal,
+      amount_shipping: payload.pricing.shipping,
+      amount_tax: payload.pricing.tax,
+      amount_total: payload.pricing.total,
+      customer_name: payload.customer.name,
+      customer_email: payload.customer.email,
+      customer_phone: payload.customer.phone,
+      customer_country: payload.customer.country,
+      customer_address: payload.customer.address,
+      paypal_order_id: paypalOrderId,
+      guest_order_number: guestMeta.guestOrderNumber,
+      guest_password_hash: guestMeta.guestPasswordHash,
+      shipping_status: 'preparing',
+      items: payload.items,
+      raw_payload: {
+        stage: 'pending_paypal_capture',
+        ...payload,
+        paypal: { orderId: paypalOrderId },
+      },
+    })
+    .select('id, order_code, paypal_order_id, payment_status, guest_order_number')
+    .single<ExistingPayPalOrder>();
 
-  const { rows } = await fetchProductAvailabilitySnapshot(serviceClient, productIds, {
-    includeTitle: true,
-  });
-  if (rows.length !== productIds.length) {
-    throw new Error('이미 판매 완료되었거나 더 이상 구매할 수 없는 상품이 포함되어 있습니다.');
+  if (!error && data) return data;
+  if (error?.code === '23505') {
+    const existing = await findExistingOrder(
+      serviceClient,
+      payload.transactionId,
+      paypalOrderId,
+    );
+    if (existing) return existing;
   }
-
-  const soldOutProduct = rows.find((row) => isProductUnavailable(row));
-  if (soldOutProduct) {
-    throw new Error(
-      `${soldOutProduct.title?.trim() || '선택한 상품'}은 이미 품절되어 주문할 수 없습니다.`,
+  if (error?.code === '42P01') {
+    throw new OrderValidationError('orders 테이블이 없습니다. sql/orders_setup.sql을 먼저 실행하세요.', 500);
+  }
+  if (error?.code === '42703') {
+    throw new OrderValidationError(
+      'orders 테이블 컬럼이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행해 주세요.',
+      500,
     );
   }
+
+  console.error('PayPal pending order insert failed', error);
+  throw new OrderValidationError('PayPal 결제 준비 주문 저장 중 오류가 발생했습니다.', 500);
+}
+
+async function finalizeOrder(
+  serviceClient: SupabaseClient,
+  orderId: string,
+  payload: PayPalOrderPayload,
+) {
+  const { data, error } = await serviceClient
+    .from('orders')
+    .update({
+      payment_status: payload.paypal.status,
+      paypal_capture_id: payload.paypal.captureId,
+      paypal_currency: payload.paypal.currency,
+      paypal_value: payload.paypal.value,
+      raw_payload: buildRawPayload(payload),
+    })
+    .eq('id', orderId)
+    .eq('payment_method', 'paypal')
+    .select('id')
+    .maybeSingle();
+
+  if (!error && data?.id) return;
+  if (error?.code === '23505') {
+    throw new OrderValidationError('이미 처리된 PayPal 결제입니다.', 409);
+  }
+  console.error('PayPal order finalization failed', error);
+  throw new OrderValidationError(
+    'PayPal 결제는 완료되었지만 주문 확정에 실패했습니다. 거래번호로 관리자에게 문의해 주세요.',
+    500,
+  );
+}
+
+async function markPurchasedItemsSoldOut(
+  serviceClient: SupabaseClient,
+  payload: PayPalOrderPayload,
+) {
+  const productIds = extractPersistentProductIds(payload.items);
+  if (productIds.length === 0) return;
+
+  const snapshot = await fetchProductAvailabilitySnapshot(serviceClient, productIds);
+  if (snapshot.rows.length !== productIds.length) {
+    throw new Error('결제 완료 상품의 재고 정보를 모두 찾지 못했습니다.');
+  }
+  await markProductsSoldOut(serviceClient, snapshot.rows, {
+    hasRawColumn: snapshot.hasRawColumn,
+    orderCode: payload.transactionId,
+    paymentMethod: 'paypal',
+  });
+  revalidateTag('storefront-products', 'max');
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as unknown;
-    const payload = validatePayload(body);
-    if (!payload) {
-      return NextResponse.json(
-        { message: 'PayPal 주문 요청 형식이 올바르지 않습니다.' },
-        { status: 400 },
-      );
-    }
-
-    const singleStockViolation = getSingleStockOrderViolation(payload.items);
-    if (singleStockViolation) {
-      return NextResponse.json({ message: singleStockViolation }, { status: 409 });
-    }
-
+    const parsed = parseRequestBody(await request.json());
+    const authentication = await authenticateOrderRequest(request, parsed.channel);
     const serviceClient = createOrderServiceClient();
-    await ensureItemsAvailable(serviceClient, payload.items);
-
-    if (extractPersistentProductIds(payload.items).length === 0) {
-      const soldOutItemName = getSoldOutOrderItemName(payload.items);
-      if (soldOutItemName) {
-        return NextResponse.json(
-          { message: `${soldOutItemName}은 이미 품절되어 주문할 수 없습니다.` },
-          { status: 409 },
-        );
-      }
+    const canonical = await buildCanonicalOrder(serviceClient, {
+      items: parsed.items,
+      customerCountry: parsed.customer.country,
+      user: authentication.user,
+      clientTotal: parsed.clientTotal,
+    });
+    const authenticatedEmail = authentication.user?.email?.trim();
+    if (parsed.channel === 'member' && !authenticatedEmail) {
+      throw new OrderValidationError('회원 계정 이메일을 확인할 수 없습니다.', 400);
     }
 
-    const guestOrderNumber =
-      payload.channel === 'guest' ? generateGuestOrderNumber() : null;
-    const guestPasswordHash =
-      payload.channel === 'guest' && payload.guestLookupPassword
-        ? hashGuestLookupPassword(payload.guestLookupPassword)
-        : null;
+    const basePayload: PayPalOrderBasePayload = {
+      transactionId: parsed.transactionId,
+      channel: parsed.channel,
+      customer: {
+        ...parsed.customer,
+        email: authenticatedEmail || parsed.customer.email,
+      },
+      pricing: canonical.pricing,
+      items: canonical.items,
+    };
 
-    await persistOrder(serviceClient, payload, { guestOrderNumber, guestPasswordHash });
-    await sendOrderEmail(payload, guestOrderNumber);
+    let pendingOrder = await findExistingOrder(
+      serviceClient,
+      basePayload.transactionId,
+      parsed.paypal.orderId,
+    );
+    if (
+      pendingOrder &&
+      (pendingOrder.channel !== basePayload.channel ||
+        pendingOrder.customer_email.trim().toLowerCase() !==
+          basePayload.customer.email.trim().toLowerCase() ||
+        Number(pendingOrder.amount_total) !== basePayload.pricing.total)
+    ) {
+      throw new OrderValidationError('기존 PayPal 주문 정보와 요청이 일치하지 않습니다.', 409);
+    }
+    if (pendingOrder?.payment_status.toUpperCase() === 'COMPLETED') {
+      return NextResponse.json({
+        ok: true,
+        message: '이미 처리된 PayPal 주문입니다.',
+        guestOrderNumber: pendingOrder.guest_order_number,
+        alreadyProcessed: true,
+      });
+    }
 
+    const newGuestMeta: PersistGuestMeta = {
+      guestOrderNumber:
+        basePayload.channel === 'guest' ? generateGuestOrderNumber() : null,
+      guestPasswordHash:
+        basePayload.channel === 'guest' && parsed.guestLookupPassword
+          ? hashGuestLookupPassword(parsed.guestLookupPassword)
+          : null,
+    };
+
+    const verifiedPayPal = await capturePayPalOrder(
+      {
+        orderId: parsed.paypal.orderId,
+        expectedTotalKrw: canonical.pricing.total,
+      },
+      async () => {
+        if (!pendingOrder) {
+          pendingOrder = await persistPendingOrder(
+            serviceClient,
+            basePayload,
+            parsed.paypal.orderId,
+            newGuestMeta,
+          );
+        }
+      },
+    );
+
+    if (!pendingOrder) {
+      throw new OrderValidationError('PayPal 결제 준비 주문을 확인하지 못했습니다.', 500);
+    }
+
+    const payload: PayPalOrderPayload = {
+      ...basePayload,
+      paypal: verifiedPayPal,
+    };
+    await finalizeOrder(serviceClient, pendingOrder.id, payload);
+    const guestOrderNumber = pendingOrder.guest_order_number;
+
+    const [inventoryResult, emailResult] = await Promise.allSettled([
+      markPurchasedItemsSoldOut(serviceClient, payload),
+      sendOrderEmail(payload, guestOrderNumber),
+    ]);
+    if (inventoryResult.status === 'rejected') {
+      console.error('PayPal inventory update failed', inventoryResult.reason);
+    }
+    if (emailResult.status === 'rejected') {
+      console.error('PayPal order email failed', emailResult.reason);
+    }
+
+    const mailSent = emailResult.status === 'fulfilled';
     return NextResponse.json({
       ok: true,
-      message: 'PayPal 주문 접수 및 메일 발송 완료',
+      message: mailSent
+        ? 'PayPal 주문 접수 및 메일 발송 완료'
+        : 'PayPal 주문은 접수되었지만 알림 메일 발송에 실패했습니다.',
       guestOrderNumber,
+      mailSent,
+      inventorySynced: inventoryResult.status === 'fulfilled',
     });
   } catch (error) {
+    if (!(error instanceof OrderValidationError)) {
+      console.error('PayPal order processing failed', error);
+    }
     return NextResponse.json(
       {
-        message: error instanceof Error ? error.message : 'PayPal 주문 접수 중 서버 오류가 발생했습니다.',
+        message:
+          error instanceof Error ? error.message : 'PayPal 주문 접수 중 서버 오류가 발생했습니다.',
       },
-      { status: 500 },
+      { status: getOrderErrorStatus(error) },
     );
   }
 }
