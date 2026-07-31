@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@enico/protocol": ["packages/protocol/src/index.ts"],
+      "@enico/game-domain": ["packages/game-domain/src/index.ts"],
+      "@enico/server/app": ["apps/server/src/app.ts"]
+    }
+  },
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "tests/**/*.ts", "*.ts"],
+  "exclude": ["node_modules", "**/dist"]
+}

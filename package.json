@@ -1,0 +1,44 @@
+{
+  "name": "enico-veck-pixel-square",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others -n SERVER,CLIENT -c red,white \"npm run dev --workspace @enico/server\" \"npm run dev --workspace @enico/client\"",
+    "build": "npm run build --workspace @enico/server && npm run build --workspace @enico/client",
+    "build:e2e": "npm run build --workspace @enico/server && VITE_SERVER_URL=http://127.0.0.1:3101 npm run build --workspace @enico/client",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run packages/protocol packages/game-domain",
+    "test:integration": "vitest run apps/server",
+    "test:e2e": "npm run build:e2e && playwright test",
+    "test:e2e:gpu": "npm run build:e2e && PIXEL_SQUARE_GPU_TEST=1 playwright test --headed",
+    "test:load": "tsx packages/test-bots/src/load-test.ts",
+    "preview:e2e": "concurrently --kill-others -n SERVER,CLIENT -c red,white \"PORT=3101 CLIENT_ORIGIN=http://127.0.0.1:4173 node apps/server/dist/index.js\" \"npm run preview --workspace @enico/client -- --host 127.0.0.1 --port 4173\"",
+    "bots": "tsx packages/test-bots/src/index.ts",
+    "validate": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:e2e && npm run test:load"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.1.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@types/three": "0.185.1",
+    "concurrently": "10.0.4",
+    "eslint": "10.8.0",
+    "globals": "17.8.0",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
