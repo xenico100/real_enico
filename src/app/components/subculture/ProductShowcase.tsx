@@ -143,7 +143,7 @@ function ProductCard({
       <div className="relative overflow-hidden p-2 md:p-4">
         <div className="absolute inset-0 z-0 bg-white" />
 
-        <div className="relative z-10 flex flex-col gap-1.5 md:gap-2">
+        <div className="relative flex flex-col gap-1.5 md:gap-2">
           <h3 className="line-clamp-2 font-heading text-[11px] uppercase leading-tight text-[#111827] transition-colors group-hover:text-[#b8001f] md:text-xl md:leading-none font-bold">
             {product.name}
           </h3>
