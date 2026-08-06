@@ -1415,13 +1415,13 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
                         disabled={isSubmittingOrder}
-                        className={`group relative min-h-[48px] overflow-hidden rounded-[12px] px-3 py-2 text-left transition-all duration-200 border border-gray-800 bg-gray-900 text-white shadow-sm hover:bg-black disabled:opacity-50`}
+                        className={`group relative min-h-[48px] overflow-hidden rounded-[12px] px-3 py-2 text-left transition-all duration-200 border border-gray-300 bg-white text-black shadow-sm hover:bg-gray-100 disabled:opacity-50`}
                       >
                         <span className="relative z-10 flex min-h-[28px] items-center justify-between gap-3">
-                          <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-white">
+                          <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-black">
                             {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                           </span>
-                          <span className="text-sm font-black text-white">
+                          <span className="text-sm font-black text-black">
                             →
                           </span>
                         </span>
@@ -1434,10 +1434,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           type="button"
                           onClick={() => void handleNicepayCheckout()}
                           disabled={isSubmittingOrder || isStartingNicepay}
-                          className="group w-full min-h-[48px] overflow-hidden rounded-[12px] border border-gray-800 bg-black px-3 py-2 text-left text-white shadow-md transition-all duration-200 hover:bg-gray-900 disabled:opacity-50"
+                          className="group w-full min-h-[48px] overflow-hidden rounded-[12px] border border-gray-300 bg-white px-3 py-2 text-left text-black shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50"
                         >
                           <span className="flex min-h-[28px] items-center justify-between gap-3">
-                            <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-white">
+                            <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-black">
                               {isStartingNicepay ? (
                                 <>
                                   <span className="md:hidden">카드 준비중...</span>
@@ -1450,7 +1450,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                                 </>
                               )}
                             </span>
-                            <span className="shrink-0 text-base font-black text-white transition-transform duration-200 group-hover:translate-x-1">
+                            <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                               →
                             </span>
                           </span>
