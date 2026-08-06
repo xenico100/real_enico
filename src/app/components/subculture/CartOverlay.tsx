@@ -1415,28 +1415,18 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
                         disabled={isSubmittingOrder}
-                        className={`group relative min-h-[48px] overflow-hidden rounded-[12px] px-3 py-2 text-left transition-all duration-200 ${
-                          isAuthenticated
-                            ? 'border border-[#b8001f] bg-[#fff1f2] text-[#8f0018] shadow-sm hover:brightness-105'
-                            : 'border border-[#d1d5db] bg-[#111827] text-white hover:bg-[#b8001f] hover:border-[#b8001f]'
-                        } disabled:opacity-50`}
+                        className={`group relative min-h-[48px] overflow-hidden rounded-[12px] px-3 py-2 text-left transition-all duration-200 border border-gray-800 bg-gray-900 text-white shadow-sm hover:bg-black disabled:opacity-50`}
                       >
                         <span className="relative z-10 flex min-h-[28px] items-center justify-between gap-3">
-                          <span
-                            className={`text-[0.9rem] font-bold tracking-[-0.02em] leading-snug ${
-                              isAuthenticated ? 'text-[#8f0018]' : 'text-white'
-                            }`}
-                          >
+                          <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-white">
                             {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                           </span>
-                          <span className={`text-sm font-black ${
-                            isAuthenticated ? 'text-[#8f0018]' : 'text-white'
-                          }`}>
+                          <span className="text-sm font-black text-white">
                             →
                           </span>
                         </span>
                       </button>
-                      <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-1.5 py-1.5 md:px-2.5 md:py-2.5 shadow-sm">
+                      <div className="rounded-[14px] border border-gray-200 bg-gray-50 px-1.5 py-1.5 md:px-2.5 md:py-2.5 shadow-sm">
                         {nicepayError && (
                           <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
                         )}
@@ -1444,7 +1434,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           type="button"
                           onClick={() => void handleNicepayCheckout()}
                           disabled={isSubmittingOrder || isStartingNicepay}
-                          className="group w-full min-h-[48px] overflow-hidden rounded-[12px] border border-[#b8001f] bg-[#b8001f] px-3 py-2 text-left text-white shadow-md transition-all duration-200 hover:bg-[#9a0019] disabled:opacity-50"
+                          className="group w-full min-h-[48px] overflow-hidden rounded-[12px] border border-gray-800 bg-black px-3 py-2 text-left text-white shadow-md transition-all duration-200 hover:bg-gray-900 disabled:opacity-50"
                         >
                           <span className="flex min-h-[28px] items-center justify-between gap-3">
                             <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-white">
