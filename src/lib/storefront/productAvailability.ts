@@ -47,6 +47,7 @@ const SOLD_OUT_PRODUCT_TITLES = [
   'BERSERK Jacket',
   'BERSERK Pants',
   'Night Face',
+  'Night Dee',
   'Check Shark',
   'Desert Bat',
   'Desert Dee',
