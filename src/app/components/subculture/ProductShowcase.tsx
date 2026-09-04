@@ -256,9 +256,11 @@ export function ProductShowcase({
     canViewNicepayTestProduct &&
     (!usingFallbackCatalog ||
       catalogProducts.some((product) => product.id !== NICEPAY_TEST_PRODUCT_ID));
-  const visibleCatalogProducts = shouldShowNicepayTestProduct
-    ? catalogProducts
-    : catalogProducts.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID);
+  const visibleCatalogProducts = (
+    shouldShowNicepayTestProduct
+      ? catalogProducts
+      : catalogProducts.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID)
+  ).filter((product) => !product.isSoldOut);
   const categories = [ALL_CATEGORY, ...PRODUCT_CATEGORIES] as const;
   const deferredActiveCategory = useDeferredValue(activeCategory);
   const filteredProducts =

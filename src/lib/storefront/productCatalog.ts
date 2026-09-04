@@ -583,6 +583,9 @@ function buildDbBackedProductCatalog(rows: StorefrontProductRow[]) {
       .map(mapDbRowToProduct)
       .filter((item): item is Product => Boolean(item)),
   ).filter((product) => {
+    if (product.isSoldOut) {
+      return false;
+    }
     const key = normalizeCategoryHintKey(product.name);
     if (seen.has(key)) {
       return false;
