@@ -12,10 +12,11 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
+import { getUnifiedAdminUrl } from '@/lib/unified-admin';
 import { AccountAuthPanel } from './AccountAuthPanel';
 import styles from './MyPagePanel.module.css';
 
@@ -920,6 +921,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   }
   const hasAdminTools =
     canManageCatalog || canManageMembers || canManageOrders || canViewDailyStats;
+  const unifiedAdminUrl = hasAdminTools ? getUnifiedAdminUrl('enico') : null;
   const renderedActiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : 'overview';
   const tabPanelId = `${tabIdPrefix}-panel`;
 
@@ -2941,6 +2943,17 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     >
                       일일통계
                     </button>
+                  ) : null}
+                  {unifiedAdminUrl ? (
+                    <a
+                      href={unifiedAdminUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.quickAction}
+                    >
+                      <ExternalLink aria-hidden="true" size={14} />
+                      통합 관리자
+                    </a>
                   ) : null}
                 </div>
               </aside>

@@ -214,8 +214,13 @@
 }
 
 .quickAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   padding: 0.75rem;
   text-align: center;
+  text-decoration: none;
 }
 
 .contentShell {
