@@ -53,7 +53,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   const has3DModel = Boolean(product.modelUrl);
   const activeViewMode = has3DModel ? viewMode : 'photo';
 
-  const productImages = useMemo(() => {
+  const allImages = useMemo(() => {
     const normalized = Array.isArray(product.images)
       ? product.images.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
       : [];
@@ -68,6 +68,31 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
 
     return [];
   }, [product.image, product.images]);
+
+  // 통 상세페이지 이미지: product.detailImageUrl 우선 참조, 없으면 allImages 중 감지
+  const detailPageImage = useMemo(() => {
+    if (product.detailImageUrl?.trim()) {
+      return product.detailImageUrl.trim();
+    }
+    return (
+      allImages.find((url) => {
+        const lower = url.toLowerCase();
+        return (
+          lower.includes('상세페이지') ||
+          lower.includes('/detail_') ||
+          lower.includes('_detail_') ||
+          lower.includes('detail-page')
+        );
+      }) || null
+    );
+  }, [allImages, product.detailImageUrl]);
+
+  // 상단 슬라이더용 이미지 (통 상세페이지는 슬라이더에서 제외하여 썸네일들만 슬라이드)
+  const productImages = useMemo(() => {
+    if (!detailPageImage) return allImages;
+    const filtered = allImages.filter((url) => url !== detailPageImage);
+    return filtered.length > 0 ? filtered : allImages;
+  }, [allImages, detailPageImage]);
 
   const canSlide = productImages.length > 1;
   const defaultActiveImageIndex = 0;
@@ -509,7 +534,17 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                     </h3>
                   </div>
                   <div className="p-3 space-y-3">
-                    {detailImages.length > 0 ? (
+                    {detailPageImage ? (
+                      <div className="relative w-full border border-[#d1d5db] bg-white overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={detailPageImage}
+                          alt={`${product.name} 상세페이지`}
+                          loading="lazy"
+                          className="w-full h-auto object-contain block"
+                        />
+                      </div>
+                    ) : detailImages.length > 0 ? (
                       detailImages.map(({ image, index }) => (
                         <button
                           key={`${product.id}-detail-list-${index}`}

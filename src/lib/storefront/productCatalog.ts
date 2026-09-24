@@ -26,6 +26,7 @@ export interface Product {
   updatedAt?: string | null;
   isSoldOut?: boolean;
   smartstoreUrl?: string;
+  detailImageUrl?: string;
   modelUrl?: string;
   modelVariants?: ProductModelVariants;
 }
@@ -198,6 +199,45 @@ const SMARTSTORE_LINK_MAP = new Map<string, string>(
 
 function getSmartstoreUrlByTitle(title: string) {
   return SMARTSTORE_LINK_MAP.get(normalizeCategoryHintKey(title));
+}
+
+const CINEMA_DETAIL_PAGE_MAP = new Map<string, string>([
+  [
+    'blueprintjacket',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_blueprint_jacket.jpg',
+  ],
+  [
+    '블루프린트자켓',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_blueprint_jacket.jpg',
+  ],
+  [
+    'blueprintpants',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_blueprint_pants.jpg',
+  ],
+  [
+    '블루프린트팬츠',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_blueprint_pants.jpg',
+  ],
+  [
+    'camerashirt',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_camera_shirt.jpg',
+  ],
+  [
+    '카메라셔츠',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_camera_shirt.jpg',
+  ],
+  [
+    'filmpants',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_film_pants.jpg',
+  ],
+  [
+    '필름팬츠',
+    'https://pub-11768089b4c8464da58cf12287bef2fa.r2.dev/%EC%94%A8%EB%84%A4%EB%A7%88%EC%BB%AC%EB%A0%89%EC%85%98/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_film_pants.jpg',
+  ],
+]);
+
+function getCinemaDetailImageUrl(title: string) {
+  return CINEMA_DETAIL_PAGE_MAP.get(normalizeCategoryHintKey(title));
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -513,7 +553,10 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
   const numericPrice = Number(row.price);
   const basePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
   const price = isSoldOut ? 0 : basePrice;
-  const storedSpecs = typeof row.specs === 'string' ? row.specs.trim() : '';
+  const rawSpecsString = typeof row.specs === 'string' ? row.specs.trim() : '';
+  const isSpecsUrl = rawSpecsString.startsWith('https://');
+  const storedSpecs = !isSpecsUrl ? rawSpecsString : '';
+  const detailImageUrl = (isSpecsUrl ? rawSpecsString : undefined) || getCinemaDetailImageUrl(title);
   const description = buildUnifiedProductDescription(
     [explicitDescription, plainDetail, rawDescription, storedSpecs, rawSpecs],
     { title },
@@ -527,6 +570,7 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     image: images[0] || FALLBACK_IMAGE_URL,
     images: images.length > 0 ? images : [FALLBACK_IMAGE_URL],
     description,
+    detailImageUrl,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? row.created_at ?? null,
     isSoldOut,
