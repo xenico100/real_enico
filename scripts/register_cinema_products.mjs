@@ -47,8 +47,8 @@ export const CINEMA_PRODUCTS = [
     is_published: true,
     specs: `${R2_BASE}/%EC%83%81%EC%84%B8%ED%8E%98%EC%9D%B4%EC%A7%80/detail_blueprint_pants.jpg`,
     images: [
-      `${R2_BASE}/%EC%8D%B8%EB%84%A4%EC%9D%BC/blueprint_pants_02.jpg`, // 메인 전시용 2번 사진 (나시 정면 샷)
       `${R2_BASE}/%EC%8D%B8%EB%84%A4%EC%9D%BC/blueprint_pants_01.jpg`,
+      `${R2_BASE}/%EC%8D%B8%EB%84%A4%EC%9D%BC/blueprint_pants_02.jpg`,
       `${R2_BASE}/%EC%8D%B8%EB%84%A4%EC%9D%BC/blueprint_pants_03.jpg`,
       `${R2_BASE}/%EC%8D%B8%EB%84%A4%EC%9D%BC/blueprint_pants_04.jpg`,
       `${R2_BASE}/%EC%8D%B8%EB%84%A4%EC%9D%BC/blueprint_pants_05.jpg`,
