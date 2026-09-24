@@ -1410,53 +1410,59 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2 md:grid-cols-1 md:gap-3">
+                    {/* 계좌이체 구매 (회원) */}
+                    <button
+                      type="button"
+                      onClick={() => void submitBankTransferOrder('member')}
+                      disabled={isSubmittingOrder}
+                      style={{
+                        backgroundColor: '#ffffff',
+                        color: '#111827',
+                        borderRadius: '12px',
+                      }}
+                      className="group relative w-full min-h-[48px] overflow-hidden border border-gray-300 px-4 py-2.5 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
+                    >
+                      <span className="relative z-10 flex min-h-[28px] items-center justify-between gap-3">
+                        <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-black">
+                          {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
+                        </span>
+                        <span className="text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
+                          →
+                        </span>
+                      </span>
+                    </button>
+
+                    {/* 카드결제 (NICE Payments) - 페이팔 결제 버튼과 동일한 풀위스 컨테이너 및 크기 규격 */}
+                    <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
+                      {nicepayError && (
+                        <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
+                      )}
                       <button
                         type="button"
-                        onClick={() => void submitBankTransferOrder('member')}
-                        disabled={isSubmittingOrder}
-                        className={`group relative min-h-[48px] overflow-hidden rounded-[12px] px-3 py-2 text-left transition-all duration-200 border border-gray-300 bg-white text-black shadow-sm hover:bg-gray-100 disabled:opacity-50`}
+                        onClick={() => void handleNicepayCheckout()}
+                        disabled={isSubmittingOrder || isStartingNicepay}
+                        style={{
+                          backgroundColor: '#ffffff',
+                          color: '#111827',
+                          borderRadius: '10px',
+                        }}
+                        className="group w-full min-h-[46px] md:min-h-[48px] overflow-hidden border border-gray-300 px-4 py-2.5 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
                       >
-                        <span className="relative z-10 flex min-h-[28px] items-center justify-between gap-3">
-                          <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-black">
-                            {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
+                        <span className="flex min-h-[28px] items-center justify-between gap-3">
+                          <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-black">
+                            {isStartingNicepay ? (
+                              '카드결제 준비중... (나이스페이먼츠)'
+                            ) : (
+                              '카드결제 (나이스페이먼츠)'
+                            )}
                           </span>
-                          <span className="text-sm font-black text-black">
+                          <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                             →
                           </span>
                         </span>
                       </button>
-                      <div className="rounded-[14px] border border-gray-200 bg-gray-50 px-1.5 py-1.5 md:px-2.5 md:py-2.5 shadow-sm">
-                        {nicepayError && (
-                          <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => void handleNicepayCheckout()}
-                          disabled={isSubmittingOrder || isStartingNicepay}
-                          className="group w-full min-h-[48px] overflow-hidden rounded-[12px] border border-gray-300 bg-white px-3 py-2 text-left text-black shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50"
-                        >
-                          <span className="flex min-h-[28px] items-center justify-between gap-3">
-                            <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-black">
-                              {isStartingNicepay ? (
-                                <>
-                                  <span className="md:hidden">카드 준비중...</span>
-                                  <span className="hidden md:inline">카드결제 준비중... (나이스페이먼츠)</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="md:hidden">카드결제</span>
-                                  <span className="hidden md:inline">카드결제 (나이스페이먼츠)</span>
-                                </>
-                              )}
-                            </span>
-                            <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
-                              →
-                            </span>
-                          </span>
-                        </button>
-                      </div>
                     </div>
+
                     {shouldShowPaypal ? (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
                         {paypalError && (
@@ -1484,18 +1490,24 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         )}
                       </div>
                     ) : null}
+
                     {!isAuthenticated ? (
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('guest')}
                         disabled={isSubmittingOrder}
-                        className="group relative min-h-[48px] overflow-hidden rounded-[12px] border border-[#d1d5db] bg-[#111827] px-3 py-2 text-left text-white shadow-md transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] disabled:opacity-50"
+                        style={{
+                          backgroundColor: '#111827',
+                          color: '#ffffff',
+                          borderRadius: '12px',
+                        }}
+                        className="group relative w-full min-h-[48px] overflow-hidden border border-[#d1d5db] px-4 py-2.5 text-left shadow-md transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] disabled:opacity-50 cursor-pointer"
                       >
                         <span className="flex min-h-[28px] items-center justify-between gap-3">
-                          <span className="text-[0.9rem] font-bold tracking-[-0.02em] leading-snug text-white">
+                          <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-white">
                             {isSubmittingOrder ? '처리중...' : '비회원 구매'}
                           </span>
-                          <span className="text-sm font-black text-white">→</span>
+                          <span className="text-base font-black text-white transition-transform duration-200 group-hover:translate-x-1">→</span>
                         </span>
                       </button>
                     ) : null}
