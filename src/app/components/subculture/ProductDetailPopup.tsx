@@ -157,6 +157,23 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
         data-lenis-prevent
         onClick={onClose}
       >
+        {/* 모바일 닫기 버튼: transform/overflow 컨테이너 외부에 독립 배치하여 스크롤 및 렌더링 지연 없이 즉시 고정 노출 */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          style={{
+            top: 'max(14px, calc(env(safe-area-inset-top, 0px) + 14px))',
+            borderRadius: '9999px',
+          }}
+          className="fixed right-3.5 z-[100] inline-flex h-11 w-11 cursor-pointer items-center justify-center border border-white/20 bg-[#111827]/90 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)] backdrop-blur-md transition-all active:scale-90 hover:border-[#b8001f] hover:text-[#b8001f] md:hidden"
+          aria-label="상품 상세 닫기"
+        >
+          <X size={20} strokeWidth={2.2} />
+        </button>
+
         <motion.div
           ref={dialogRef}
           role="dialog"
@@ -171,19 +188,12 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           className="relative w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] bg-white border border-[#d1d5db] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#b8001f]/10"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={onClose}
-            className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[120] inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-[0_0_18px_rgba(0,0,0,0.15)] transition-colors hover:border-[#b8001f] hover:text-[#b8001f] md:hidden"
-            aria-label="상품 닫기"
-          >
-            <X size={18} />
-          </button>
-          {/* Close Button */}
+          {/* 데스크톱 닫기 버튼 */}
           <button
             type="button"
             onClick={onClose}
             aria-label="상품 상세 닫기"
-            className="absolute top-4 right-4 z-50 hidden bg-white p-2 text-[#111827] transition-all hover:border-[#b8001f] hover:text-[#b8001f] md:block md:border md:border-[#d1d5db] shadow-sm"
+            className="absolute top-4 right-4 z-50 hidden bg-white p-2 text-[#111827] transition-all hover:border-[#b8001f] hover:text-[#b8001f] md:block md:border md:border-[#d1d5db] shadow-sm cursor-pointer"
           >
             <X size={24} />
           </button>
