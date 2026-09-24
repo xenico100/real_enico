@@ -1410,29 +1410,29 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                     )}
 
-                    {/* 계좌이체 구매 (회원) */}
-                    <button
-                      type="button"
-                      onClick={() => void submitBankTransferOrder('member')}
-                      disabled={isSubmittingOrder}
-                      style={{
-                        backgroundColor: '#ffffff',
-                        color: '#111827',
-                        borderRadius: '12px',
-                      }}
-                      className="group relative w-full min-h-[48px] overflow-hidden border border-gray-300 px-4 py-2.5 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
-                    >
-                      <span className="relative z-10 flex min-h-[28px] items-center justify-between gap-3">
-                        <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-black">
+                    {/* 계좌이체 구매 (회원) - 콤팩트 버튼 */}
+                    <div className="flex items-center justify-start">
+                      <button
+                        type="button"
+                        onClick={() => void submitBankTransferOrder('member')}
+                        disabled={isSubmittingOrder}
+                        style={{
+                          backgroundColor: '#ffffff',
+                          color: '#111827',
+                          borderRadius: '10px',
+                        }}
+                        className="group relative inline-flex min-h-[44px] items-center justify-between gap-3 overflow-hidden border border-gray-300 px-3.5 py-2 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
+                      >
+                        <span className="text-[0.88rem] font-bold tracking-[-0.02em] leading-snug text-black">
                           {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
                         </span>
-                        <span className="text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
+                        <span className="text-sm font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                           →
                         </span>
-                      </span>
-                    </button>
+                      </button>
+                    </div>
 
-                    {/* 카드결제 (NICE Payments) - 페이팔 결제 버튼과 동일한 풀위스 컨테이너 및 크기 규격 */}
+                    {/* 카드결제 (NICE Payments) - 페이팔 결제 버튼과 1:1 완벽 일치 규격 (풀위스, 높이 52px, 동일 컨테이너) */}
                     <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
                       {nicepayError && (
                         <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
@@ -1442,13 +1442,17 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         onClick={() => void handleNicepayCheckout()}
                         disabled={isSubmittingOrder || isStartingNicepay}
                         style={{
+                          width: '100%',
+                          height: '52px',
+                          minHeight: '52px',
                           backgroundColor: '#ffffff',
                           color: '#111827',
-                          borderRadius: '10px',
+                          borderRadius: '8px',
+                          border: '1px solid #d1d5db',
                         }}
-                        className="group w-full min-h-[46px] md:min-h-[48px] overflow-hidden border border-gray-300 px-4 py-2.5 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
+                        className="group flex w-full cursor-pointer items-center justify-between overflow-hidden px-4 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50"
                       >
-                        <span className="flex min-h-[28px] items-center justify-between gap-3">
+                        <span className="flex min-h-[28px] items-center justify-between gap-3 w-full">
                           <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-black">
                             {isStartingNicepay ? (
                               '카드결제 준비중... (나이스페이먼츠)'
@@ -1471,7 +1475,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         <div>
                           <div
                             ref={paypalContainerRef}
-                            className="min-h-[46px]"
+                            className="min-h-[52px]"
                             aria-label="PayPal 결제 버튼"
                           />
                         </div>
@@ -1492,24 +1496,24 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     ) : null}
 
                     {!isAuthenticated ? (
-                      <button
-                        type="button"
-                        onClick={() => void submitBankTransferOrder('guest')}
-                        disabled={isSubmittingOrder}
-                        style={{
-                          backgroundColor: '#111827',
-                          color: '#ffffff',
-                          borderRadius: '12px',
-                        }}
-                        className="group relative w-full min-h-[48px] overflow-hidden border border-[#d1d5db] px-4 py-2.5 text-left shadow-md transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] disabled:opacity-50 cursor-pointer"
-                      >
-                        <span className="flex min-h-[28px] items-center justify-between gap-3">
-                          <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-white">
+                      <div className="flex items-center justify-start">
+                        <button
+                          type="button"
+                          onClick={() => void submitBankTransferOrder('guest')}
+                          disabled={isSubmittingOrder}
+                          style={{
+                            backgroundColor: '#111827',
+                            color: '#ffffff',
+                            borderRadius: '10px',
+                          }}
+                          className="group relative inline-flex min-h-[44px] items-center justify-between gap-3 overflow-hidden border border-[#d1d5db] px-3.5 py-2 text-left shadow-md transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] disabled:opacity-50 cursor-pointer"
+                        >
+                          <span className="text-[0.88rem] font-bold tracking-[-0.02em] leading-snug text-white">
                             {isSubmittingOrder ? '처리중...' : '비회원 구매'}
                           </span>
-                          <span className="text-base font-black text-white transition-transform duration-200 group-hover:translate-x-1">→</span>
-                        </span>
-                      </button>
+                          <span className="text-sm font-black text-white transition-transform duration-200 group-hover:translate-x-1">→</span>
+                        </button>
+                      </div>
                     ) : null}
                     <button
                       type="button"
