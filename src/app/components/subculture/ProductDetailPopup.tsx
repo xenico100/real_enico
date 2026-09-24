@@ -167,8 +167,10 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           style={{
             top: 'max(14px, calc(env(safe-area-inset-top, 0px) + 14px))',
             borderRadius: '9999px',
+            backgroundColor: 'rgba(17, 24, 39, 0.92)',
+            color: '#ffffff',
           }}
-          className="fixed right-3.5 z-[100] inline-flex h-11 w-11 cursor-pointer items-center justify-center border border-white/20 bg-[#111827]/90 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4)] backdrop-blur-md transition-all active:scale-90 hover:border-[#b8001f] hover:text-[#b8001f] md:hidden"
+          className="fixed right-3.5 z-[100] inline-flex h-11 w-11 cursor-pointer items-center justify-center border border-white/20 shadow-[0_4px_16px_rgba(0,0,0,0.4)] backdrop-blur-md transition-all active:scale-90 hover:border-[#b8001f] hover:text-[#b8001f] md:hidden"
           aria-label="상품 상세 닫기"
         >
           <X size={20} strokeWidth={2.2} />
