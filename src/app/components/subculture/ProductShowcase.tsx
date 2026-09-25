@@ -86,6 +86,9 @@ function ProductCard({
   const feedbackSequence =
     cartFeedback?.itemKey === itemKey ? cartFeedback.sequence : null;
   const isCartBurstVisible = feedbackSequence !== null;
+  const firstHangulIndex = product.name.search(/[가-힣]/);
+  const englishTitle = firstHangulIndex > 0 ? product.name.slice(0, firstHangulIndex).trim() : product.name;
+  const koreanTitle = firstHangulIndex > 0 ? product.name.slice(firstHangulIndex).trim() : '';
 
   return (
     <motion.div
@@ -144,8 +147,15 @@ function ProductCard({
         <div className="absolute inset-0 z-0 bg-white" />
 
         <div className="relative flex flex-col gap-1.5 md:gap-2">
-          <h3 className="line-clamp-2 font-heading text-[11px] uppercase leading-tight text-[#111827] transition-colors group-hover:text-[#b8001f] md:text-xl md:leading-none font-bold">
-            {product.name}
+          <h3 className="min-h-[32px] text-[#111827] transition-colors group-hover:text-[#b8001f] md:min-h-[48px]">
+            <span className="block truncate font-heading text-[11px] font-bold uppercase leading-tight md:text-xl md:leading-none">
+              {englishTitle}
+            </span>
+            {koreanTitle ? (
+              <span className="mt-0.5 block truncate font-sans text-[10px] font-semibold leading-tight md:mt-1 md:text-sm">
+                {koreanTitle}
+              </span>
+            ) : null}
           </h3>
 
           <div className="mt-1 flex items-center justify-between md:mt-2">
