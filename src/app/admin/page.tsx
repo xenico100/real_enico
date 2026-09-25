@@ -60,10 +60,6 @@ type ProductInventoryDraft = {
   isSoldOut: boolean;
 };
 
-type AdminRow = {
-  user_id: string;
-  created_at?: string | null;
-};
 
 type VisitSourceBreakdown = {
   instagram: number;
@@ -425,37 +421,10 @@ function AdminConsoleInner() {
 
       if (active) setIsCheckingAdmin(true);
 
-      const normalizedEmail = (user.email || '').toLowerCase();
-      if (normalizedEmail === PRIMARY_ADMIN_EMAIL) {
-        if (active) {
-          setIsAdmin(true);
-          setIsCheckingAdmin(false);
-        }
-        return;
-      }
-
-      try {
-        const supabase = getSupabaseOrThrow();
-        const { data, error } = await supabase
-          .from('admins')
-          .select('user_id, created_at')
-          .eq('user_id', user.id)
-          .maybeSingle<AdminRow>();
-
-        if (error) throw error;
-
-        if (active) {
-          setIsAdmin(Boolean(data?.user_id));
-        }
-      } catch (error) {
-        if (active) {
-          setIsAdmin(false);
-          setPageError(
-            error instanceof Error ? `관리자 권한 확인 실패: ${error.message}` : '관리자 권한 확인 실패',
-          );
-        }
-      } finally {
-        if (active) setIsCheckingAdmin(false);
+      const normalizedEmail = (user.email || '').trim().toLowerCase();
+      if (active) {
+        setIsAdmin(normalizedEmail === PRIMARY_ADMIN_EMAIL);
+        setIsCheckingAdmin(false);
       }
     };
 

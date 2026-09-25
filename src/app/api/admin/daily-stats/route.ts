@@ -7,7 +7,6 @@ import {
 } from '@/lib/analytics/visitSource';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
-const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Seoul',
   year: 'numeric',
@@ -86,7 +85,7 @@ function getUtcRangeForKstDate(dateKst: string) {
 function isAdminEmail(email: string | null | undefined) {
   const normalized = (email || '').trim().toLowerCase();
   if (!normalized) return false;
-  return normalized === PRIMARY_ADMIN_EMAIL || normalized.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
+  return normalized === PRIMARY_ADMIN_EMAIL;
 }
 
 function appendSourceCount(

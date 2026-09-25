@@ -146,17 +146,7 @@ async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
   });
 
   const normalizedEmail = normalizeText(user.email || '').toLowerCase();
-  if (normalizedEmail === PRIMARY_ADMIN_EMAIL) {
-    return { ok: true, serviceClient };
-  }
-
-  const { data: adminRow, error: adminError } = await serviceClient
-    .from('admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (adminError || !adminRow?.user_id) {
+  if (normalizedEmail !== PRIMARY_ADMIN_EMAIL) {
     return {
       ok: false,
       response: NextResponse.json({ message: 'Forbidden.' }, { status: 403 }),

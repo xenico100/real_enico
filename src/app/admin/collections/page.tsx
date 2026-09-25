@@ -33,10 +33,6 @@ type CollectionFormState = {
   images: string[];
 };
 
-type AdminRow = {
-  user_id: string;
-  created_at?: string | null;
-};
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
@@ -254,34 +250,10 @@ function AdminCollectionsConsoleInner() {
 
       if (active) setIsCheckingAdmin(true);
 
-      const normalizedEmail = (user.email || '').toLowerCase();
-      if (normalizedEmail === PRIMARY_ADMIN_EMAIL) {
-        if (active) {
-          setIsAdmin(true);
-          setIsCheckingAdmin(false);
-        }
-        return;
-      }
-
-      try {
-        const supabase = getSupabaseOrThrow();
-        const { data, error } = await supabase
-          .from('admins')
-          .select('user_id, created_at')
-          .eq('user_id', user.id)
-          .maybeSingle<AdminRow>();
-
-        if (error) throw error;
-        if (active) setIsAdmin(Boolean(data?.user_id));
-      } catch (error) {
-        if (active) {
-          setIsAdmin(false);
-          setPageError(
-            `관리자 권한 확인 실패: ${getErrorMessage(error, 'unknown error')}`,
-          );
-        }
-      } finally {
-        if (active) setIsCheckingAdmin(false);
+      const normalizedEmail = (user.email || '').trim().toLowerCase();
+      if (active) {
+        setIsAdmin(normalizedEmail === PRIMARY_ADMIN_EMAIL);
+        setIsCheckingAdmin(false);
       }
     };
 
