@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
@@ -20,12 +21,14 @@ export default async function AdminLayout({
 }: {
   children: ReactNode;
 }) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !anonKey) {
+  if (!rawUrl || !anonKey) {
     redirect('/');
   }
+
+  const url = assertExpectedSupabaseProject(rawUrl);
 
   const cookieStore = await cookies();
   const supabase = createServerClient(url, anonKey, {

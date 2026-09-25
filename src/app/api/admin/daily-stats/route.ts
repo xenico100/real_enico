@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import {
   createEmptyVisitSourceBreakdown,
   parseVisitMeta,
@@ -47,7 +48,7 @@ type CreatedAtPageRow = {
 };
 
 function getServerConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

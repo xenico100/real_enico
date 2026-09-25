@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const NO_STORE_HEADERS = {
@@ -24,7 +25,9 @@ function jsonResponse(
 }
 
 function getServerConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const url = assertExpectedSupabaseProject(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
+  );
   const anonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
   if (!url || !anonKey) {

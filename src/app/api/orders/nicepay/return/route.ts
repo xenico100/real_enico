@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { NextResponse } from 'next/server';
 import { generateGuestOrderNumber } from '@/lib/orders/guestLookup';
 import {
@@ -36,7 +37,7 @@ type NicepayReturnParams = {
 };
 
 function getOrderServerConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+  const url = assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '';
   const clientKey = process.env.NICEPAY_CLIENT_KEY?.trim() || '';
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim() || '';

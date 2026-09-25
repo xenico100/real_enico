@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     const cookieStore = await cookies();
 
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL),
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {

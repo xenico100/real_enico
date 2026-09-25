@@ -8,6 +8,7 @@ import {
   isUuidLike,
 } from '@/lib/storefront/productAvailability';
 import { NICEPAY_TEST_PRODUCT_ID } from '@/lib/storefront/productCatalog';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 export type ServerOrderChannel = 'member' | 'guest';
 
@@ -152,7 +153,9 @@ export async function authenticateOrderRequest(
     return { channel: 'guest' as const, user: null };
   }
 
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = assertExpectedSupabaseProject(
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+  );
   const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) {
     throw new OrderValidationError('회원 주문 인증용 Supabase 설정이 없습니다.', 500);

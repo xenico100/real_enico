@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 type OrderRow = {
   id: string;
@@ -34,7 +35,7 @@ type OrderRow = {
 };
 
 function getServerConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !anonKey || !serviceRoleKey) return null;
