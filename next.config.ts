@@ -20,6 +20,31 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_PAYPAL_CLIENT_ID: paypalClientId,
     NEXT_PUBLIC_PAYPAL_CURRENCY: paypalCurrency,
   },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
+        ],
+      },
+      {
+        source: '/admin/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
+      {
+        source: '/api/admin/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "pub-11768089b4c8464da58cf12287bef2fa.r2.dev" },
