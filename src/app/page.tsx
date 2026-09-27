@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import App from './App';
 import {
   getCachedStorefrontCollections,
@@ -5,6 +6,12 @@ import {
 } from '@/lib/storefront/server';
 import { resolveInitialCollectionCatalog } from '@/lib/storefront/collectionCatalog';
 import { resolveInitialProductCatalog } from '@/lib/storefront/productCatalog';
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: '/',
+  },
+};
 
 type HomePageProps = {
   searchParams: Promise<{
@@ -37,14 +44,30 @@ export default async function Home({ searchParams }: HomePageProps) {
       ? params.tab
       : undefined;
 
+  const websiteStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': 'https://enicoveck.com/#website',
+    url: 'https://enicoveck.com/',
+    name: '에니코 벡',
+    alternateName: ['에니코벡', 'ENICO VECK', 'enicoveck'],
+    inLanguage: 'ko-KR',
+  };
+
   return (
-    <App
-      initialProducts={productCatalog.products}
-      usingFallbackProducts={productCatalog.usingFallbackCatalog}
-      initialCollections={collectionCatalog.collections}
-      usingFallbackCollections={collectionCatalog.usingFallbackCatalog}
-      initialPopup={initialPopup}
-      initialMyPageTab={initialMyPageTab}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteStructuredData) }}
+      />
+      <App
+        initialProducts={productCatalog.products}
+        usingFallbackProducts={productCatalog.usingFallbackCatalog}
+        initialCollections={collectionCatalog.collections}
+        usingFallbackCollections={collectionCatalog.usingFallbackCatalog}
+        initialPopup={initialPopup}
+        initialMyPageTab={initialMyPageTab}
+      />
+    </>
   );
 }

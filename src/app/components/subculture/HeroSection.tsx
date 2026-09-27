@@ -69,15 +69,16 @@ export function HeroSection() {
           <h1 className="relative z-20 select-none bg-gradient-to-b from-[#111827] to-[#4b5563] bg-clip-text text-[18vw] font-heading font-black leading-[0.8] tracking-tighter text-transparent md:text-[15vw]">
             ENICO VECK
           </h1>
-          <h1 className="pointer-events-none absolute left-0 top-0 z-10 text-[18vw] font-heading font-black leading-[0.8] tracking-tighter text-[#b8001f] opacity-0 transition-all duration-150 group-hover:-translate-y-1 group-hover:translate-x-2 group-hover:opacity-30 md:text-[15vw]">
+          <span aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-10 text-[18vw] font-heading font-black leading-[0.8] tracking-tighter text-[#b8001f] opacity-0 transition-all duration-150 group-hover:-translate-y-1 group-hover:translate-x-2 group-hover:opacity-30 md:text-[15vw]">
             ENICO VECK
-          </h1>
-          <h1 className="pointer-events-none absolute left-0 top-0 z-10 text-[18vw] font-heading font-black leading-[0.8] tracking-tighter text-[#d93853] opacity-0 transition-all duration-150 group-hover:translate-y-1 group-hover:-translate-x-2 group-hover:opacity-25 md:text-[15vw]">
+          </span>
+          <span aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-10 text-[18vw] font-heading font-black leading-[0.8] tracking-tighter text-[#d93853] opacity-0 transition-all duration-150 group-hover:translate-y-1 group-hover:-translate-x-2 group-hover:opacity-25 md:text-[15vw]">
             ENICO VECK
-          </h1>
+          </span>
         </div>
 
         <div className="mt-8 flex flex-col items-center gap-4">
+          <p className="font-mono text-xs font-bold tracking-[0.2em] text-[#b8001f]">에니코 벡 · 에니코벡</p>
           <div className="bg-[#b8001f] text-white px-4 py-1 font-heading text-xl uppercase tracking-widest -rotate-2 shadow-md">
             Warning: High-Stimulation Content
           </div>

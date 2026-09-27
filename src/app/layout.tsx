@@ -6,19 +6,16 @@ import { VisitTracker } from "@/app/components/system/VisitTracker";
 export const metadata: Metadata = {
   metadataBase: new URL("https://enicoveck.com"),
   title: {
-    default: "에니코벡 | ENICO VECK",
-    template: "%s | 에니코벡 ENICO VECK",
+    default: "에니코 벡 | 에니코벡 ENICO VECK",
+    template: "%s | 에니코 벡",
   },
-  description: "에니코벡(ENICO VECK) 공식 온라인 스토어. 서브컬처 패션 브랜드, 아카이브 컬렉션 및 스트릿웨어.",
-  keywords: ["에니코벡", "ENICO VECK", "enicoveck", "에니코백", "서브컬처", "스트릿웨어", "디자이너 브랜드", "패션"],
-  alternates: {
-    canonical: "/",
-  },
+  description: "에니코 벡(에니코벡, ENICO VECK) 공식 온라인 스토어. 서브컬처 패션 브랜드의 아카이브 컬렉션과 스트릿웨어.",
+  keywords: ["에니코 벡", "에니코벡", "ENICO VECK", "enicoveck", "에니코백", "서브컬처", "스트릿웨어", "디자이너 브랜드", "패션"],
   openGraph: {
-    title: "에니코벡 | ENICO VECK",
-    description: "에니코벡(ENICO VECK) 공식 온라인 스토어. 서브컬처 패션 브랜드.",
+    title: "에니코 벡 | 에니코벡 ENICO VECK",
+    description: "에니코 벡(에니코벡, ENICO VECK) 공식 온라인 스토어. 서브컬처 패션 브랜드.",
     url: "https://enicoveck.com",
-    siteName: "에니코벡 (ENICO VECK)",
+    siteName: "에니코 벡 (에니코벡, ENICO VECK)",
     locale: "ko_KR",
     type: "website",
   },
