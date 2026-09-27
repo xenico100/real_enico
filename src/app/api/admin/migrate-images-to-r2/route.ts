@@ -1,3 +1,4 @@
+import { isPrimaryAdmin } from '@/lib/security/identity';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { uploadToR2 } from '@/lib/r2Storage';
@@ -5,8 +6,6 @@ import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 export const runtime = 'nodejs';
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
-const SUPABASE_STORAGE_MARKERS = ['supabase.co/storage/v1/object/public', 'supabase.in/storage/v1/object/public'];
 
 type ProductRow = { id: string; images: unknown; thumbnail_url?: string | null };
 type CollectionRow = { id: string; image: string | null; images: unknown };
@@ -43,7 +42,15 @@ function normalizeImages(value: unknown) {
 }
 
 function isSupabaseStorageUrl(url: string) {
-  return SUPABASE_STORAGE_MARKERS.some((marker) => url.includes(marker));
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' &&
+      parsed.hostname === 'gkfupegrduencknzpzok.supabase.co' &&
+      !parsed.username && !parsed.password && !parsed.port &&
+      parsed.pathname.startsWith('/storage/v1/object/public/');
+  } catch {
+    return false;
+  }
 }
 
 function isMissingColumnError(error: { code?: string; message?: string } | null | undefined, table: string, column: string) {
@@ -75,7 +82,7 @@ async function authenticateAdmin(request: Request) {
     return { error: NextResponse.json({ message: 'Unauthorized.' }, { status: 401 }) };
   }
 
-  if ((user.email || '').trim().toLowerCase() !== PRIMARY_ADMIN_EMAIL) {
+  if (!isPrimaryAdmin(user)) {
     return { error: NextResponse.json({ message: 'Forbidden.' }, { status: 403 }) };
   }
 
@@ -87,7 +94,8 @@ async function authenticateAdmin(request: Request) {
 }
 
 async function migrateUrl(url: string, objectPrefix: string) {
-  const response = await fetch(url);
+  if (!isSupabaseStorageUrl(url)) throw new Error('허용되지 않은 이미지 주소입니다.');
+  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15000) });
   if (!response.ok) {
     throw new Error(`이미지 다운로드 실패(${response.status})`);
   }

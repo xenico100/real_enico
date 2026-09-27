@@ -1,10 +1,10 @@
+import { isPrimaryAdmin } from '@/lib/security/identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { cancelNicepayOrder } from '@/lib/orders/nicepayCancel';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const DEFAULT_SHIPPING_COMPANY = '우체국';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -326,8 +326,7 @@ async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
     };
   }
 
-  const normalizedEmail = normalizeText(user.email || '').toLowerCase();
-  if (normalizedEmail !== PRIMARY_ADMIN_EMAIL) {
+  if (!isPrimaryAdmin(user)) {
     return {
       ok: false,
       response: NextResponse.json({ message: 'Forbidden.' }, { status: 403 }),

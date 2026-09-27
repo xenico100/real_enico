@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 
 type SyncResponse = {
   ok?: boolean;
@@ -13,6 +14,7 @@ type SyncResponse = {
 };
 
 export default function AdminSyncPage() {
+  const { session } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [result, setResult] = useState<SyncResponse | null>(null);
 
@@ -22,6 +24,7 @@ export default function AdminSyncPage() {
     try {
       const res = await fetch('/api/smartstore/import', {
         method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token || ''}` },
       });
       const payload = (await res.json()) as SyncResponse;
       setResult(payload);

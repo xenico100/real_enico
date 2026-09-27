@@ -1,6 +1,8 @@
 import { revalidateTag } from 'next/cache';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { requestBudget } from '@/lib/security/requestBudget';
+import { readJsonObject } from '@/lib/security/requestBody';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import {
   generateGuestOrderNumber,
@@ -422,8 +424,10 @@ async function markPurchasedItemsSoldOut(
 }
 
 export async function POST(request: Request) {
+  const blocked = await requestBudget(request, 'paypal-order', 30, 600);
+  if (blocked) return blocked;
   try {
-    const parsed = parseRequestBody(await request.json());
+    const parsed = parseRequestBody(await readJsonObject(request));
     const authentication = await authenticateOrderRequest(request, parsed.channel);
     const serviceClient = createOrderServiceClient();
     const canonical = await buildCanonicalOrder(serviceClient, {

@@ -31,13 +31,14 @@ export default async function StudioPage() {
     const orderedQuery = supabase
       .from('products')
       .select('*')
+      .eq('is_published', true)
       .order('synced_at', { ascending: false })
       .limit(200);
     let { data, error } = await orderedQuery;
 
     // Fallback for older schemas that do not have synced_at yet.
     if (error?.message?.includes('synced_at')) {
-      const fallback = await supabase.from('products').select('*').limit(200);
+      const fallback = await supabase.from('products').select('*').eq('is_published', true).limit(200);
       data = fallback.data;
       error = fallback.error;
     }

@@ -69,6 +69,7 @@ export default async function StudioDetailPage({ params }: PageProps) {
     .from('products')
     .select('*')
     .eq('id', id)
+    .eq('is_published', true)
     .maybeSingle<Record<string, unknown>>();
 
   if (error) {

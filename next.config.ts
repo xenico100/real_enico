@@ -11,6 +11,7 @@ const paypalCurrency =
   "USD";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   reactCompiler: false,
   outputFileTracingRoot: path.resolve(__dirname),
   experimental: {
@@ -28,6 +29,7 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
+          { key: 'Content-Security-Policy', value: "base-uri 'self'; object-src 'none'; frame-ancestors 'self' http://127.0.0.1:3148 http://localhost:3148" },
         ],
       },
       {
@@ -39,6 +41,12 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/api/admin/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+        ],
+      },
+      {
+        source: '/api/:path*',
         headers: [
           { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
         ],

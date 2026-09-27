@@ -182,6 +182,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const nextUser = nextSession?.user ?? null;
     setSafeState(setSession, nextSession);
     setSafeState(setUser, nextUser);
+    if (nextSession && nextUser?.email_confirmed_at && !isAnonymousAuthUser(nextUser) && Date.now() - Date.parse(nextUser.created_at) < 86400000) {
+      void fetch('/api/auth/signup-notify', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${nextSession.access_token}` },
+      }).catch(() => { /* Notification failure must not block login. */ });
+    }
     await fetchProfile(isAnonymousAuthUser(nextUser) ? null : nextUser);
     setSafeState(setIsAuthReady, true);
   }, [fetchProfile, setSafeState]);
@@ -292,19 +298,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Sign-up complete. Check your email for the confirmation link.',
         );
       }
-
-      void fetch('/api/auth/signup-notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          fullName,
-          phone,
-          provider: 'email',
-        }),
-      }).catch((notifyError) => {
-        console.error('Signup notification failed', notifyError);
-      });
 
       return {
         requiresEmailConfirmation: !data.session,

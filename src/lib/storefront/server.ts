@@ -62,14 +62,11 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
 }) {
   let fields: string[] = [...baseFields];
   let orderColumn: 'created_at' | 'updated_at' | null = 'created_at';
-  let usePublishedFilter = true;
 
   for (let attempt = 0; attempt < baseFields.length + 5; attempt += 1) {
     let query = client.from(table).select(buildStorefrontSelect(fields));
 
-    if (usePublishedFilter) {
-      query = query.eq('is_published', true);
-    }
+    query = query.eq('is_published', true);
 
     if (orderColumn) {
       query = query.order(orderColumn, { ascending: false });
@@ -84,10 +81,7 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
     const message = getStorefrontErrorMessage(error).toLowerCase();
     const missingColumn = extractMissingStorefrontColumn(error);
 
-    if (usePublishedFilter && message.includes('is_published')) {
-      usePublishedFilter = false;
-      continue;
-    }
+    if (message.includes('is_published')) return [] as Row[];
 
     if (orderColumn && message.includes(orderColumn)) {
       orderColumn = orderColumn === 'created_at' ? 'updated_at' : null;

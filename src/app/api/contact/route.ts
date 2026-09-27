@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { requestBudget } from '@/lib/security/requestBudget';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
 
 const DEFAULT_CONTACT_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -18,6 +20,8 @@ function isEmail(value: string) {
 }
 
 export async function POST(request: Request) {
+  const blocked = await requestBudget(request, 'contact', 5, 600);
+  if (blocked) return blocked;
   let payload: {
     category?: string;
     name?: string;
@@ -28,9 +32,9 @@ export async function POST(request: Request) {
   } = {};
 
   try {
-    payload = (await request.json()) as typeof payload;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 24 * 1024) as typeof payload;
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const category = normalizeText(payload.category) || '기타 문의';
@@ -39,6 +43,9 @@ export async function POST(request: Request) {
   const phone = normalizeText(payload.phone);
   const subject = normalizeText(payload.subject);
   const body = normalizeBody(payload.body);
+  if (category.length > 100 || name.length > 100 || replyEmail.length > 254 || phone.length > 30 || subject.length > 200 || body.length > 5000) {
+    return NextResponse.json({ message: '입력한 내용이 너무 깁니다.' }, { status: 400 });
+  }
 
   if (!category || !name || !replyEmail || !subject || !body) {
     return NextResponse.json(

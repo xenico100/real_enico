@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { requestBudget } from '@/lib/security/requestBudget';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
 import { NextResponse } from 'next/server';
 import { verifyGuestLookupPassword } from '@/lib/orders/guestLookup';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
@@ -76,17 +78,19 @@ function normalizeItems(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  const blocked = await requestBudget(request, 'guest-lookup-ip', 20, 900);
+  if (blocked) return blocked;
   let payload: { phone?: string; password?: string } = {};
   try {
-    payload = (await request.json()) as typeof payload;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 4096) as typeof payload;
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const phone = normalizePhone(payload.phone);
   const password = normalizeText(payload.password);
 
-  if (!phone || !password) {
+  if (phone.length < 8 || phone.length > 20 || password.length < 4 || password.length > 128) {
     return NextResponse.json(
       { message: '주문한 핸드폰 번호와 주문 비밀번호를 입력해 주세요.' },
       { status: 400 },
@@ -94,6 +98,8 @@ export async function POST(request: Request) {
   }
 
   const config = getServerConfig();
+  const phoneBlocked = await requestBudget(request, 'guest-lookup-phone', 10, 900, phone);
+  if (phoneBlocked) return phoneBlocked;
   if (!config) {
     return NextResponse.json(
       { message: 'Supabase server config is missing.' },

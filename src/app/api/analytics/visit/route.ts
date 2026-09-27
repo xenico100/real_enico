@@ -7,6 +7,8 @@ import {
   serializeVisitMeta,
 } from '@/lib/analytics/visitSource';
 import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { requestBudget } from '@/lib/security/requestBudget';
+import { readJsonObject } from '@/lib/security/requestBody';
 
 export const runtime = 'nodejs';
 
@@ -30,11 +32,13 @@ function normalizeVisitorId(value: string | undefined) {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = await requestBudget(request, 'analytics-visit', 120, 60);
+  if (blocked) return blocked;
   let path = '/';
   let source = 'other';
 
   try {
-    const payload = (await request.json()) as { path?: unknown; source?: unknown };
+    const payload = await readJsonObject(request, 4096);
     if (typeof payload?.path === 'string' && payload.path.trim()) {
       path = payload.path.trim().slice(0, 200);
     }

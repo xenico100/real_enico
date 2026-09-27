@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:security": "node --test scripts/security-regression.test.cjs"
   },
   "dependencies": {
     "@google/model-viewer": "^4.3.1",

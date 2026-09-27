@@ -1,8 +1,8 @@
+import { isPrimaryAdmin } from '@/lib/security/identity';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store',
 };
@@ -66,8 +66,7 @@ export async function GET(request: Request) {
     return jsonResponse({ message: 'Unauthorized.' }, 401);
   }
 
-  const normalizedEmail = (user.email || '').trim().toLowerCase();
-  if (normalizedEmail !== PRIMARY_ADMIN_EMAIL) {
+  if (!isPrimaryAdmin(user)) {
     return jsonResponse({ message: 'Forbidden.' }, 403);
   }
 

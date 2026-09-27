@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 
 type ImportResponse = {
   ok?: boolean;
@@ -13,6 +14,7 @@ type ImportResponse = {
 };
 
 export default function MigrateAction({ devMode }: { devMode: boolean }) {
+  const { session } = useAuth();
   const router = useRouter();
   const [isImporting, setIsImporting] = useState(false);
   const [result, setResult] = useState<ImportResponse | null>(null);
@@ -25,6 +27,7 @@ export default function MigrateAction({ devMode }: { devMode: boolean }) {
     try {
       const response = await fetch('/api/smartstore/import', {
         method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token || ''}` },
       });
       const payload = (await response.json()) as ImportResponse;
       setResult(payload);
@@ -77,4 +80,3 @@ export default function MigrateAction({ devMode }: { devMode: boolean }) {
     </div>
   );
 }
-

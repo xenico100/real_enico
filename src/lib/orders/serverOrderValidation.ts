@@ -1,4 +1,6 @@
 import 'server-only';
+import { isPrimaryAdmin, isVerifiedMember } from '@/lib/security/identity';
+import { RequestBodyError } from '@/lib/security/requestBody';
 
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import {
@@ -59,12 +61,10 @@ export class OrderValidationError extends Error {
   }
 }
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
-const ADMIN_EMAIL_DOMAIN = 'enicoveck.com';
 const DOMESTIC_REGION = '대한민국';
 const DOMESTIC_SHIPPING_FEE = 3000;
 const INTERNATIONAL_SHIPPING_FEE = 40000;
-const OPTIONAL_PRODUCT_COLUMNS = new Set(['category', 'raw', 'is_published']);
+const OPTIONAL_PRODUCT_COLUMNS = new Set(['category', 'raw']);
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
@@ -115,26 +115,9 @@ async function fetchProductRows(serviceClient: SupabaseClient, productIds: strin
   throw new OrderValidationError('상품 가격 정보를 확인하지 못했습니다.', 500);
 }
 
-function isDesignatedAdmin(user: User | null) {
-  const email = normalizeText(user?.email).toLowerCase();
-  return email === PRIMARY_ADMIN_EMAIL || email.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
-}
-
-async function canUseTestProduct(serviceClient: SupabaseClient, user: User | null) {
-  if (!user) return false;
-  if (isDesignatedAdmin(user)) return true;
-
-  const { data, error } = await serviceClient
-    .from('admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  return !error && Boolean(data?.user_id);
-}
 
 export function getOrderErrorStatus(error: unknown) {
-  return error instanceof OrderValidationError ? error.status : 500;
+  return error instanceof OrderValidationError || error instanceof RequestBodyError ? error.status : 500;
 }
 
 export function normalizeTransactionId(value: unknown) {
@@ -177,7 +160,7 @@ export async function authenticateOrderRequest(
     error,
   } = await authClient.auth.getUser(accessToken);
 
-  if (error || !user || user.is_anonymous) {
+  if (error || !isVerifiedMember(user)) {
     throw new OrderValidationError('회원 인증이 만료되었습니다. 다시 로그인해 주세요.', 401);
   }
 
@@ -224,7 +207,7 @@ export async function buildCanonicalOrder(
   }
 
   const includesTestProduct = normalizedItems.some((item) => item.id === NICEPAY_TEST_PRODUCT_ID);
-  if (includesTestProduct && !(await canUseTestProduct(serviceClient, input.user))) {
+  if (includesTestProduct && !isPrimaryAdmin(input.user)) {
     throw new OrderValidationError('결제 테스트 상품은 관리자만 주문할 수 있습니다.', 403);
   }
 

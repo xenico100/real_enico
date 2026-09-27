@@ -1,3 +1,4 @@
+import { isPrimaryAdmin } from '@/lib/security/identity';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
@@ -7,7 +8,6 @@ import {
   type VisitSource,
 } from '@/lib/analytics/visitSource';
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Seoul',
   year: 'numeric',
@@ -83,12 +83,6 @@ function getUtcRangeForKstDate(dateKst: string) {
   return { startUtc, endUtc };
 }
 
-function isAdminEmail(email: string | null | undefined) {
-  const normalized = (email || '').trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized === PRIMARY_ADMIN_EMAIL;
-}
-
 function appendSourceCount(
   bucket: ReturnType<typeof createEmptyVisitSourceBreakdown>,
   source: VisitSource,
@@ -146,7 +140,7 @@ export async function GET(request: Request) {
     error: authError,
   } = await anonClient.auth.getUser(token);
 
-  if (authError || !user || !isAdminEmail(user.email)) {
+  if (authError || !user || !isPrimaryAdmin(user)) {
     return NextResponse.json({ message: 'Forbidden.' }, { status: 403 });
   }
 

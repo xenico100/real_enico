@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { requestBudget } from '@/lib/security/requestBudget';
+import { readJsonObject } from '@/lib/security/requestBody';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import {
   buildNicepayGoodsName,
@@ -130,9 +132,11 @@ function buildPendingRawPayload(pendingOrder: NicepayPendingOrder) {
 }
 
 export async function POST(request: Request) {
+  const blocked = await requestBudget(request, 'nicepay-prepare', 20, 600);
+  if (blocked) return blocked;
   try {
     const config = getNicepayConfig();
-    const parsed = parseRequestBody(await request.json());
+    const parsed = parseRequestBody(await readJsonObject(request));
     const authentication = await authenticateOrderRequest(request, parsed.channel);
     const authenticatedEmail = authentication.user?.email?.trim();
     if (!authenticatedEmail) {

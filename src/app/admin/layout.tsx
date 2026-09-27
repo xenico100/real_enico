@@ -1,3 +1,4 @@
+import { isPrimaryAdmin } from '@/lib/security/identity';
 import type { Metadata } from 'next';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
@@ -5,7 +6,6 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,8 +47,7 @@ export default async function AdminLayout({
     error,
   } = await supabase.auth.getUser();
 
-  const normalizedEmail = (user?.email || '').trim().toLowerCase();
-  if (error || !user || normalizedEmail !== PRIMARY_ADMIN_EMAIL) {
+  if (error || !user || !isPrimaryAdmin(user)) {
     redirect('/');
   }
 

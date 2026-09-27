@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { isVerifiedMember } from '@/lib/security/identity';
+import { requestBudget } from '@/lib/security/requestBudget';
+import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 const DEFAULT_SIGNUP_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -13,23 +17,19 @@ function isEmail(value: string) {
 }
 
 export async function POST(request: Request) {
-  let payload: {
-    email?: string;
-    fullName?: string;
-    phone?: string;
-    provider?: string;
-  } = {};
-
-  try {
-    payload = (await request.json()) as typeof payload;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
-  }
-
-  const email = normalizeText(payload.email).toLowerCase();
-  const fullName = normalizeText(payload.fullName) || '-';
-  const phone = normalizeText(payload.phone) || '-';
-  const provider = normalizeText(payload.provider) || 'email';
+  const token = request.headers.get('authorization')?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  if (!token) return NextResponse.json({ message: 'Unauthorized.' }, { status: 401 });
+  const authClient = createClient(assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL), process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: { user }, error: authError } = await authClient.auth.getUser(token);
+  if (authError || !isVerifiedMember(user)) return NextResponse.json({ message: 'Unauthorized.' }, { status: 401 });
+  const age = Date.now() - Date.parse(user.created_at);
+  if (!Number.isFinite(age) || age < 0 || age > 86400000) return NextResponse.json({ ok: true, skipped: true });
+  const blocked = await requestBudget(request, 'signup-notify-user', 1, 86400, user.id);
+  if (blocked) return blocked;
+  const email = normalizeText(user.email).toLowerCase();
+  const fullName = normalizeText(user.user_metadata?.full_name).slice(0, 100) || '-';
+  const phone = normalizeText(user.user_metadata?.phone).slice(0, 30) || '-';
+  const provider = normalizeText(user.app_metadata?.provider).slice(0, 40) || 'email';
 
   if (!email || !isEmail(email)) {
     return NextResponse.json({ message: '유효한 이메일이 필요합니다.' }, { status: 400 });

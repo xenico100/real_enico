@@ -3,6 +3,7 @@ import type { EmailOtpType } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { safeRedirectPath } from '@/lib/security/identity';
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const type = searchParams.get('type');
   const defaultNextPath = type === 'recovery' ? '/auth/reset_password' : '/';
   const nextPath = searchParams.get('next') || defaultNextPath;
-  const safeNextPath = nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
+  const safeNextPath = safeRedirectPath(nextPath, requestUrl.origin);
 
   const response = NextResponse.redirect(new URL(safeNextPath, requestUrl.origin));
 
@@ -44,12 +45,17 @@ export async function GET(request: Request) {
     );
 
     if (code) {
-      await supabase.auth.exchangeCodeForSession(code);
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) return NextResponse.redirect(new URL('/?auth_error=1', requestUrl.origin));
     } else if (tokenHash && type) {
-      await supabase.auth.verifyOtp({
+      if (!['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email'].includes(type)) {
+        return NextResponse.redirect(new URL('/?auth_error=1', requestUrl.origin));
+      }
+      const { error } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
         type: type as EmailOtpType,
       });
+      if (error) return NextResponse.redirect(new URL('/?auth_error=1', requestUrl.origin));
     }
   }
 

@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { requestBudget } from '@/lib/security/requestBudget';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
@@ -32,16 +34,18 @@ function maskEmail(email: string) {
 }
 
 export async function POST(request: Request) {
+  const blocked = await requestBudget(request, 'find-email', 10, 900);
+  if (blocked) return blocked;
   let payload: { fullName?: string; phone?: string } = {};
   try {
-    payload = (await request.json()) as typeof payload;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 4096) as typeof payload;
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const fullName = normalizeText(payload.fullName).toLowerCase();
   const phone = normalizePhone(payload.phone);
-  if (!fullName || !phone) {
+  if (!fullName || fullName.length > 100 || phone.length < 8 || phone.length > 20) {
     return NextResponse.json(
       { message: '이름과 전화번호를 모두 입력해 주세요.' },
       { status: 400 },

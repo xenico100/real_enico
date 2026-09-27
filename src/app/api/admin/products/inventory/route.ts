@@ -1,3 +1,4 @@
+import { isPrimaryAdmin } from '@/lib/security/identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
@@ -6,7 +7,6 @@ import { buildInventoryRaw } from '@/lib/storefront/productAvailability';
 
 export const runtime = 'nodejs';
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 type AdminAuthResult =
   | {
@@ -137,8 +137,7 @@ async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const normalizedEmail = normalizeText(user.email || '').toLowerCase();
-  if (normalizedEmail !== PRIMARY_ADMIN_EMAIL) {
+  if (!isPrimaryAdmin(user)) {
     return {
       ok: false,
       response: NextResponse.json({ message: 'Forbidden.' }, { status: 403 }),

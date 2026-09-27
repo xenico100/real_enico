@@ -1,11 +1,12 @@
+import { isPrimaryAdmin } from '@/lib/security/identity';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { uploadToR2 } from '@/lib/r2Storage';
+import { validatedImageExtension } from '@/lib/security/imageUpload';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 export const runtime = 'nodejs';
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 
 function getServerConfig() {
   const url = assertExpectedSupabaseProject(
@@ -46,7 +47,7 @@ async function authenticateAdmin(request: Request) {
     return NextResponse.json({ message: 'Unauthorized.' }, { status: 401 });
   }
 
-  if ((user.email || '').trim().toLowerCase() !== PRIMARY_ADMIN_EMAIL) {
+  if (!isPrimaryAdmin(user)) {
     return NextResponse.json({ message: 'Forbidden.' }, { status: 403 });
   }
 
@@ -70,20 +71,33 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const files = formData.getAll('files').filter((item): item is File => item instanceof File);
-    const folder = (formData.get('folder')?.toString().trim() || 'products').replace(/[^a-z0-9/_-]/gi, '');
+    const folder = formData.get('folder')?.toString().trim() || 'products';
+    if (!['products', 'collections'].includes(folder)) {
+      return NextResponse.json({ message: '허용되지 않은 업로드 폴더입니다.' }, { status: 400 });
+    }
 
     if (files.length === 0) {
       return NextResponse.json({ message: '업로드할 파일이 없습니다.' }, { status: 400 });
+    }
+    if (files.length > 10 || files.some(file => file.size <= 0 || file.size > 20 * 1024 * 1024) || files.reduce((size, file) => size + file.size, 0) > 60 * 1024 * 1024) {
+      return NextResponse.json({ message: '이미지는 최대 10개, 파일당 20MB, 합계 60MB까지 업로드할 수 있습니다.' }, { status: 413 });
+    }
+
+    // Validate every file before writing any object.
+    const validated = [];
+    for (const file of files) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const ext = validatedImageExtension(bytes, file.type.toLowerCase());
+      if (!ext) return NextResponse.json({ message: '지원하는 이미지 형식과 파일 내용이 일치해야 합니다.' }, { status: 400 });
+      validated.push({ file, bytes, ext });
     }
 
     const userId = authResult.id;
     const urls: string[] = [];
 
-    for (const file of files) {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    for (const { file, bytes, ext } of validated) {
       const safeBase = sanitizeFileName(file.name) || 'image';
       const objectKey = `${folder}/${userId}/${Date.now()}-${crypto.randomUUID()}-${safeBase}.${ext}`;
-      const bytes = new Uint8Array(await file.arrayBuffer());
 
       const url = await uploadToR2({
         objectKey,
