@@ -9,6 +9,7 @@ type NicepayFailurePageProps = {
 
 export default async function NicepayFailurePage({ searchParams }: NicepayFailurePageProps) {
   const params = await searchParams;
+  const paymentStatusUnconfirmed = params.code === 'payment_status_unconfirmed';
 
   return (
     <main className="min-h-screen bg-[#050505] px-4 py-12 text-[#e5e5e5] md:px-6">
@@ -17,11 +18,12 @@ export default async function NicepayFailurePage({ searchParams }: NicepayFailur
           NICE Payments
         </p>
         <h1 className="mt-3 font-heading text-4xl uppercase tracking-tight text-white md:text-5xl">
-          결제 실패
+          {paymentStatusUnconfirmed ? '결제 상태 확인 필요' : '결제 실패'}
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-[#d6aaaa]">
-          NICE Payments 승인 또는 주문 저장 단계에서 문제가 발생했습니다. 아래 코드를 확인한 뒤 다시
-          시도하세요.
+          {paymentStatusUnconfirmed
+            ? '결제가 승인되었을 수 있습니다. 중복 결제를 막기 위해 다시 결제하지 말고 주문번호를 고객센터에 전달해 주세요.'
+            : 'NICE Payments 승인 전 또는 인증 단계에서 문제가 발생했습니다. 아래 코드를 확인한 뒤 다시 시도하세요.'}
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-2">
@@ -40,12 +42,14 @@ export default async function NicepayFailurePage({ searchParams }: NicepayFailur
         </div>
 
         <div className="mt-6 flex flex-col gap-3 md:flex-row">
-          <Link
-            href="/"
-            className="inline-flex min-h-[52px] items-center justify-center border border-[#ff8f8f] bg-[#331515] px-4 text-sm font-bold uppercase tracking-[0.16em] text-[#ffe2e2] transition-colors hover:bg-[#4a1d1d]"
-          >
-            다시 시도
-          </Link>
+          {!paymentStatusUnconfirmed ? (
+            <Link
+              href="/"
+              className="inline-flex min-h-[52px] items-center justify-center border border-[#ff8f8f] bg-[#331515] px-4 text-sm font-bold uppercase tracking-[0.16em] text-[#ffe2e2] transition-colors hover:bg-[#4a1d1d]"
+            >
+              다시 시도
+            </Link>
+          ) : null}
           <Link
             href="/"
             className="inline-flex min-h-[52px] items-center justify-center border border-[#333] bg-[#111] px-4 text-sm uppercase tracking-[0.16em] text-[#d7d7d7] transition-colors hover:border-[#e5e5e5] hover:text-[#e5e5e5]"

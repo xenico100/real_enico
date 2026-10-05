@@ -3,7 +3,8 @@ import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
-import { getNicepayApiBaseUrl } from '@/lib/orders/nicepay';
+import { getNicepayApiBaseUrl, verifyNicepayApprovalSignature } from '@/lib/orders/nicepay';
+import { releaseCheckoutProducts } from '@/lib/orders/checkoutClaims';
 import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
 import {
   extractPersistentProductIds,
@@ -74,6 +75,18 @@ function sha256Hex(value: string) {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+function truncateUtf8(value: string, maxBytes: number) {
+  let truncated = '';
+  let byteLength = 0;
+  for (const character of value) {
+    const nextLength = Buffer.byteLength(character, 'utf8');
+    if (byteLength + nextLength > maxBytes) break;
+    truncated += character;
+    byteLength += nextLength;
+  }
+  return truncated;
+}
+
 function getNicepayCancelConfig() {
   const clientKey = process.env.NICEPAY_CLIENT_KEY?.trim() || '';
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim() || '';
@@ -107,8 +120,8 @@ function extractNicepayCancelSource(rawPayloadValue: unknown): NicepayCancelSour
 function buildCancelRequestOrderId(baseOrderCode: string) {
   const fallback = baseOrderCode || 'nicepay-order';
   const suffix = `${Date.now()}-${randomBytes(3).toString('hex')}`;
-  const nextValue = `${fallback}-cancel-${suffix}`;
-  return nextValue.slice(0, 64);
+  const ending = `-cancel-${suffix}`;
+  return `${fallback.slice(0, 64 - ending.length)}${ending}`;
 }
 
 function validateCancelResponse(
@@ -116,6 +129,7 @@ function validateCancelResponse(
   options: {
     tid: string;
     secretKey: string;
+    originalAmount: number;
   },
 ) {
   const resultCode = normalizeText(payload?.resultCode);
@@ -124,7 +138,8 @@ function validateCancelResponse(
   const status = normalizeText(payload?.status).toLowerCase();
   const ediDate = normalizeText(payload?.ediDate);
   const signature = normalizeText(payload?.signature);
-  const amount = normalizeNumber(payload?.amount);
+  const amount = Number(payload?.amount);
+  const balanceAmount = Number(payload?.balanceAmt);
 
   if (resultCode !== '0000') {
     throw new Error(resultMsg || 'NICE 결제 취소 응답의 resultCode가 0000이 아닙니다.');
@@ -134,17 +149,66 @@ function validateCancelResponse(
     throw new Error('NICE 결제 취소 응답의 tid가 원거래와 일치하지 않습니다.');
   }
 
-  if (status && status !== 'cancelled' && status !== 'partialcancelled') {
-    throw new Error('NICE 결제 취소 응답의 status가 취소 상태가 아닙니다.');
+  if (status !== 'cancelled') {
+    throw new Error('NICE 결제가 전액 취소됐는지 확인이 필요합니다. 재요청하지 말고 관리자에게 문의해 주세요.');
   }
 
-  if (!ediDate || !signature) {
-    throw new Error('NICE 결제 취소 응답의 서명 검증 정보가 누락되었습니다.');
+  if (!Number.isSafeInteger(amount) || amount !== options.originalAmount) {
+    throw new Error('NICE 결제 취소 응답의 원거래 금액이 주문 금액과 일치하지 않습니다.');
   }
 
-  const expectedSignature = sha256Hex(`${tid}${amount}${ediDate}${options.secretKey}`);
-  if (expectedSignature.toLowerCase() !== signature.toLowerCase()) {
+  if (
+    payload?.balanceAmt === null ||
+    payload?.balanceAmt === undefined ||
+    !Number.isSafeInteger(balanceAmount) ||
+    balanceAmount !== 0
+  ) {
+    throw new Error('NICE 결제 취소 후 잔여 금액이 0원으로 확인되지 않았습니다.');
+  }
+
+  if (!ediDate || !verifyNicepayApprovalSignature({ tid, amount, ediDate, signature }, options.secretKey)) {
     throw new Error('NICE 결제 취소 응답의 signature 검증에 실패했습니다.');
+  }
+}
+
+function buildUnconfirmedCancelError(orderCode: string) {
+  return new Error(
+    `NICE 주문 ${orderCode}의 취소 결과를 확인해야 합니다. 결제 취소를 다시 요청하지 말고 관리자에게 문의해 주세요.`,
+  );
+}
+
+async function restoreOrderStatusAfterRejectedCancel(
+  serviceClient: SupabaseClient,
+  order: CancelableOrderRow,
+) {
+  let result: { data: { id: string } | null; error: { message: string } | null };
+  try {
+    result = (await serviceClient
+      .from('orders')
+      .update({
+        payment_status: order.payment_status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', order.id)
+      .eq('payment_status', 'cancel_processing')
+      .select('id')
+      .maybeSingle()) as typeof result;
+  } catch (error) {
+    console.error('NICE cancel rejection status restoration request failed', {
+      orderCode: order.order_code,
+      error,
+    });
+    throw buildUnconfirmedCancelError(normalizeText(order.order_code));
+  }
+
+  const { data, error } = result;
+
+  if (error || !data?.id) {
+    console.error('NICE cancel rejection status restoration failed', {
+      orderCode: order.order_code,
+      error,
+    });
+    throw buildUnconfirmedCancelError(normalizeText(order.order_code));
   }
 }
 
@@ -268,6 +332,15 @@ async function restorePurchasedProducts(
   if (productIds.length === 0) return;
 
   const snapshot = await fetchProductAvailabilitySnapshot(serviceClient, productIds);
+  if (!snapshot.hasRawColumn) {
+    // is_published has no order provenance. Republishing it here could expose
+    // an item deliberately unpublished by an administrator or another sale.
+    console.warn('NICE cancellation requires manual inventory review before republishing', { orderCode });
+    return;
+  }
+  if (snapshot.rows.length !== productIds.length) {
+    throw new Error('취소 주문의 상품 재고 정보를 모두 찾지 못했습니다.');
+  }
   await restoreProductsAvailability(serviceClient, snapshot.rows, {
     hasRawColumn: snapshot.hasRawColumn,
     orderCode,
@@ -303,11 +376,15 @@ export async function cancelNicepayOrder<TRow>({
     throw new Error('이미 결제취소가 완료된 주문입니다.');
   }
 
+  if (paymentStatus === 'cancel_processing') {
+    throw new Error('이미 NICE 취소 결과를 확인 중입니다. 다시 요청하지 말고 관리자에게 문의해 주세요.');
+  }
+
   if (paymentStatus !== 'paid' && paymentStatus !== 'completed') {
     throw new Error('결제완료 상태의 NICE 주문만 취소할 수 있습니다.');
   }
 
-  if (shippingStatus && shippingStatus !== 'preparing') {
+  if (shippingStatus !== 'preparing') {
     throw new Error('배송이 시작된 주문은 온라인에서 취소할 수 없습니다.');
   }
 
@@ -317,78 +394,136 @@ export async function cancelNicepayOrder<TRow>({
 
   const { clientKey, secretKey } = getNicepayCancelConfig();
   const { tid } = extractNicepayCancelSource(order.raw_payload);
-  const cancelReason = reason.trim() || 'customer_cancel';
+  const originalAmount = normalizeNumber(order.amount_total);
+  if (!Number.isSafeInteger(originalAmount) || originalAmount <= 0) {
+    throw new Error('NICE 원거래 금액을 확인할 수 없어 결제 취소를 진행하지 않았습니다.');
+  }
+  const cancelReason = truncateUtf8(reason.trim() || 'customer_cancel', 100);
   const cancelOrderId = buildCancelRequestOrderId(orderCode);
   const ediDate = new Date().toISOString();
   const signData = sha256Hex(`${tid}${ediDate}${secretKey}`);
 
-  const response = await fetch(
-    `${getNicepayApiBaseUrl(clientKey)}/v1/payments/${encodeURIComponent(tid)}/cancel`,
-    {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${clientKey}:${secretKey}`).toString('base64')}`,
-        'Content-Type': 'application/json;charset=utf-8',
+  const { data: claimedOrder, error: claimError } = await serviceClient
+    .from('orders')
+    .update({
+      payment_status: 'cancel_processing',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', order.id)
+    .eq('payment_method', 'nicepay')
+    .eq('payment_status', order.payment_status)
+    .eq('shipping_status', 'preparing')
+    .select('id')
+    .maybeSingle();
+
+  if (claimError) {
+    throw new Error(`NICE 취소 처리 상태 선점에 실패했습니다: ${claimError.message}`);
+  }
+  if (!claimedOrder?.id) {
+    throw new Error('이미 다른 취소 요청이나 배송 상태 변경이 진행 중입니다. 주문 상태를 새로 확인해 주세요.');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${getNicepayApiBaseUrl(clientKey)}/v1/payments/${encodeURIComponent(tid)}/cancel`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${clientKey}:${secretKey}`).toString('base64')}`,
+          'Content-Type': 'application/json;charset=utf-8',
+        },
+        signal: AbortSignal.timeout(10000),
+        body: JSON.stringify({
+          reason: cancelReason,
+          orderId: cancelOrderId,
+          ediDate,
+          signData,
+          returnCharSet: 'utf-8',
+        }),
       },
-      signal: AbortSignal.timeout(10000),
-      body: JSON.stringify({
-        reason: cancelReason,
-        orderId: cancelOrderId,
-        ediDate,
-        signData,
-        returnCharSet: 'utf-8',
-      }),
-    },
-  );
+    );
+  } catch (error) {
+    console.error('NICE cancel response was not received', { orderCode, error });
+    throw buildUnconfirmedCancelError(orderCode);
+  }
 
   const cancelPayload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!response.ok) {
+  const resultCode = normalizeText(cancelPayload?.resultCode);
+  const responseStatus = normalizeText(cancelPayload?.status).toLowerCase();
+  const hasCancelTransaction = Boolean(normalizeText(cancelPayload?.cancelledTid));
+  if (
+    resultCode &&
+    resultCode !== '0000' &&
+    responseStatus !== 'cancelled' &&
+    responseStatus !== 'partialcancelled' &&
+    !hasCancelTransaction
+  ) {
+    await restoreOrderStatusAfterRejectedCancel(serviceClient, order);
     throw new Error(
       normalizeText(cancelPayload?.resultMsg) ||
         normalizeText(cancelPayload?.message) ||
-        'NICE 결제 취소 요청에 실패했습니다.',
+        'NICE 결제 취소 요청이 거절되었습니다.',
     );
   }
-
-  validateCancelResponse(cancelPayload, { tid, secretKey });
-
-  const cancelledAt = new Date().toISOString();
-  const { data, error } = await serviceClient
-    .from('orders')
-    .update({
-      payment_status: 'cancelled',
-      updated_at: cancelledAt,
-      raw_payload: buildCancelledRawPayload(order.raw_payload, cancelPayload, {
-        actor,
-        reason: cancelReason,
-        cancelledAt,
-      }),
-    })
-    .eq('id', order.id)
-    .select(selectQuery)
-    .maybeSingle();
-
-  if (error) {
-    if (error.code === '42P01') {
-      throw new Error('orders 테이블이 없습니다. sql/orders_setup.sql을 실행하세요.');
-    }
-    if (error.code === '42703') {
-      throw new Error(
-        'orders 테이블 컬럼이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행하세요.',
-      );
-    }
-    throw new Error(error.message);
+  if (!response.ok || resultCode !== '0000') {
+    console.error('NICE cancel returned an ambiguous response', {
+      orderCode,
+      httpStatus: response.status,
+      resultCode,
+    });
+    throw buildUnconfirmedCancelError(orderCode);
   }
 
-  if (!data) {
-    throw new Error('결제취소 후 주문 정보를 다시 불러오지 못했습니다.');
+  try {
+    validateCancelResponse(cancelPayload, { tid, secretKey, originalAmount });
+  } catch (error) {
+    console.error('NICE cancel success response could not be verified', { orderCode, error });
+    throw buildUnconfirmedCancelError(orderCode);
+  }
+
+  const cancelledAt = new Date().toISOString();
+  let persistedCancel: { data: TRow | null; error: { message: string } | null };
+  try {
+    persistedCancel = (await serviceClient
+      .from('orders')
+      .update({
+        payment_status: 'cancelled',
+        updated_at: cancelledAt,
+        raw_payload: buildCancelledRawPayload(order.raw_payload, cancelPayload, {
+          actor,
+          reason: cancelReason,
+          cancelledAt,
+        }),
+      })
+      .eq('id', order.id)
+      .eq('payment_status', 'cancel_processing')
+      .eq('shipping_status', order.shipping_status)
+      .select(selectQuery)
+      .maybeSingle()) as { data: TRow | null; error: { message: string } | null };
+  } catch (error) {
+    console.error('NICE cancel succeeded but order persistence request failed', { orderCode, error });
+    throw buildUnconfirmedCancelError(orderCode);
+  }
+
+  const { data, error } = persistedCancel;
+
+  if (error || !data) {
+    console.error('NICE cancel succeeded but order persistence failed', { orderCode, error });
+    throw buildUnconfirmedCancelError(orderCode);
   }
 
   try {
     await restorePurchasedProducts(serviceClient, orderCode, order.items);
   } catch (error) {
     console.error('Failed to restore product availability after NICE cancel', error);
+  }
+
+  try {
+    await releaseCheckoutProducts(serviceClient, 'nicepay', orderCode);
+  } catch (error) {
+    console.error('Failed to release product claim after verified NICE cancellation', { orderCode, error });
   }
 
   try {

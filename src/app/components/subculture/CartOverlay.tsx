@@ -23,6 +23,16 @@ interface CartOverlayProps {
 type CheckoutMode = 'cart' | 'checkout';
 type OrderChannel = 'member' | 'guest';
 
+type PendingPayPalApproval = {
+  orderId: string;
+  transactionId: string;
+  channel: OrderChannel;
+  requestJson: string;
+  totalKrw: number;
+  customerPhone: string;
+  customerAddress: string;
+};
+
 const BANK_NAME = '카카오뱅크';
 const BANK_ACCOUNT_NUMBER = '3333-09-2834969';
 const BANK_ACCOUNT_HOLDER = '백형석';
@@ -167,6 +177,9 @@ const SDK_LOAD_TIMEOUT_MS = 15_000;
 let nicepaySdkPromise: Promise<void> | null = null;
 let paypalSdkPromise: Promise<void> | null = null;
 let paypalSdkPromiseUrl = '';
+// Keep an approved order available if closing the cart unmounts this component.
+// This is intentionally memory-only; checkout passwords are never put in storage.
+let pendingPayPalApprovalInMemory: PendingPayPalApproval | null = null;
 
 function loadExternalSdk(options: {
   scriptId: string;
@@ -291,6 +304,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   onCloseRef.current = onClose;
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
+  const pendingPayPalApprovalRef = useRef<PendingPayPalApproval | null>(pendingPayPalApprovalInMemory);
+  const paypalSubmissionInFlightRef = useRef(false);
   const checkoutEmailInputRef = useRef<HTMLInputElement | null>(null);
   const checkoutPhoneInputRef = useRef<HTMLInputElement | null>(null);
   const checkoutNameInputRef = useRef<HTMLInputElement | null>(null);
@@ -311,6 +326,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [paypalSdkReady, setPaypalSdkReady] = useState(false);
   const [paypalError, setPaypalError] = useState<string | null>(null);
   const [paypalRetryNonce, setPaypalRetryNonce] = useState(0);
+  const [pendingPayPalApproval, setPendingPayPalApproval] = useState<PendingPayPalApproval | null>(pendingPayPalApprovalInMemory);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const canUseNicepayCheckout = isAuthenticated;
@@ -318,6 +334,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
   useEffect(() => {
     if (!isOpen) return;
+    if (pendingPayPalApprovalRef.current) {
+      setMode('checkout');
+      return;
+    }
 
     setTransactionId(generateTransactionId());
     setMode('cart');
@@ -548,6 +568,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   ]);
 
   const submitBankTransferOrder = async (channel: OrderChannel) => {
+    if (pendingPayPalApprovalRef.current) {
+      setCheckoutError('확인 중인 PayPal 결제가 있습니다. 새 결제를 시작하지 말고 PayPal 주문을 다시 확인해 주세요.');
+      return;
+    }
     const normalizedName = checkoutName.trim();
     const normalizedAddress = checkoutAddress.trim();
     const normalizedPhone = checkoutPhone.trim();
@@ -717,6 +741,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   );
 
   const handleNicepayCheckout = useCallback(async () => {
+    if (pendingPayPalApprovalRef.current) {
+      setCheckoutError('확인 중인 PayPal 결제가 있습니다. 새 결제를 시작하지 말고 PayPal 주문을 다시 확인해 주세요.');
+      return;
+    }
     const channel: OrderChannel = isAuthenticated ? 'member' : 'guest';
     const normalizedName = checkoutName.trim();
     const normalizedAddress = checkoutAddress.trim();
@@ -904,6 +932,57 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     clearCart,
   };
 
+  const submitApprovedPayPal = useCallback(async (approval: PendingPayPalApproval) => {
+    if (paypalSubmissionInFlightRef.current) return;
+    paypalSubmissionInFlightRef.current = true;
+    setCheckoutError(null);
+    setCheckoutMessage(null);
+    setIsSubmittingOrder(true);
+
+    try {
+      const accessToken = latestCheckoutRef.current.accessToken;
+      const response = await fetch('/api/orders/paypal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(approval.channel === 'member' && accessToken
+            ? { Authorization: `Bearer ${accessToken}` }
+            : {}),
+        },
+        body: approval.requestJson,
+      });
+      const payload = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message || 'PayPal 주문 후처리에 실패했습니다.');
+      }
+
+      pendingPayPalApprovalRef.current = null;
+      pendingPayPalApprovalInMemory = null;
+      setPendingPayPalApproval(null);
+      if (approval.channel === 'guest') {
+        setCheckoutMessage(
+          'PayPal 결제가 완료되었습니다. 모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 배송조회할 수 있습니다.',
+        );
+      } else {
+        syncCheckoutDetailsToAccount(approval.customerPhone, approval.customerAddress);
+        setCheckoutMessage('PayPal 결제가 완료되었습니다. 주문이 접수되었습니다.');
+      }
+      clearCart();
+      setMode('cart');
+      setCheckoutName('');
+      setCheckoutAddress('');
+      setCheckoutPhone('');
+      setGuestLookupPassword('');
+      setTransactionId(generateTransactionId());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'PayPal 결제 처리 중 오류가 발생했습니다.';
+      setCheckoutError(`${message} 결제 상태가 불확실할 수 있으니 새 결제를 시작하지 말고 같은 PayPal 주문을 다시 확인해 주세요.`);
+    } finally {
+      paypalSubmissionInFlightRef.current = false;
+      setIsSubmittingOrder(false);
+    }
+  }, [clearCart, syncCheckoutDetailsToAccount]);
+
   useEffect(() => {
     if (!isOpen || mode !== 'checkout') return;
     if (!paypalSdkReady || !window.paypal || !paypalContainerRef.current) return;
@@ -923,6 +1002,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       onClick: async (_data, actions) => {
         setCheckoutError(null);
         setCheckoutMessage(null);
+        if (pendingPayPalApprovalRef.current) {
+          setCheckoutError('확인 중인 PayPal 결제가 있습니다. 아래 버튼으로 같은 PayPal 주문을 다시 확인해 주세요.');
+          await actions.reject();
+          return;
+        }
         const latest = latestCheckoutRef.current;
 
         if (!latest.validateCheckoutFields()) {
@@ -942,6 +1026,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
         await actions.resolve();
       },
       createOrder: async (_data, actions) => {
+        if (pendingPayPalApprovalRef.current) {
+          throw new Error('이전 PayPal 결제 상태를 먼저 확인해 주세요.');
+        }
         const latest = latestCheckoutRef.current;
         return actions.order.create({
           purchase_units: [
@@ -956,79 +1043,56 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
         });
       },
       onApprove: async (data) => {
-        setCheckoutError(null);
-        setCheckoutMessage(null);
-        setIsSubmittingOrder(true);
-        try {
-          const latest = latestCheckoutRef.current;
-          const normalizedName = latest.checkoutName.trim();
-          const normalizedAddress = latest.checkoutAddress.trim();
-          const normalizedPhone = latest.checkoutPhone.trim();
-          const normalizedEmail = latest.checkoutEmail.trim() || latest.userEmail;
-          const channel: OrderChannel = latest.isAuthenticated ? 'member' : 'guest';
-          const normalizedGuestLookupPassword = latest.guestLookupPassword.trim();
-
-          const response = await fetch('/api/orders/paypal', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(channel === 'member' && latest.accessToken
-                ? { Authorization: `Bearer ${latest.accessToken}` }
-                : {}),
-            },
-            body: JSON.stringify({
-              transactionId: latest.transactionId,
-              channel,
-              customer: {
-                name: normalizedName,
-                email: normalizedEmail,
-                phone: normalizedPhone,
-                country: latest.checkoutCountry,
-                address: normalizedAddress,
-              },
-              pricing: {
-                subtotal: latest.subtotal,
-                shipping: latest.shipping,
-                tax: latest.tax,
-                total: latest.total,
-                currency: 'KRW',
-              },
-              guestLookupPassword:
-                channel === 'guest' ? normalizedGuestLookupPassword : undefined,
-              paypal: {
-                orderId: data.orderID,
-              },
-              items: latest.buildOrderItemsPayload(),
-            }),
-          });
-
-          const payload = (await response.json()) as {
-            message?: string;
-          };
-          if (!response.ok) {
-            throw new Error(payload.message || 'PayPal 주문 후처리에 실패했습니다.');
+        const pending = pendingPayPalApprovalRef.current;
+        if (pending) {
+          if (pending.orderId !== data.orderID) {
+            setCheckoutError('이미 확인 중인 PayPal 주문이 있습니다. 새 결제를 시작하지 말고 아래 재확인 버튼을 눌러 주세요.');
+            return;
           }
-
-          if (channel === 'guest') {
-            setCheckoutMessage(
-              'PayPal 결제가 완료되었습니다. 모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 배송조회할 수 있습니다.',
-            );
-          } else {
-            latest.syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
-            setCheckoutMessage('PayPal 결제가 완료되었습니다. 주문이 접수되었습니다.');
-          }
-          latest.clearCart();
-          setMode('cart');
-          setCheckoutName('');
-          setCheckoutAddress('');
-          setCheckoutPhone('');
-          setGuestLookupPassword('');
-          setTransactionId(generateTransactionId());
-        } catch (error) {
-          setCheckoutError(error instanceof Error ? error.message : 'PayPal 결제 처리 중 오류가 발생했습니다.');
-        } finally {
-          setIsSubmittingOrder(false);
+          await submitApprovedPayPal(pending);
+          return;
         }
+
+        const latest = latestCheckoutRef.current;
+        const normalizedName = latest.checkoutName.trim();
+        const normalizedAddress = latest.checkoutAddress.trim();
+        const normalizedPhone = latest.checkoutPhone.trim();
+        const normalizedEmail = latest.checkoutEmail.trim() || latest.userEmail;
+        const channel: OrderChannel = latest.isAuthenticated ? 'member' : 'guest';
+        const normalizedGuestLookupPassword = latest.guestLookupPassword.trim();
+        const approval: PendingPayPalApproval = {
+          orderId: data.orderID,
+          transactionId: latest.transactionId,
+          channel,
+          totalKrw: latest.total,
+          customerPhone: normalizedPhone,
+          customerAddress: normalizedAddress,
+          requestJson: JSON.stringify({
+            transactionId: latest.transactionId,
+            channel,
+            customer: {
+              name: normalizedName,
+              email: normalizedEmail,
+              phone: normalizedPhone,
+              country: latest.checkoutCountry,
+              address: normalizedAddress,
+            },
+            pricing: {
+              subtotal: latest.subtotal,
+              shipping: latest.shipping,
+              tax: latest.tax,
+              total: latest.total,
+              currency: 'KRW',
+            },
+            guestLookupPassword: channel === 'guest' ? normalizedGuestLookupPassword : undefined,
+            paypal: { orderId: data.orderID },
+            items: latest.buildOrderItemsPayload(),
+          }),
+        };
+        pendingPayPalApprovalRef.current = approval;
+        pendingPayPalApprovalInMemory = approval;
+        setPendingPayPalApproval(approval);
+        await submitApprovedPayPal(approval);
       },
       onError: (error) => {
         const message =
@@ -1049,7 +1113,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       }
       paypalButtonsInstanceRef.current = null;
     };
-  }, [isOpen, mode, paypalSdkReady]);
+  }, [isOpen, mode, paypalSdkReady, submitApprovedPayPal]);
 
   return (
     <AnimatePresence>
@@ -1355,7 +1419,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
               )}
             </div>
 
-            {canCheckout && (
+            {(canCheckout || pendingPayPalApproval) && (
               <div className="relative z-20 border-t border-[#d1d5db] bg-white px-4 py-3 md:px-7 md:py-5 shadow-lg">
                 <div className="mb-3 rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-3 py-3 md:px-4 md:py-4 shadow-sm">
                   <div className="flex items-center justify-between gap-4">
@@ -1366,10 +1430,10 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </p>
                     </div>
                     <p className="text-right text-[1.35rem] font-black tracking-[0.01em] leading-[1.1] text-[#b8001f] md:text-[1.55rem]">
-                      {formatKrw(total)}
+                      {formatKrw(pendingPayPalApproval?.totalKrw ?? total)}
                     </p>
                   </div>
-                  <div className="mt-2 hidden grid-cols-2 gap-2 md:grid">
+                  {!pendingPayPalApproval && <div className="mt-2 hidden grid-cols-2 gap-2 md:grid">
                     <div className="rounded-[10px] border border-[#d1d5db] bg-white px-3 py-2 text-xs text-[#4b5563] shadow-sm">
                       <p className="font-semibold">상품 금액</p>
                       <p className="mt-1 text-sm font-black text-[#111827]">{formatKrw(subtotal)}</p>
@@ -1378,9 +1442,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <p className="font-semibold">배송비</p>
                       <p className="mt-1 text-sm font-black text-[#111827]">{formatKrw(shipping)}</p>
                     </div>
-                  </div>
+                  </div>}
                 </div>
-                {mode === 'cart' ? (
+                {mode === 'cart' && !pendingPayPalApproval ? (
                   <button
                     type="button"
                     onClick={() => setMode('checkout')}
@@ -1415,7 +1479,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder('member')}
-                        disabled={isSubmittingOrder}
+                        disabled={isSubmittingOrder || Boolean(pendingPayPalApproval)}
                         style={{
                           backgroundColor: '#ffffff',
                           color: '#111827',
@@ -1440,7 +1504,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       <button
                         type="button"
                         onClick={() => void handleNicepayCheckout()}
-                        disabled={isSubmittingOrder || isStartingNicepay}
+                        disabled={isSubmittingOrder || isStartingNicepay || Boolean(pendingPayPalApproval)}
                         style={{
                           width: '100%',
                           height: '52px',
@@ -1469,17 +1533,31 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
                     {shouldShowPaypal ? (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
+                        {pendingPayPalApproval && (
+                          <div role="alert" className="mb-3 rounded-[14px] border border-amber-500 bg-amber-50 px-3 py-3 text-xs font-semibold leading-relaxed text-amber-950">
+                            PayPal 주문 {pendingPayPalApproval.transactionId}의 결제 상태를 확인 중입니다. 새 결제를 시작하지 마세요. 아래 버튼은 같은 승인 건만 다시 확인하며, 추가 결제를 만들지 않습니다.
+                            <button
+                              type="button"
+                              onClick={() => void submitApprovedPayPal(pendingPayPalApproval)}
+                              disabled={isSubmittingOrder}
+                              className="mt-2 block w-full rounded-[10px] border border-amber-600 bg-white px-3 py-2 text-sm font-bold text-amber-950 disabled:opacity-50"
+                            >
+                              {isSubmittingOrder ? '같은 PayPal 주문 확인 중...' : '같은 PayPal 주문 다시 확인'}
+                            </button>
+                          </div>
+                        )}
                         {paypalError && (
                           <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{paypalError}</p>
                         )}
                         <div>
                           <div
                             ref={paypalContainerRef}
-                            className="min-h-[52px]"
+                            className={pendingPayPalApproval ? 'hidden' : 'min-h-[52px]'}
                             aria-label="PayPal 결제 버튼"
+                            aria-hidden={Boolean(pendingPayPalApproval)}
                           />
                         </div>
-                        {paypalError && (
+                        {paypalError && !pendingPayPalApproval && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1500,7 +1578,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         <button
                           type="button"
                           onClick={() => void submitBankTransferOrder('guest')}
-                          disabled={isSubmittingOrder}
+                          disabled={isSubmittingOrder || Boolean(pendingPayPalApproval)}
                           style={{
                             backgroundColor: '#111827',
                             color: '#ffffff',
@@ -1518,6 +1596,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     <button
                       type="button"
                       onClick={() => setMode('cart')}
+                      disabled={Boolean(pendingPayPalApproval)}
                       className="w-full rounded-[12px] border border-[#d1d5db] bg-white py-2 text-[13px] font-bold text-[#4b5563] transition-colors hover:border-[#b8001f] hover:text-[#b8001f] shadow-sm"
                     >
                       장바구니로

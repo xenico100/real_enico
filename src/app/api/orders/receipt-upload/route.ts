@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { uploadToR2 } from '@/lib/r2Storage';
+import { requestBudget } from '@/lib/security/requestBudget';
 import {
   authenticateOrderRequest,
   getOrderErrorStatus,
@@ -11,6 +12,7 @@ import {
 export const runtime = 'nodejs';
 
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_BODY_SIZE_BYTES = 9 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -66,18 +68,68 @@ function getFileExtension(type: string) {
   return 'heif';
 }
 
+async function readBoundedFormData(request: Request) {
+  const declaredLength = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_SIZE_BYTES) {
+    throw new OrderValidationError('업로드 요청은 9MB 이하로 보내 주세요.', 413);
+  }
+  if (!request.body) {
+    throw new OrderValidationError('업로드할 이미지 파일이 없습니다.');
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_SIZE_BYTES) {
+      await reader.cancel();
+      throw new OrderValidationError('업로드 요청은 9MB 이하로 보내 주세요.', 413);
+    }
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const headers = new Headers(request.headers);
+  headers.delete('content-length');
+  return new Request(request.url, {
+    method: 'POST',
+    headers,
+    body: body as BodyInit,
+  }).formData();
+}
+
 export async function POST(request: Request) {
   try {
     if (process.env.PAYMENT_RECEIPT_UPLOAD_ENABLED !== 'true') {
       return NextResponse.json({ message: '이체확인 이미지 업로드가 비활성화되어 있습니다.' }, { status: 404 });
     }
 
+    const ipBudget = await requestBudget(request, 'receipt-upload-ip', 8, 600);
+    if (ipBudget) return ipBudget;
+
     const authentication = await authenticateOrderRequest(request, 'member');
     if (!authentication.user) {
       throw new OrderValidationError('로그인한 회원만 이체확인 이미지를 업로드할 수 있습니다.', 401);
     }
 
-    const formData = await request.formData();
+    const memberBudget = await requestBudget(
+      request,
+      'receipt-upload-member',
+      4,
+      600,
+      authentication.user.id,
+    );
+    if (memberBudget) return memberBudget;
+
+    const formData = await readBoundedFormData(request);
     const file = formData.get('file');
     const transactionId = normalizeTransactionId(formData.get('transactionId'));
 

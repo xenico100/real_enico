@@ -1,5 +1,6 @@
 import { isPrimaryAdmin } from '@/lib/security/identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { cancelNicepayOrder } from '@/lib/orders/nicepayCancel';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
@@ -16,10 +17,19 @@ type PaymentStatus =
   | 'pending_transfer'
   | 'transfer_confirmed'
   | 'refund_pending'
+  | 'approval_processing'
+  | 'cancel_processing'
   | 'captured'
   | 'completed'
   | 'paid'
   | 'cancelled';
+
+const BANK_PAYMENT_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
+  pending_transfer: ['transfer_confirmed', 'cancelled'],
+  transfer_confirmed: ['refund_pending'],
+  refund_pending: ['cancelled'],
+  cancelled: [],
+};
 
 type AdminAuthResult =
   | {
@@ -125,6 +135,8 @@ function normalizePaymentStatus(value: unknown): PaymentStatus | null {
     normalized === 'pending_transfer' ||
     normalized === 'transfer_confirmed' ||
     normalized === 'refund_pending' ||
+    normalized === 'approval_processing' ||
+    normalized === 'cancel_processing' ||
     normalized === 'paid' ||
     normalized === 'captured' ||
     normalized === 'completed' ||
@@ -190,6 +202,24 @@ function mergeRefundPendingRawPayload(rawPayloadValue: unknown, reason: string, 
       refundRequestedBy: actor,
       reason,
       status: 'pending',
+    },
+  };
+}
+
+function mergeUnpaidCancellationRawPayload(rawPayloadValue: unknown, reason: string, actor: 'admin') {
+  const rawPayload =
+    rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
+      ? (rawPayloadValue as Record<string, unknown>)
+      : {};
+  const cancelledAt = new Date().toISOString();
+
+  return {
+    ...rawPayload,
+    cancellation: {
+      cancelledAt,
+      cancelledBy: actor,
+      reason,
+      status: 'cancelled_unpaid',
     },
   };
 }
@@ -413,7 +443,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(
       {
         message:
-          'paymentStatus는 pending_transfer/transfer_confirmed/refund_pending/paid/captured/completed/cancelled 중 하나여야 합니다.',
+          'paymentStatus는 pending_transfer/transfer_confirmed/refund_pending/approval_processing/cancel_processing/paid/captured/completed/cancelled 중 하나여야 합니다.',
       },
       { status: 400 },
     );
@@ -433,7 +463,7 @@ export async function PATCH(request: Request) {
 
   const { data: existing, error: existingError } = await auth.serviceClient
     .from('orders')
-    .select('id, payment_method, payment_status, shipping_status, shipped_at, delivered_at, raw_payload')
+    .select('id, payment_method, payment_status, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, raw_payload')
     .eq('id', id)
     .maybeSingle();
 
@@ -453,6 +483,135 @@ export async function PATCH(request: Request) {
   const paymentMethod = normalizeText(existing.payment_method).toLowerCase();
   const currentPaymentStatus = normalizeText(existing.payment_status).toLowerCase();
 
+  if (currentPaymentStatus === 'approval_processing') {
+    return NextResponse.json(
+      { message: '결제승인 결과를 확인하는 동안 주문 상태나 배송 정보를 수정할 수 없습니다. 중복 결제도 시도하지 마세요.' },
+      { status: 409 },
+    );
+  }
+
+  if (
+    requestedShippingStatus &&
+    requestedShippingStatus !== existing.shipping_status &&
+    (requestedShippingStatus === 'shipping' || requestedShippingStatus === 'delivered') &&
+    (currentPaymentStatus === 'pending_payment' ||
+      (paymentMethod === 'bank_transfer' && currentPaymentStatus === 'pending_transfer'))
+  ) {
+    return NextResponse.json(
+      { message: '결제가 확인되기 전에는 배송을 시작하거나 완료 처리할 수 없습니다.' },
+      { status: 409 },
+    );
+  }
+
+  if (
+    requestedShippingStatus &&
+    requestedShippingStatus !== existing.shipping_status &&
+    ['cancel_processing', 'refund_pending', 'cancelled'].includes(requestedPaymentStatus || currentPaymentStatus)
+  ) {
+    return NextResponse.json(
+      { message: '결제취소 또는 환불 처리 중인 주문의 배송 상태는 변경할 수 없습니다.' },
+      { status: 409 },
+    );
+  }
+
+  if (paymentMethod === 'bank_transfer' && requestedPaymentStatus) {
+    if (!(currentPaymentStatus in BANK_PAYMENT_STATUS_TRANSITIONS)) {
+      return NextResponse.json({ message: '현재 계좌이체 결제 상태를 확인할 수 없습니다.' }, { status: 409 });
+    }
+    if (
+      requestedPaymentStatus !== currentPaymentStatus &&
+      !BANK_PAYMENT_STATUS_TRANSITIONS[currentPaymentStatus].includes(requestedPaymentStatus)
+    ) {
+      return NextResponse.json({ message: '이전 결제 상태로 되돌리거나 취소 주문을 재활성화할 수 없습니다.' }, { status: 409 });
+    }
+  }
+
+  if (requestedPaymentStatus && requestedPaymentStatus !== currentPaymentStatus) {
+    if (paymentMethod === 'nicepay') {
+      return NextResponse.json(
+        { message: 'NICE 결제 상태는 수동 변경할 수 없습니다. 결제취소 버튼으로 실제 승인 취소를 진행해 주세요.' },
+        { status: 409 },
+      );
+    }
+    if (paymentMethod === 'paypal') {
+      return NextResponse.json(
+        { message: 'PayPal 결제 상태는 수동 변경할 수 없습니다. PayPal에서 실제 환불을 확인한 뒤 관리자에게 문의해 주세요.' },
+        { status: 409 },
+      );
+    }
+  }
+
+  if (
+    paymentMethod === 'bank_transfer' &&
+    currentPaymentStatus === 'pending_transfer' &&
+    requestedPaymentStatus === 'transfer_confirmed'
+  ) {
+    const shippingDetailsChanged =
+      (requestedShippingStatus !== null && requestedShippingStatus !== existing.shipping_status) ||
+      (payload.shippingCompany !== undefined &&
+        (normalizeNullableText(payload.shippingCompany) || DEFAULT_SHIPPING_COMPANY) !==
+          (normalizeNullableText(existing.shipping_company) || DEFAULT_SHIPPING_COMPANY)) ||
+      (payload.trackingNumber !== undefined &&
+        normalizeNullableText(payload.trackingNumber) !== normalizeNullableText(existing.tracking_number)) ||
+      (payload.shippingNote !== undefined &&
+        normalizeNullableText(payload.shippingNote) !== normalizeNullableText(existing.shipping_note));
+    if (shippingDetailsChanged) {
+      return NextResponse.json(
+        { message: '이체확인과 배송정보 변경은 함께 저장할 수 없습니다. 이체확인 후 배송정보를 별도로 저장해 주세요.' },
+        { status: 409 },
+      );
+    }
+
+    const { data: confirmed, error: confirmationError } = await auth.serviceClient.rpc(
+      'confirm_bank_transfer_order',
+      { p_order_id: id },
+    );
+    if (confirmationError) {
+      if (['P0001', '23505', '23514', '22023'].includes(confirmationError.code || '')) {
+        return NextResponse.json(
+          { message: '상품이 다른 주문에서 처리 중이거나 주문 상태가 변경되었습니다. 입금 내역을 확인하고 필요한 경우 환불을 안내해 주세요.' },
+          { status: 409 },
+        );
+      }
+      console.error('Bank transfer confirmation failed', {
+        code: confirmationError.code,
+        message: confirmationError.message,
+      });
+      return NextResponse.json(
+        { message: '이체확인 결과를 확정하지 못했습니다. 재시도 전에 주문과 입금 내역을 확인해 주세요.' },
+        { status: 503 },
+      );
+    }
+    if (confirmed !== true) {
+      return NextResponse.json(
+        { message: '이체확인 결과가 불명확합니다. 재시도 전에 주문과 입금 내역을 확인해 주세요.' },
+        { status: 503 },
+      );
+    }
+
+    try {
+      revalidateTag('storefront-products', 'max');
+    } catch (error) {
+      console.error('Bank transfer product cache revalidation failed', error);
+    }
+
+    const { data: confirmedOrder, error: confirmedOrderError } = await auth.serviceClient
+      .from('orders')
+      .select(ORDER_SELECT)
+      .eq('id', id)
+      .maybeSingle();
+    if (confirmedOrderError || !confirmedOrder) {
+      console.error('Bank transfer confirmed but order refresh failed', confirmedOrderError);
+      return NextResponse.json({
+        message: '이체확인은 완료되었습니다. 주문 화면을 새로고침한 뒤 배송정보를 저장해 주세요.',
+      });
+    }
+    return NextResponse.json({
+      message: '이체확인 및 단품 재고 처리가 완료되었습니다. 배송정보는 별도로 저장해 주세요.',
+      order: mapOrderRow(confirmedOrder as OrderRow),
+    });
+  }
+
   const updatePayload: Record<string, unknown> = {
     updated_at: nowIso,
     shipping_company: normalizeNullableText(payload.shippingCompany) || DEFAULT_SHIPPING_COMPANY,
@@ -463,15 +622,23 @@ export async function PATCH(request: Request) {
   if (requestedPaymentStatus) {
     updatePayload.payment_status = requestedPaymentStatus;
 
-    if (paymentMethod === 'bank_transfer') {
+    if (paymentMethod === 'bank_transfer' && requestedPaymentStatus !== currentPaymentStatus) {
       if (requestedPaymentStatus === 'refund_pending') {
+        if (currentPaymentStatus !== 'transfer_confirmed') {
+          return NextResponse.json(
+            { message: '이체확인 상태의 주문만 환불 진행 상태로 변경할 수 있습니다.' },
+            { status: 409 },
+          );
+        }
         updatePayload.raw_payload = mergeRefundPendingRawPayload(
           existing.raw_payload,
           'admin_manual_refund_pending',
           'admin',
         );
       } else if (requestedPaymentStatus === 'cancelled') {
-        updatePayload.raw_payload = mergeRefundCompletedRawPayload(existing.raw_payload, 'admin');
+        updatePayload.raw_payload = currentPaymentStatus === 'pending_transfer'
+          ? mergeUnpaidCancellationRawPayload(existing.raw_payload, 'admin_manual_cancel', 'admin')
+          : mergeRefundCompletedRawPayload(existing.raw_payload, 'admin');
       }
     }
   }
@@ -491,12 +658,15 @@ export async function PATCH(request: Request) {
     }
   }
 
-  const { data, error } = await auth.serviceClient
+  let updateQuery = auth.serviceClient
     .from('orders')
     .update(updatePayload)
     .eq('id', id)
-    .select(ORDER_SELECT)
-    .maybeSingle();
+    .eq('payment_status', existing.payment_status);
+  updateQuery = existing.shipping_status === null
+    ? updateQuery.is('shipping_status', null)
+    : updateQuery.eq('shipping_status', existing.shipping_status);
+  const { data, error } = await updateQuery.select(ORDER_SELECT).maybeSingle();
 
   if (error) {
     if (error.code === '42P01') {
@@ -518,13 +688,18 @@ export async function PATCH(request: Request) {
   }
 
   if (!data) {
-    return NextResponse.json({ message: '주문 갱신 결과를 찾을 수 없습니다.' }, { status: 404 });
+    return NextResponse.json(
+      { message: '주문 상태가 변경되었습니다. 새로고침한 뒤 다시 확인해 주세요.' },
+      { status: 409 },
+    );
   }
 
   return NextResponse.json({
     message:
       paymentMethod === 'bank_transfer' && requestedPaymentStatus === 'cancelled'
-        ? '환불 완료 처리되었습니다.'
+        ? currentPaymentStatus === 'pending_transfer'
+          ? '미입금 주문이 취소되었습니다.'
+          : '환불 완료 처리되었습니다.'
         : paymentMethod === 'bank_transfer' &&
             requestedPaymentStatus === 'refund_pending' &&
             currentPaymentStatus !== 'refund_pending'
@@ -609,23 +784,38 @@ export async function POST(request: Request) {
         );
       }
 
-      const { data, error } = await auth.serviceClient
+      if (paymentStatus !== 'pending_transfer' && paymentStatus !== 'transfer_confirmed') {
+        return NextResponse.json({ message: '취소 가능한 계좌이체 주문 상태가 아닙니다.' }, { status: 409 });
+      }
+
+      const wasUnpaid = paymentStatus === 'pending_transfer';
+
+      let updateQuery = auth.serviceClient
         .from('orders')
         .update({
-          payment_status: 'refund_pending',
+          payment_status: wasUnpaid ? 'cancelled' : 'refund_pending',
           updated_at: new Date().toISOString(),
-          raw_payload: mergeRefundPendingRawPayload(existing.raw_payload, reason, 'admin'),
+          raw_payload: wasUnpaid
+            ? mergeUnpaidCancellationRawPayload(existing.raw_payload, reason, 'admin')
+            : mergeRefundPendingRawPayload(existing.raw_payload, reason, 'admin'),
         })
         .eq('id', id)
-        .select(ORDER_SELECT)
-        .maybeSingle();
+        .eq('payment_method', 'bank_transfer')
+        .eq('payment_status', existing.payment_status);
+      updateQuery = existing.shipping_status === null
+        ? updateQuery.is('shipping_status', null)
+        : updateQuery.eq('shipping_status', 'preparing');
+      const { data, error } = await updateQuery.select(ORDER_SELECT).maybeSingle();
 
       if (error) {
         throw new Error(error.message);
       }
 
       if (!data) {
-        throw new Error('취소 후 주문 정보를 다시 불러오지 못했습니다.');
+        return NextResponse.json(
+          { message: '주문 상태가 변경되었습니다. 새로고침한 뒤 다시 확인해 주세요.' },
+          { status: 409 },
+        );
       }
 
       updatedOrder = data as OrderRow;
@@ -646,7 +836,9 @@ export async function POST(request: Request) {
       message:
         paymentMethod === 'nicepay'
           ? '카드결제 취소가 완료되고 관리자 메일로도 정보가 전송됩니다.'
-          : '환불 요청 상태로 변경되고 관리자 메일로도 정보가 전송됩니다.',
+          : paymentStatus === 'pending_transfer'
+            ? '미입금 주문이 취소되고 관리자 메일로도 정보가 전송됩니다.'
+            : '환불 요청 상태로 변경되고 관리자 메일로도 정보가 전송됩니다.',
       order: mapOrderRow(updatedOrder),
     });
   } catch (error) {
@@ -663,51 +855,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const auth = await authenticateAdmin(request);
   if (!auth.ok) return auth.response;
-
-  const url = new URL(request.url);
-  const id = normalizeText(url.searchParams.get('id'));
-
-  if (!id) {
-    return NextResponse.json({ message: '삭제 대상 id가 필요합니다.' }, { status: 400 });
-  }
-
-  const { data: existing, error: existingError } = await auth.serviceClient
-    .from('orders')
-    .select('id')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (existingError) {
-    return NextResponse.json(
-      { message: `주문 조회 실패: ${existingError.message}` },
-      { status: 500 },
-    );
-  }
-
-  if (!existing) {
-    return NextResponse.json({ message: '대상 주문이 없습니다.' }, { status: 404 });
-  }
-
-  const { error } = await auth.serviceClient
-    .from('orders')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    if (error.code === '42P01') {
-      return NextResponse.json(
-        { message: 'orders 테이블이 없습니다. sql/orders_setup.sql을 실행하세요.' },
-        { status: 500 },
-      );
-    }
-    return NextResponse.json(
-      { message: `주문 삭제 실패: ${error.message}` },
-      { status: 500 },
-    );
-  }
-
-  return NextResponse.json({
-    message: '주문이 삭제되었습니다.',
-    id,
-  });
+  return NextResponse.json(
+    { message: '결제·환불 감사 이력 보호를 위해 주문 영구 삭제는 지원하지 않습니다.' },
+    { status: 409 },
+  );
 }

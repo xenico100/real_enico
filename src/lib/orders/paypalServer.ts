@@ -66,9 +66,16 @@ function getPayPalConfig() {
 }
 
 function getExpectedPayment(expectedTotalKrw: number) {
+  const publicCurrency = normalizePayPalCurrency(process.env.NEXT_PUBLIC_PAYPAL_CURRENCY);
   const currency = normalizePayPalCurrency(
     process.env.PAYPAL_CURRENCY || process.env.NEXT_PUBLIC_PAYPAL_CURRENCY,
   );
+  if (publicCurrency !== currency) {
+    throw new OrderValidationError(
+      'PAYPAL_CURRENCY와 NEXT_PUBLIC_PAYPAL_CURRENCY를 동일하게 설정하세요.',
+      500,
+    );
+  }
   const publicRate = normalizeKrwPerUsd(process.env.NEXT_PUBLIC_PAYPAL_KRW_PER_USD);
   const serverRate = normalizeKrwPerUsd(
     process.env.PAYPAL_KRW_PER_USD || process.env.NEXT_PUBLIC_PAYPAL_KRW_PER_USD,
@@ -158,13 +165,18 @@ function getCompletedPayment(
     throw new OrderValidationError('완료된 PayPal 결제가 아닙니다.', 409);
   }
 
-  const captures = (order.purchase_units || []).flatMap(
-    (unit) => unit.payments?.captures || [],
-  );
-  const capture = captures.find(
-    (candidate) => candidate.status?.toUpperCase() === 'COMPLETED' && candidate.id,
-  );
-  if (!capture?.id) {
+  if (order.purchase_units?.length !== 1) {
+    throw new OrderValidationError('PayPal 주문의 결제 단위 구성이 올바르지 않습니다.', 409);
+  }
+  const unit = order.purchase_units[0];
+  assertAmount(unit.amount, expected);
+  const captures = unit.payments?.captures || [];
+  const capture = captures[0];
+  if (
+    captures.length !== 1 ||
+    !capture?.id ||
+    capture.status?.toUpperCase() !== 'COMPLETED'
+  ) {
     throw new OrderValidationError('완료된 PayPal capture를 확인하지 못했습니다.', 409);
   }
 
@@ -199,7 +211,7 @@ export async function capturePayPalOrder(
     orderId: string;
     expectedTotalKrw: number;
   },
-  beforeCapture: () => Promise<void>,
+  beforeCapture: (alreadyCompleted: boolean) => Promise<void>,
 ) {
   const orderId = input.orderId.trim();
   if (!/^[A-Za-z0-9_-]{6,64}$/.test(orderId)) {
@@ -212,37 +224,42 @@ export async function capturePayPalOrder(
 
   if (currentOrder.status?.toUpperCase() === 'COMPLETED') {
     const completedPayment = getCompletedPayment(currentOrder, orderId, expected);
-    await beforeCapture();
+    await beforeCapture(true);
     return completedPayment;
   }
 
   assertReadyForCapture(currentOrder, orderId, expected);
-  await beforeCapture();
+  await beforeCapture(false);
 
-  const captureResponse = await fetch(
-    `${session.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`,
-    {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-        'PayPal-Request-Id': `enico-${orderId}`.slice(0, 38),
+  try {
+    const captureResponse = await fetch(
+      `${session.baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+          'PayPal-Request-Id': `enico-${orderId}`.slice(0, 38),
+        },
+        body: '{}',
+        signal: AbortSignal.timeout(15_000),
       },
-      body: '{}',
-      signal: AbortSignal.timeout(15_000),
-    },
-  );
-  const capturedOrder = (await captureResponse.json().catch(() => null)) as
-    | PayPalOrderResponse
-    | null;
+    );
+    const capturedOrder = (await captureResponse.json().catch(() => null)) as
+      | PayPalOrderResponse
+      | null;
 
-  if (captureResponse.ok && capturedOrder) {
-    return getCompletedPayment(capturedOrder, orderId, expected);
+    if (captureResponse.ok && capturedOrder?.status?.toUpperCase() === 'COMPLETED') {
+      return getCompletedPayment(capturedOrder, orderId, expected);
+    }
+  } catch (error) {
+    // The provider may have captured payment before the connection timed out.
+    console.error('PayPal capture response unavailable; checking order status', error);
   }
 
-  // A timed-out/retried request may have completed at PayPal even when this response failed.
+  // A failed/timed-out response may still represent a completed capture.
   const recoveredOrder = await fetchOrder(session, orderId);
   if (recoveredOrder.status?.toUpperCase() === 'COMPLETED') {
     return getCompletedPayment(recoveredOrder, orderId, expected);

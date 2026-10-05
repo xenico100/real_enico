@@ -239,8 +239,10 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
   const normalizedStatus = (status || '').toLowerCase();
 
   if (normalizedStatus === 'refund_pending') return '환불진행중';
+  if (normalizedStatus === 'approval_processing') return '결제승인 확인중 · 중복 결제 금지';
+  if (normalizedStatus === 'cancel_processing') return '결제취소 확인중';
   if (normalizedStatus === 'cancelled') {
-    return normalizedMethod === 'bank_transfer' ? '환불완료' : '결제취소';
+    return normalizedMethod === 'bank_transfer' ? '주문취소' : '결제취소';
   }
   if (normalizedStatus === 'partialcancelled') return '부분취소';
 
@@ -273,6 +275,8 @@ function getEditablePaymentStatusValue(paymentMethod: string, status: string) {
   const normalizedStatus = (status || '').trim().toLowerCase();
 
   if (normalizedStatus === 'refund_pending') return 'refund_pending';
+  if (normalizedStatus === 'approval_processing') return 'approval_processing';
+  if (normalizedStatus === 'cancel_processing') return 'cancel_processing';
   if (normalizedStatus === 'cancelled') return 'cancelled';
 
   if (normalizedMethod === 'bank_transfer') {
@@ -297,31 +301,46 @@ function getPaymentStatusSelectOptions(paymentMethod: string, currentStatus: str
   const normalizedStatus = (currentStatus || '').trim().toLowerCase();
 
   if (normalizedMethod === 'bank_transfer') {
+    if (normalizedStatus === 'cancelled') {
+      return [{ value: 'cancelled', label: '주문취소' }];
+    }
+    if (normalizedStatus === 'refund_pending') {
+      return [
+        { value: 'refund_pending', label: '환불진행중' },
+        { value: 'cancelled', label: '환불완료' },
+      ];
+    }
+    if (normalizedStatus === 'transfer_confirmed') {
+      return [
+        { value: 'transfer_confirmed', label: '이체확인' },
+        { value: 'refund_pending', label: '환불진행중' },
+      ];
+    }
+    if (normalizedStatus !== 'pending_transfer') {
+      return [{ value: normalizedStatus, label: getPaymentStatusLabel(paymentMethod, currentStatus) }];
+    }
     return [
       { value: 'pending_transfer', label: '이체확인중' },
       { value: 'transfer_confirmed', label: '이체확인' },
-      { value: 'refund_pending', label: '환불진행중' },
-      { value: 'cancelled', label: '환불완료' },
+      { value: 'cancelled', label: '미입금 주문취소' },
     ];
   }
 
   if (normalizedMethod === 'nicepay') {
     return [
       {
-        value: normalizedStatus === 'completed' ? 'completed' : 'paid',
-        label: '결제완료',
+        value: normalizedStatus || 'paid',
+        label: getPaymentStatusLabel(paymentMethod, normalizedStatus),
       },
-      { value: 'cancelled', label: '결제취소' },
     ];
   }
 
   if (normalizedMethod === 'paypal') {
     return [
       {
-        value: normalizedStatus === 'completed' ? 'completed' : 'captured',
-        label: '결제완료',
+        value: normalizedStatus || 'captured',
+        label: getPaymentStatusLabel(paymentMethod, normalizedStatus),
       },
-      { value: 'cancelled', label: '결제취소' },
     ];
   }
 
@@ -340,6 +359,16 @@ function getMemberOrderCancelState(
   const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
   const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
 
+  if (paymentStatus === 'approval_processing') {
+    return {
+      visible: true,
+      enabled: false,
+      title: '결제승인 확인중',
+      label: '중복 결제 금지',
+      description: 'NICE 승인 결과를 확인 중입니다. 다시 결제하거나 취소를 반복하지 말고 관리자에게 문의해 주세요.',
+    };
+  }
+
   if (paymentStatus === 'refund_pending') {
     return {
       visible: true,
@@ -350,16 +379,26 @@ function getMemberOrderCancelState(
     };
   }
 
+  if (paymentStatus === 'cancel_processing') {
+    return {
+      visible: true,
+      enabled: false,
+      title: '결제취소 확인중',
+      label: '상태 확인 필요',
+      description: 'NICE 결제 취소 결과를 확인 중입니다. 중복 취소를 시도하지 말고 관리자에게 문의해 주세요.',
+    };
+  }
+
   if (paymentStatus === 'cancelled') {
     return {
       visible: true,
       enabled: false,
-      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '환불완료',
-      label: paymentMethod === 'nicepay' ? '결제취소 완료' : '환불완료',
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
+      label: paymentMethod === 'nicepay' ? '결제취소 완료' : '주문취소 완료',
       description:
         paymentMethod === 'nicepay'
           ? '이미 카드결제 취소가 완료된 주문입니다.'
-          : '이미 환불 완료 처리된 주문입니다.',
+          : '이미 취소된 주문입니다. 이체확인 뒤 취소했다면 관리자에게 환불 상태를 문의해 주세요.',
     };
   }
 
@@ -390,9 +429,11 @@ function getMemberOrderCancelState(
     return {
       visible: true,
       enabled: true,
-      title: '주문취소 / 환불요청',
-      label: '주문취소 요청',
-      description: '계좌이체 주문 취소 요청을 접수하고 관리자 확인 후 환불 상태로 진행합니다.',
+      title: paymentStatus === 'pending_transfer' ? '미입금 주문취소' : '환불요청',
+      label: paymentStatus === 'pending_transfer' ? '주문취소' : '환불요청',
+      description: paymentStatus === 'pending_transfer'
+        ? '아직 이체확인 전이라 환불 절차 없이 주문을 취소합니다.'
+        : '이체확인된 주문의 환불 요청을 접수하고 관리자 확인 후 처리합니다.',
     };
   }
 
@@ -412,6 +453,16 @@ function getAdminOrderCancelState(
   const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
   const shippingStatus = (order.shippingStatus || '').trim().toLowerCase();
 
+  if (paymentStatus === 'approval_processing') {
+    return {
+      visible: true,
+      enabled: false,
+      title: '결제승인 확인중',
+      label: '중복 결제 금지',
+      description: 'NICE 승인 결과를 확인한 뒤 처리해 주세요. 이 상태에서 배송을 시작하거나 재승인을 시도하면 안 됩니다.',
+    };
+  }
+
   if (paymentStatus === 'refund_pending') {
     return {
       visible: true,
@@ -422,16 +473,26 @@ function getAdminOrderCancelState(
     };
   }
 
+  if (paymentStatus === 'cancel_processing') {
+    return {
+      visible: true,
+      enabled: false,
+      title: '결제취소 확인중',
+      label: '상태 확인 필요',
+      description: 'NICE 결제 취소 결과를 확인 중입니다. 중복 취소를 시도하지 말고 PG 승인 내역을 확인해 주세요.',
+    };
+  }
+
   if (paymentStatus === 'cancelled') {
     return {
       visible: true,
       enabled: false,
-      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '환불완료',
-      label: paymentMethod === 'nicepay' ? '결제취소 완료' : '환불완료',
+      title: paymentMethod === 'nicepay' ? '카드결제 취소' : '주문취소',
+      label: paymentMethod === 'nicepay' ? '결제취소 완료' : '주문취소 완료',
       description:
         paymentMethod === 'nicepay'
           ? '이미 카드결제 취소가 완료된 주문입니다.'
-          : '이미 환불 완료 처리된 주문입니다.',
+          : '이미 취소된 주문입니다.',
     };
   }
 
@@ -462,9 +523,11 @@ function getAdminOrderCancelState(
     return {
       visible: true,
       enabled: true,
-      title: '주문취소 / 환불요청',
-      label: '주문취소 요청',
-      description: '계좌이체 주문을 환불 진행중 상태로 바꾸고 관리자 메일로 기록을 보냅니다.',
+      title: paymentStatus === 'pending_transfer' ? '미입금 주문취소' : '환불요청',
+      label: paymentStatus === 'pending_transfer' ? '주문취소' : '환불요청',
+      description: paymentStatus === 'pending_transfer'
+        ? '아직 이체확인 전이라 환불 절차 없이 주문을 취소합니다.'
+        : '이체확인된 주문을 환불 진행중 상태로 바꾸고 관리자 메일로 기록을 보냅니다.',
     };
   }
 
@@ -479,7 +542,7 @@ function getAdminOrderCancelState(
 
 function isCancelledAdminOrder(order: Pick<OrderRecord, 'paymentStatus'>) {
   const paymentStatus = (order.paymentStatus || '').trim().toLowerCase();
-  return paymentStatus === 'refund_pending' || paymentStatus === 'cancelled' || paymentStatus === 'partialcancelled';
+  return paymentStatus === 'refund_pending' || paymentStatus === 'cancel_processing' || paymentStatus === 'cancelled' || paymentStatus === 'partialcancelled';
 }
 
 function isShippingAdminOrder(order: Pick<OrderRecord, 'paymentStatus' | 'shippingStatus'>) {
@@ -1348,7 +1411,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         : window.confirm(
             isNicepayOrder
               ? `주문 ${orderIdentifier}의 NICE 카드결제를 취소할까요?\n배송 시작 전 주문만 온라인에서 취소됩니다.`
-              : `주문 ${orderIdentifier}의 취소 요청을 접수할까요?\n현재 단계에서는 환불 진행중 상태로 전환되고 관리자 확인 후 처리됩니다.`,
+              : order.paymentStatus === 'pending_transfer'
+                ? `주문 ${orderIdentifier}를 취소할까요?\n아직 이체확인 전이라 환불 절차 없이 취소됩니다.`
+                : `주문 ${orderIdentifier}의 환불 요청을 접수할까요?\n환불 진행중 상태로 전환되고 관리자 확인 후 처리됩니다.`,
           );
     if (!confirmed) return;
 
@@ -1412,7 +1477,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         : window.confirm(
             isNicepayOrder
               ? `주문 ${orderIdentifier}를 취소할까요?\nNICE 결제는 실제 승인 취소로 처리됩니다.`
-              : `주문 ${orderIdentifier}를 취소 요청 상태로 전환할까요?\n계좌이체 주문은 환불 진행중 상태로 변경됩니다.`,
+              : order.paymentStatus === 'pending_transfer'
+                ? `주문 ${orderIdentifier}를 취소할까요?\n아직 이체확인 전이라 환불 절차 없이 취소됩니다.`
+                : `주문 ${orderIdentifier}를 환불 요청 상태로 전환할까요?\n계좌이체 주문은 환불 진행중 상태로 변경됩니다.`,
           );
     if (!confirmed) return;
 
@@ -2224,6 +2291,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     const visibleShippingCompany =
                       draft.shippingCompany || order.shippingCompany || DEFAULT_SHIPPING_COMPANY;
                     const isCancelling = cancellingAdminOrderId === order.id;
+                    const isApprovalProcessing = order.paymentStatus === 'approval_processing';
                     const cancelState = getAdminOrderCancelState(order);
                     const selectedPaymentStatus = getEditablePaymentStatusValue(
                       order.paymentMethod,
@@ -2231,11 +2299,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     );
                     const paymentStatusOptions = getPaymentStatusSelectOptions(
                       order.paymentMethod,
-                      selectedPaymentStatus,
+                      order.paymentStatus,
                     );
                     const saveButtonLabel =
                       order.paymentMethod === 'bank_transfer' && selectedPaymentStatus === 'cancelled'
-                        ? '환불완료 저장'
+                        ? order.paymentStatus === 'pending_transfer' ? '미입금 취소 저장' : '환불완료 저장'
                         : order.paymentMethod === 'bank_transfer' && selectedPaymentStatus === 'refund_pending'
                           ? '환불진행 저장'
                           : '배송정보 저장';
@@ -2421,6 +2489,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               <p className="mt-3 text-sm text-[#d0d8e1]">
                                 기본 택배사: {visibleShippingCompany}
                               </p>
+                              {isApprovalProcessing ? (
+                                <p role="status" className="mt-3 text-sm font-semibold text-amber-300">
+                                  결제승인 확인중 · 중복 결제 금지. NICE 승인 내역을 확인할 때까지 배송정보를 변경하지 마세요.
+                                </p>
+                              ) : null}
 
                               <div className="mt-5 space-y-5">
                                 <div className="grid gap-5 md:grid-cols-2">
@@ -2431,6 +2504,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'paymentStatus', event.target.value)
                                       }
+                                      disabled={order.paymentMethod !== 'bank_transfer'}
                                       className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
                                     >
                                       {paymentStatusOptions.map((option) => (
@@ -2439,6 +2513,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                         </option>
                                       ))}
                                     </select>
+                                    {order.paymentMethod === 'nicepay' ? (
+                                      <p className="mt-2 text-xs leading-5 text-[#aeb7c2]">NICE 결제 상태는 직접 수정할 수 없습니다. 실제 승인 취소는 결제취소 버튼을 이용하세요.</p>
+                                    ) : order.paymentMethod === 'paypal' ? (
+                                      <p className="mt-2 text-xs leading-5 text-[#aeb7c2]">PayPal 자동 환불은 연결되어 있지 않습니다. PayPal에서 환불을 확인한 뒤 별도로 관리하세요.</p>
+                                    ) : null}
                                   </div>
                                   <div>
                                     <label className="mb-3 block text-sm text-[#b5beca]">배송 상태</label>
@@ -2447,6 +2526,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'shippingStatus', event.target.value)
                                       }
+                                      disabled={isApprovalProcessing}
                                       className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
                                     >
                                       <option value="preparing">배송준비중</option>
@@ -2462,6 +2542,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'shippingCompany', event.target.value)
                                       }
+                                      disabled={isApprovalProcessing}
                                       className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
                                       placeholder={DEFAULT_SHIPPING_COMPANY}
                                     />
@@ -2474,6 +2555,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                       onChange={(event) =>
                                         updateAdminOrderDraft(order.id, 'trackingNumber', event.target.value)
                                       }
+                                      disabled={isApprovalProcessing}
                                       className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
                                       placeholder="운송장번호 입력"
                                     />
@@ -2487,6 +2569,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                     onChange={(event) =>
                                       updateAdminOrderDraft(order.id, 'shippingNote', event.target.value)
                                     }
+                                    disabled={isApprovalProcessing}
                                     rows={4}
                                     className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm leading-7 text-[#f5f5f5] placeholder:text-[#6f6f6f] focus:border-[#00ffd1] focus:outline-none"
                                     placeholder="송장 분실, 보류 사유, 연락 필요 내용 등을 기록"
@@ -2513,7 +2596,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               <button
                                 type="button"
                                 onClick={() => void handleSaveOrderShipping(order.id)}
-                                disabled={isCancelling}
+                                disabled={isCancelling || isApprovalProcessing}
                                 className="rounded-[12px] border border-[#00ffd1] px-4 py-3 text-sm font-medium text-[#00ffd1] transition-colors hover:bg-[#00ffd1] hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 {saveButtonLabel}

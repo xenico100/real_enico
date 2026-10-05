@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -15,8 +16,8 @@ const cache = new Map();
 function load(file) {
   const absolute = path.resolve(file);
   if (cache.has(absolute)) return cache.get(absolute).exports;
-  const module = { exports: {} };
-  cache.set(absolute, module);
+  const compiledModule = { exports: {} };
+  cache.set(absolute, compiledModule);
   const compiled = ts.transpileModule(fs.readFileSync(absolute, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
@@ -50,8 +51,8 @@ function load(file) {
     }
     return nativeRequire(name);
   }
-  vm.runInThisContext(`(function(require,module,exports){${compiled}\n})`, { filename: absolute })(mockRequire, module, module.exports);
-  return module.exports;
+  vm.runInThisContext(`(function(require,module,exports){${compiled}\n})`, { filename: absolute })(mockRequire, compiledModule, compiledModule.exports);
+  return compiledModule.exports;
 }
 
 const identity = load('src/lib/security/identity.ts');

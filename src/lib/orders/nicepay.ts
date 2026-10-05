@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export type OrderChannel = 'member' | 'guest';
 
@@ -41,7 +41,7 @@ export type NicepayPendingOrder = {
 
 export const NICEPAY_PENDING_ORDER_COOKIE = 'nicepay_pending_order';
 export const NICEPAY_PENDING_ORDER_MAX_AGE = 15 * 60;
-const NICEPAY_MAX_GOODS_NAME_LENGTH = 40;
+const NICEPAY_MAX_GOODS_NAME_BYTES = 40;
 const NICEPAY_DEFAULT_GOODS_NAME = 'ENICO VECK ORDER';
 
 export function getNicepayPendingOrderCookieSameSite() {
@@ -56,14 +56,22 @@ function normalizeNicepayText(value: string) {
     .trim();
 }
 
-function truncateNicepayText(value: string, maxLength: number) {
-  return Array.from(value).slice(0, maxLength).join('').trim();
+function truncateNicepayText(value: string, maxBytes: number) {
+  let truncated = '';
+  let byteLength = 0;
+  for (const character of value) {
+    const nextLength = Buffer.byteLength(character, 'utf8');
+    if (byteLength + nextLength > maxBytes) break;
+    truncated += character;
+    byteLength += nextLength;
+  }
+  return truncated.trim();
 }
 
 function sanitizeNicepayGoodsLabel(value: string) {
   const normalized = truncateNicepayText(
     normalizeNicepayText(value),
-    NICEPAY_MAX_GOODS_NAME_LENGTH,
+    NICEPAY_MAX_GOODS_NAME_BYTES,
   );
   return normalized || NICEPAY_DEFAULT_GOODS_NAME;
 }
@@ -81,7 +89,7 @@ export function buildNicepayGoodsName(items: OrderItem[]) {
   if (items.length <= 1) return firstItem;
 
   const suffix = ` 외 ${items.length - 1}건`;
-  const maxBaseLength = Math.max(1, NICEPAY_MAX_GOODS_NAME_LENGTH - suffix.length);
+  const maxBaseLength = Math.max(1, NICEPAY_MAX_GOODS_NAME_BYTES - Buffer.byteLength(suffix, 'utf8'));
   const baseName =
     truncateNicepayText(firstItem, maxBaseLength) ||
     truncateNicepayText(NICEPAY_DEFAULT_GOODS_NAME, maxBaseLength);
@@ -97,6 +105,36 @@ export function getNicepayApiBaseUrl(clientKey: string) {
   return clientKey.trim().toUpperCase().startsWith('S')
     ? 'https://sandbox-api.nicepay.co.kr'
     : 'https://api.nicepay.co.kr';
+}
+
+function verifyNicepaySha256Signature(signature: string, value: string, secret: string) {
+  if (!/^[a-fA-F0-9]{64}$/.test(signature)) return false;
+
+  const expected = createHash('sha256').update(`${value}${secret}`, 'utf8').digest();
+  const actual = Buffer.from(signature, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export function verifyNicepayReturnSignature(
+  params: { authToken: string; clientId: string; amount: string; signature: string },
+  secret: string,
+) {
+  return verifyNicepaySha256Signature(
+    params.signature,
+    `${params.authToken}${params.clientId}${params.amount}`,
+    secret,
+  );
+}
+
+export function verifyNicepayApprovalSignature(
+  response: { tid: string; amount: number | string; ediDate: string; signature: string },
+  secret: string,
+) {
+  return verifyNicepaySha256Signature(
+    response.signature,
+    `${response.tid}${response.amount}${response.ediDate}`,
+    secret,
+  );
 }
 
 export function signNicepayPendingOrder(

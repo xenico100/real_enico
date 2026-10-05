@@ -117,6 +117,7 @@ export async function GET(request: Request) {
     .select(
       'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, items, raw_payload, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at',
     )
+    .eq('channel', 'member')
     .ilike('customer_email', literalEmailPattern(targetEmail))
     .neq('payment_status', 'pending_payment')
     .order('created_at', { ascending: false })

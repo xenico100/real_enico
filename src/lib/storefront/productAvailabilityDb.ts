@@ -132,28 +132,42 @@ export async function restoreProductsAvailability(
     paymentMethod: string;
   },
 ) {
+  if (!options.hasRawColumn) {
+    throw new Error('판매 주문 이력을 확인할 수 없는 상품은 자동으로 재게시할 수 없습니다.');
+  }
+
+  for (const row of rows) {
+    const raw = row.raw && typeof row.raw === 'object' && !Array.isArray(row.raw)
+      ? row.raw as Record<string, unknown>
+      : null;
+    if (
+      raw?.sold_out_order_code !== options.orderCode ||
+      raw?.sold_out_payment_method !== options.paymentMethod ||
+      !isProductMarkedSoldOut(row.raw)
+    ) {
+      throw new Error('현재 상품의 판매 이력이 취소 주문과 일치하지 않아 재고를 자동 복원하지 않았습니다.');
+    }
+  }
+
   const updateResults = await Promise.all(
     rows.map((row) =>
       serviceClient
         .from('products')
-        .update(
-          options.hasRawColumn
-            ? {
-                raw: buildAvailableRaw(row.raw, {
-                  orderCode: options.orderCode,
-                  paymentMethod: options.paymentMethod,
-                }),
-              }
-            : {
-                is_published: true,
-              },
-        )
-        .eq('id', row.id),
+        .update({
+          raw: buildAvailableRaw(row.raw, {
+            orderCode: options.orderCode,
+            paymentMethod: options.paymentMethod,
+          }),
+        })
+        .eq('id', row.id)
+        .eq('raw->>sold_out_order_code', options.orderCode)
+        .eq('raw->>sold_out_payment_method', options.paymentMethod)
+        .select('id'),
     ),
   );
 
-  const failedUpdate = updateResults.find((result) => result.error);
-  if (failedUpdate?.error) {
-    throw new Error(failedUpdate.error.message);
+  const failedUpdate = updateResults.find((result) => result.error || result.data?.length !== 1);
+  if (failedUpdate) {
+    throw new Error(failedUpdate.error?.message || '상품 재고 상태가 변경되어 자동 복원하지 않았습니다.');
   }
 }

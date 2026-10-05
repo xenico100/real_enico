@@ -115,6 +115,7 @@ export function AccountAuthPanel() {
   const [isFindingId, setIsFindingId] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [guestLookupPhone, setGuestLookupPhone] = useState('');
+  const [guestLookupOrderNumber, setGuestLookupOrderNumber] = useState('');
   const [guestOrderPassword, setGuestOrderPassword] = useState('');
   const [isLookupLoading, setIsLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -270,6 +271,7 @@ export function AccountAuthPanel() {
     setLookupOrder(null);
 
     const normalizedPhone = guestLookupPhone.trim();
+    const normalizedOrderNumber = guestLookupOrderNumber.trim();
     const normalizedPassword = guestOrderPassword.trim();
     if (!normalizedPhone || !normalizedPassword) {
       setLookupError('주문한 핸드폰 번호와 주문 비밀번호를 입력해 주세요.');
@@ -283,6 +285,7 @@ export function AccountAuthPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: normalizedPhone,
+          guestOrderNumber: normalizedOrderNumber || undefined,
           password: normalizedPassword,
         }),
       });
@@ -673,10 +676,20 @@ export function AccountAuthPanel() {
               Mobile Guest Lookup
             </p>
             <p className="mt-2 text-xs font-medium leading-relaxed text-[#881337]">
-              모바일에서 주문한 핸드폰 번호와 주문 비밀번호로 바로 배송조회할 수 있습니다.
+              주문번호가 있으면 함께 입력해 정확한 주문을 찾을 수 있습니다. 기존처럼 핸드폰 번호와 비밀번호만으로도 조회할 수 있습니다.
             </p>
           </div>
           <form onSubmit={handleGuestLookup} className="space-y-3">
+            <input
+              type="text"
+              value={guestLookupOrderNumber}
+              onChange={(event) => setGuestLookupOrderNumber(event.target.value)}
+              className="w-full bg-[#f8f9fa] border border-[#d1d5db] py-3 px-3 text-sm focus:outline-none focus:border-[#b8001f] text-[#111827] font-medium rounded-xl"
+              placeholder="비회원 주문번호 (선택)"
+              aria-label="비회원 주문번호 (선택)"
+              maxLength={64}
+              autoComplete="off"
+            />
             <input
               type="tel"
               value={guestLookupPhone}
@@ -693,7 +706,7 @@ export function AccountAuthPanel() {
               required
             />
             <p className="text-[11px] font-medium leading-relaxed text-[#4b5563]">
-              주문 직후 안내받은 비회원 주문 비밀번호를 함께 입력하면 바로 조회됩니다.
+              주문 시 설정한 비밀번호를 입력해 주세요. 주문번호는 주문 접수 화면에서 확인할 수 있습니다.
             </p>
             <button
               type="submit"

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { cancelNicepayOrder } from '@/lib/orders/nicepayCancel';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
 
 const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
@@ -97,6 +98,24 @@ function buildRefundPendingRawPayload(rawPayloadValue: unknown, reason: string, 
       refundRequestedBy: actor,
       reason,
       status: 'pending',
+    },
+  };
+}
+
+function buildUnpaidCancellationRawPayload(rawPayloadValue: unknown, reason: string, actor: 'member') {
+  const rawPayload =
+    rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
+      ? (rawPayloadValue as Record<string, unknown>)
+      : {};
+  const cancelledAt = new Date().toISOString();
+
+  return {
+    ...rawPayload,
+    cancellation: {
+      cancelledAt,
+      cancelledBy: actor,
+      reason,
+      status: 'cancelled_unpaid',
     },
   };
 }
@@ -217,9 +236,9 @@ export async function POST(request: Request) {
 
   let payload: { id?: string; reason?: string } = {};
   try {
-    payload = (await request.json()) as typeof payload;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = (await readJsonObject(request, 4096)) as typeof payload;
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const orderId = normalizeText(payload.id);
@@ -252,6 +271,7 @@ export async function POST(request: Request) {
     .from('orders')
     .select(ORDER_SELECT)
     .eq('id', orderId)
+    .eq('channel', 'member')
     .ilike('customer_email', literalEmailPattern(targetEmail))
     .maybeSingle();
 
@@ -270,7 +290,7 @@ export async function POST(request: Request) {
     const paymentMethod = normalizeText(existing.payment_method).toLowerCase();
     const paymentStatus = normalizeText(existing.payment_status).toLowerCase();
     const shippingStatus = normalizeText(existing.shipping_status).toLowerCase();
-    const cancelReason = normalizeText(payload.reason) || 'member_cancel';
+    const cancelReason = normalizeText(payload.reason).slice(0, 200) || 'member_cancel';
     let updatedOrder: OrderRow;
 
     if (paymentMethod === 'nicepay') {
@@ -297,23 +317,42 @@ export async function POST(request: Request) {
         );
       }
 
-      const { data, error } = await serviceClient
+      if (paymentStatus !== 'pending_transfer' && paymentStatus !== 'transfer_confirmed') {
+        return NextResponse.json({ message: '취소 가능한 계좌이체 주문 상태가 아닙니다.' }, { status: 409 });
+      }
+
+      const wasUnpaid = paymentStatus === 'pending_transfer';
+      const nextStatus = wasUnpaid ? 'cancelled' : 'refund_pending';
+      const nextRawPayload = wasUnpaid
+        ? buildUnpaidCancellationRawPayload(existing.raw_payload, cancelReason, 'member')
+        : buildRefundPendingRawPayload(existing.raw_payload, cancelReason, 'member');
+
+      let updateQuery = serviceClient
         .from('orders')
         .update({
-          payment_status: 'refund_pending',
+          payment_status: nextStatus,
           updated_at: new Date().toISOString(),
-          raw_payload: buildRefundPendingRawPayload(existing.raw_payload, cancelReason, 'member'),
+          raw_payload: nextRawPayload,
         })
         .eq('id', orderId)
-        .select(ORDER_SELECT)
-        .maybeSingle();
+        .eq('channel', 'member')
+        .ilike('customer_email', literalEmailPattern(targetEmail))
+        .eq('payment_method', 'bank_transfer')
+        .eq('payment_status', paymentStatus);
+      updateQuery = existing.shipping_status === null
+        ? updateQuery.is('shipping_status', null)
+        : updateQuery.eq('shipping_status', 'preparing');
+      const { data, error } = await updateQuery.select(ORDER_SELECT).maybeSingle();
 
       if (error) {
         throw new Error(error.message);
       }
 
       if (!data) {
-        throw new Error('환불 요청 후 주문 정보를 다시 불러오지 못했습니다.');
+        return NextResponse.json(
+          { message: '주문 상태가 변경되었습니다. 새로고침한 뒤 다시 확인해 주세요.' },
+          { status: 409 },
+        );
       }
 
       updatedOrder = data as OrderRow;
@@ -337,7 +376,9 @@ export async function POST(request: Request) {
       message:
         paymentMethod === 'nicepay'
           ? '카드결제 취소가 완료되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.'
-          : '환불 요청이 접수되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.',
+          : paymentStatus === 'pending_transfer'
+            ? '미입금 주문이 취소되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.'
+            : '환불 요청이 접수되었습니다. 관리자 메일에도 취소 정보가 전송됩니다.',
       order: mapOrderRow(updatedOrder),
     });
   } catch (error) {

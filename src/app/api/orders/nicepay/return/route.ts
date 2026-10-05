@@ -4,6 +4,9 @@ import { cookies } from 'next/headers';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { NextResponse } from 'next/server';
 import { generateGuestOrderNumber } from '@/lib/orders/guestLookup';
+import { claimCheckoutProducts, releaseCheckoutProducts } from '@/lib/orders/checkoutClaims';
+import { OrderValidationError } from '@/lib/orders/serverOrderValidation';
+import { readNicepayReturnBody } from '@/lib/orders/nicepayReturnBody';
 import {
   buildNicepayFailureUrl,
   buildNicepaySuccessUrl,
@@ -11,7 +14,9 @@ import {
   getNicepayPendingOrderCookieSameSite,
   NICEPAY_PENDING_ORDER_COOKIE,
   type NicepayPendingOrder,
+  verifyNicepayApprovalSignature,
   verifyNicepayPendingOrder,
+  verifyNicepayReturnSignature,
 } from '@/lib/orders/nicepay';
 import {
   extractPersistentProductIds,
@@ -37,7 +42,9 @@ type NicepayReturnParams = {
 };
 
 function getOrderServerConfig() {
-  const url = assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const url = assertExpectedSupabaseProject(
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+  );
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '';
   const clientKey = process.env.NICEPAY_CLIENT_KEY?.trim() || '';
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim() || '';
@@ -59,6 +66,35 @@ function normalizeText(value: unknown) {
 
 function buildRedirect(url: URL) {
   return NextResponse.redirect(url, { status: 303 });
+}
+
+function buildUnconfirmedPaymentRedirect(origin: string, orderCode: string) {
+  return buildRedirect(
+    buildNicepayFailureUrl(origin, {
+      code: 'payment_status_unconfirmed',
+      message: `주문번호 ${orderCode}의 결제·주문 저장 상태를 확인해야 합니다. 다시 결제하지 말고 고객센터에 문의해 주세요.`,
+    }),
+  );
+}
+
+async function restorePendingOrderAfterRejectedApproval(
+  serviceClient: SupabaseClient,
+  pendingOrderRowId: string,
+) {
+  const { data, error } = await serviceClient
+    .from('orders')
+    .update({
+      payment_status: 'pending_payment',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', pendingOrderRowId)
+    .eq('payment_status', 'approval_processing')
+    .select('id')
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    throw new Error('NICE 승인 거절 후 주문 상태 복구에 실패했습니다.');
+  }
 }
 
 function deletePendingOrderCookie(response: NextResponse) {
@@ -87,12 +123,19 @@ async function readReturnParams(request: Request): Promise<NicepayReturnParams> 
     signature: normalizeText(params.get('signature')),
   });
 
-  if (request.method === 'POST' && contentType.includes('application/x-www-form-urlencoded')) {
-    return fromParams(await request.formData());
-  }
-
-  if (request.method === 'POST' && contentType.includes('multipart/form-data')) {
-    return fromParams(await request.formData());
+  if (request.method === 'POST') {
+    const body = await readNicepayReturnBody(request);
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      return fromParams(new URLSearchParams(new TextDecoder().decode(body)));
+    }
+    if (contentType.includes('multipart/form-data')) {
+      const boundedRequest = new Request(request.url, {
+        method: 'POST',
+        headers: { 'content-type': contentType },
+        body,
+      });
+      return fromParams(await boundedRequest.formData());
+    }
   }
 
   const url = new URL(request.url);
@@ -101,11 +144,6 @@ async function readReturnParams(request: Request): Promise<NicepayReturnParams> 
 
 function toNumber(value: unknown) {
   return typeof value === 'number' ? value : Number(value);
-}
-
-function isExpectedDigest(value: string | null | undefined) {
-  if (!value) return false;
-  return /^[a-fA-F0-9]{32,128}$/.test(value.trim());
 }
 
 function parsePendingOrderFromRawPayload(rawPayload: unknown): NicepayPendingOrder | null {
@@ -133,6 +171,7 @@ function validateApprovalPayload(
   approvalPayload: Record<string, unknown> | null,
   pendingOrder: NonNullable<ReturnType<typeof verifyNicepayPendingOrder>>,
   params: NicepayReturnParams,
+  secretKey: string,
 ) {
   const resultCode = normalizeText(approvalPayload?.resultCode);
   const status = normalizeText(approvalPayload?.status).toLowerCase();
@@ -141,6 +180,7 @@ function validateApprovalPayload(
   const currency = normalizeText(approvalPayload?.currency).toUpperCase();
   const goodsName = normalizeText(approvalPayload?.goodsName);
   const approvalSignature = normalizeText(approvalPayload?.signature);
+  const ediDate = normalizeText(approvalPayload?.ediDate);
   const amount = toNumber(approvalPayload?.amount);
 
   if (resultCode !== '0000') {
@@ -160,7 +200,7 @@ function validateApprovalPayload(
     };
   }
 
-  if (!Number.isFinite(amount) || Math.round(amount) !== pendingOrder.nicepay.amount) {
+  if (!Number.isSafeInteger(amount) || amount !== pendingOrder.nicepay.amount) {
     return {
       ok: false as const,
       code: 'approval_amount_mismatch',
@@ -200,11 +240,17 @@ function validateApprovalPayload(
     };
   }
 
-  if (!isExpectedDigest(approvalSignature)) {
+  if (
+    !ediDate ||
+    !verifyNicepayApprovalSignature(
+      { tid, amount, ediDate, signature: approvalSignature },
+      secretKey,
+    )
+  ) {
     return {
       ok: false as const,
-      code: 'approval_signature_missing',
-      message: 'NICE 승인 응답의 signature 형식이 올바르지 않습니다.',
+      code: 'approval_signature_invalid',
+      message: 'NICE 승인 응답의 signature 검증에 실패했습니다.',
     };
   }
 
@@ -245,6 +291,9 @@ async function markPurchasedItemsSoldOut(
   if (productIds.length === 0) return;
 
   const snapshot = await fetchProductAvailabilitySnapshot(serviceClient, productIds);
+  if (snapshot.rows.length !== productIds.length) {
+    throw new Error('결제 완료 상품의 재고 정보를 모두 찾지 못했습니다.');
+  }
   await markProductsSoldOut(serviceClient, snapshot.rows, {
     hasRawColumn: snapshot.hasRawColumn,
     orderCode: pendingOrder.transactionId,
@@ -252,6 +301,11 @@ async function markPurchasedItemsSoldOut(
   });
 
   revalidateTag('storefront-products', 'max');
+  await releaseCheckoutProducts(
+    serviceClient,
+    'nicepay',
+    pendingOrder.transactionId,
+  );
 }
 
 function buildEmailText(
@@ -360,51 +414,15 @@ export async function POST(request: Request) {
     return response;
   }
 
-  const params = await readReturnParams(request);
-  const serviceClient = createClient(config.url, config.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const cookieStore = await cookies();
-  let pendingOrder = verifyNicepayPendingOrder(
-    cookieStore.get(NICEPAY_PENDING_ORDER_COOKIE)?.value,
-    config.secretKey,
-  );
-  let pendingOrderRowId: string | null = null;
-
-  const fallbackOrderCode = normalizeText(requestUrl.searchParams.get('orderCode'));
-  if (!pendingOrder && fallbackOrderCode) {
-    const fallbackLookup = await serviceClient
-      .from('orders')
-      .select('id, raw_payload')
-      .eq('order_code', fallbackOrderCode)
-      .eq('payment_method', 'nicepay')
-      .eq('payment_status', 'pending_payment')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (fallbackLookup.error) {
-      const response = buildRedirect(
-        buildNicepayFailureUrl(requestUrl.origin, {
-          code: 'pending_order_lookup_failed',
-          message: fallbackLookup.error.message,
-        }),
-      );
-      deletePendingOrderCookie(response);
-      return response;
-    }
-
-    const fallbackRow = fallbackLookup.data?.[0];
-    if (fallbackRow) {
-      pendingOrder = parsePendingOrderFromRawPayload(fallbackRow.raw_payload);
-      pendingOrderRowId = normalizeText(fallbackRow.id);
-    }
-  }
-
-  if (!pendingOrder) {
+  let params: NicepayReturnParams;
+  try {
+    params = await readReturnParams(request);
+  } catch (error) {
+    console.error('NICE authentication callback parsing failed', error);
     const response = buildRedirect(
       buildNicepayFailureUrl(requestUrl.origin, {
-        code: 'pending_order_missing',
-        message: '결제 준비 정보가 없어 NICE 승인을 이어갈 수 없습니다.',
+        code: 'return_body_invalid',
+        message: 'NICE 인증 응답을 읽을 수 없어 승인을 진행하지 않았습니다.',
       }),
     );
     deletePendingOrderCookie(response);
@@ -440,11 +458,70 @@ export async function POST(request: Request) {
     return response;
   }
 
-  if (!isExpectedDigest(params.signature)) {
+  if (
+    config.clientKey !== params.clientId ||
+    !verifyNicepayReturnSignature(
+      {
+        authToken: params.authToken,
+        clientId: params.clientId,
+        amount: params.amount,
+        signature: params.signature,
+      },
+      config.secretKey,
+    )
+  ) {
     const response = buildRedirect(
       buildNicepayFailureUrl(requestUrl.origin, {
         code: 'return_signature_invalid',
-        message: 'NICE 인증 응답의 signature 형식이 올바르지 않습니다.',
+        message: 'NICE 인증 응답의 signature 검증에 실패했습니다.',
+      }),
+    );
+    deletePendingOrderCookie(response);
+    return response;
+  }
+
+  const serviceClient = createClient(config.url, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const cookieStore = await cookies();
+  let pendingOrder = verifyNicepayPendingOrder(
+    cookieStore.get(NICEPAY_PENDING_ORDER_COOKIE)?.value,
+    config.secretKey,
+  );
+
+  const fallbackOrderCode = normalizeText(requestUrl.searchParams.get('orderCode'));
+  if (!pendingOrder && fallbackOrderCode) {
+    const fallbackLookup = await serviceClient
+      .from('orders')
+      .select('id, raw_payload')
+      .eq('order_code', fallbackOrderCode)
+      .eq('payment_method', 'nicepay')
+      .in('payment_status', ['pending_payment', 'approval_processing'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (fallbackLookup.error) {
+      const response = buildRedirect(
+        buildNicepayFailureUrl(requestUrl.origin, {
+          code: 'pending_order_lookup_failed',
+          message: fallbackLookup.error.message,
+        }),
+      );
+      deletePendingOrderCookie(response);
+      return response;
+    }
+
+    const fallbackRow = fallbackLookup.data?.[0];
+    if (fallbackRow) {
+      pendingOrder = parsePendingOrderFromRawPayload(fallbackRow.raw_payload);
+    }
+  }
+
+  if (!pendingOrder) {
+    const response = buildRedirect(
+      buildNicepayFailureUrl(requestUrl.origin, {
+        code: 'pending_order_missing',
+        message: '결제 준비 정보가 없어 NICE 승인을 이어갈 수 없습니다.',
       }),
     );
     deletePendingOrderCookie(response);
@@ -454,6 +531,7 @@ export async function POST(request: Request) {
   if (
     pendingOrder.orderId !== params.orderId ||
     config.clientKey !== params.clientId ||
+    !Number.isSafeInteger(Number(params.amount)) ||
     pendingOrder.nicepay.amount !== Number(params.amount)
   ) {
     const response = buildRedirect(
@@ -466,21 +544,6 @@ export async function POST(request: Request) {
     return response;
   }
 
-  if (!pendingOrderRowId) {
-    const pendingLookup = await serviceClient
-      .from('orders')
-      .select('id')
-      .eq('order_code', pendingOrder.transactionId)
-      .eq('payment_method', 'nicepay')
-      .eq('payment_status', 'pending_payment')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (!pendingLookup.error) {
-      pendingOrderRowId = normalizeText(pendingLookup.data?.[0]?.id);
-    }
-  }
-
   const existingOrder = await serviceClient
     .from('orders')
     .select('id, guest_order_number')
@@ -489,6 +552,16 @@ export async function POST(request: Request) {
     .eq('payment_status', 'paid')
     .limit(1)
     .maybeSingle();
+
+  if (existingOrder.error) {
+    console.error('NICE paid-order lookup failed', {
+      orderCode: pendingOrder.transactionId,
+      error: existingOrder.error,
+    });
+    const response = buildUnconfirmedPaymentRedirect(requestUrl.origin, pendingOrder.transactionId);
+    deletePendingOrderCookie(response);
+    return response;
+  }
 
   if (existingOrder.data?.id) {
     const response = buildRedirect(
@@ -502,7 +575,84 @@ export async function POST(request: Request) {
     return response;
   }
 
+  const pendingLookup = await serviceClient
+    .from('orders')
+    .select('id, payment_status, amount_total, currency, raw_payload')
+    .eq('order_code', pendingOrder.transactionId)
+    .eq('payment_method', 'nicepay')
+    .in('payment_status', ['pending_payment', 'approval_processing'])
+    .maybeSingle();
+  const savedPending = parsePendingOrderFromRawPayload(pendingLookup.data?.raw_payload);
+  const pendingOrderRowId = normalizeText(pendingLookup.data?.id);
+
+  if (pendingLookup.error || !pendingOrderRowId || !savedPending) {
+    console.error('NICE pending order missing before approval', {
+      orderCode: pendingOrder.transactionId,
+      error: pendingLookup.error,
+    });
+    const response = buildRedirect(
+      buildNicepayFailureUrl(requestUrl.origin, {
+        code: 'pending_order_missing',
+        message: '결제 준비 주문을 확인할 수 없어 NICE 승인을 진행하지 않았습니다.',
+      }),
+    );
+    deletePendingOrderCookie(response);
+    return response;
+  }
+
+  if (
+    savedPending.orderId !== pendingOrder.orderId ||
+    savedPending.transactionId !== pendingOrder.transactionId ||
+    savedPending.nicepay.amount !== pendingOrder.nicepay.amount ||
+    Number(pendingLookup.data?.amount_total) !== pendingOrder.nicepay.amount ||
+    normalizeText(pendingLookup.data?.currency) !== pendingOrder.pricing.currency
+  ) {
+    const response = buildRedirect(
+      buildNicepayFailureUrl(requestUrl.origin, {
+        code: 'pending_order_mismatch',
+        message: '결제 준비 정보가 변경되어 NICE 승인을 진행하지 않았습니다.',
+      }),
+    );
+    deletePendingOrderCookie(response);
+    return response;
+  }
+
+  if (pendingLookup.data?.payment_status === 'approval_processing') {
+    const response = buildUnconfirmedPaymentRedirect(requestUrl.origin, pendingOrder.transactionId);
+    deletePendingOrderCookie(response);
+    return response;
+  }
+
+  let approvalStateAttempted = false;
   try {
+    await claimCheckoutProducts(
+      serviceClient,
+      pendingOrder.items,
+      'nicepay',
+      pendingOrder.transactionId,
+    );
+    approvalStateAttempted = true;
+    const approvalClaim = await serviceClient
+      .from('orders')
+      .update({
+        payment_status: 'approval_processing',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', pendingOrderRowId)
+      .eq('payment_status', 'pending_payment')
+      .select('id')
+      .maybeSingle();
+
+    if (approvalClaim.error || !approvalClaim.data?.id) {
+      console.error('NICE approval state could not be claimed', {
+        orderCode: pendingOrder.transactionId,
+        error: approvalClaim.error,
+      });
+      const response = buildUnconfirmedPaymentRedirect(requestUrl.origin, pendingOrder.transactionId);
+      deletePendingOrderCookie(response);
+      return response;
+    }
+
     const approvalResponse = await fetch(
       `${getNicepayApiBaseUrl(config.clientKey)}/v1/payments/${encodeURIComponent(params.tid)}`,
       {
@@ -523,33 +673,55 @@ export async function POST(request: Request) {
       | Record<string, unknown>
       | null;
 
-    if (!approvalResponse.ok) {
-      const failureResponse = buildRedirect(
+    const approvalResultCode = normalizeText(approvalPayload?.resultCode);
+    const approvalStatus = normalizeText(approvalPayload?.status).toLowerCase();
+    if (approvalResultCode && approvalResultCode !== '0000' && approvalStatus !== 'paid') {
+      await restorePendingOrderAfterRejectedApproval(serviceClient, pendingOrderRowId);
+      try {
+        await releaseCheckoutProducts(serviceClient, 'nicepay', pendingOrder.transactionId);
+      } catch (error) {
+        console.error('NICE rejected approval product claim release failed', {
+          orderCode: pendingOrder.transactionId,
+          error,
+        });
+      }
+      const response = buildRedirect(
         buildNicepayFailureUrl(requestUrl.origin, {
-          code:
-            normalizeText(approvalPayload?.resultCode) ||
-            normalizeText(approvalPayload?.code) ||
-            'approval_failed',
+          code: approvalResultCode,
           message:
             normalizeText(approvalPayload?.resultMsg) ||
-            normalizeText(approvalPayload?.message) ||
-            'NICE 서버 승인에 실패했습니다.',
+            'NICE 서버에서 결제 승인을 거절했습니다.',
         }),
       );
-      deletePendingOrderCookie(failureResponse);
-      return failureResponse;
+      deletePendingOrderCookie(response);
+      return response;
     }
 
-    const approvalValidation = validateApprovalPayload(approvalPayload, pendingOrder, params);
+    if (!approvalResponse.ok) {
+      console.error('NICE approval returned an ambiguous HTTP response', {
+        orderCode: pendingOrder.transactionId,
+        httpStatus: approvalResponse.status,
+        approvalResultCode,
+      });
+      const response = buildUnconfirmedPaymentRedirect(requestUrl.origin, pendingOrder.transactionId);
+      deletePendingOrderCookie(response);
+      return response;
+    }
+
+    const approvalValidation = validateApprovalPayload(
+      approvalPayload,
+      pendingOrder,
+      params,
+      config.secretKey,
+    );
     if (!approvalValidation.ok) {
-      const failureResponse = buildRedirect(
-        buildNicepayFailureUrl(requestUrl.origin, {
-          code: approvalValidation.code,
-          message: approvalValidation.message,
-        }),
-      );
-      deletePendingOrderCookie(failureResponse);
-      return failureResponse;
+      console.error('NICE approval response could not be verified', {
+        orderCode: pendingOrder.transactionId,
+        code: approvalValidation.code,
+      });
+      const response = buildUnconfirmedPaymentRedirect(requestUrl.origin, pendingOrder.transactionId);
+      deletePendingOrderCookie(response);
+      return response;
     }
 
     const guestOrderNumber =
@@ -576,18 +748,14 @@ export async function POST(request: Request) {
       raw_payload: buildRawPayload(pendingOrder, params, approvalPayload),
     };
 
-    const persistResult = pendingOrderRowId
-      ? await serviceClient
-          .from('orders')
-          .update(persistPayload)
-          .eq('id', pendingOrderRowId)
-          .select('id, order_code, payment_method, payment_status')
-          .maybeSingle()
-      : await serviceClient
-          .from('orders')
-          .insert(persistPayload)
-          .select('id, order_code, payment_method, payment_status')
-          .maybeSingle();
+    const persistResult = await serviceClient
+      .from('orders')
+      .update(persistPayload)
+      .eq('id', pendingOrderRowId)
+      .eq('payment_method', 'nicepay')
+      .eq('payment_status', 'approval_processing')
+      .select('id, order_code, payment_method, payment_status')
+      .maybeSingle();
 
     if (persistResult.error) {
       if (persistResult.error.code === '42P01') {
@@ -638,13 +806,25 @@ export async function POST(request: Request) {
     deletePendingOrderCookie(successResponse);
     return successResponse;
   } catch (error) {
-    const response = buildRedirect(
-      buildNicepayFailureUrl(requestUrl.origin, {
-        code: 'server_approval_failed',
-        message:
-          error instanceof Error ? error.message : 'NICE 결제 승인 처리 중 오류가 발생했습니다.',
-      }),
-    );
+    console.error('NICE approval or order persistence could not be confirmed', {
+      orderCode: pendingOrder.transactionId,
+      orderId: pendingOrder.orderId,
+      error,
+    });
+    const response = approvalStateAttempted
+      ? buildUnconfirmedPaymentRedirect(requestUrl.origin, pendingOrder.transactionId)
+      : buildRedirect(
+          buildNicepayFailureUrl(requestUrl.origin, {
+            code:
+              error instanceof OrderValidationError && error.status === 409
+                ? 'product_unavailable'
+                : 'server_approval_failed',
+            message:
+              error instanceof OrderValidationError
+                ? error.message
+                : 'NICE 승인 요청 전 오류가 발생했습니다.',
+          }),
+        );
     deletePendingOrderCookie(response);
     return response;
   }
