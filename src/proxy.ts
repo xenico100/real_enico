@@ -6,11 +6,25 @@ import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 const PAYMENT_CALLBACKS = new Set(['/api/orders/nicepay/return', '/api/payments/nice/return']);
 const ADMIN_ONLY_3D_ASSETS = new Set(['/3d/bomber_jacket.glb', '/3d/bomber_jacket.obj']);
 
+function decodedAssetPath(path: string) {
+  let decoded = path;
+  try {
+    // Static files also resolve percent-encoded path segments. Compare the
+    // canonical path, not the original URL spelling, to avoid access bypasses.
+    for (let i = 0; i < 3 && decoded.includes('%'); i += 1) {
+      decoded = decodeURIComponent(decoded);
+    }
+  } catch {
+    return '';
+  }
+  return decoded;
+}
+
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAdminPage = path === '/admin' || path.startsWith('/admin/') ||
     path === '/collections/test-3d' || path.startsWith('/collections/test-3d/');
-  const isAdminAsset = ADMIN_ONLY_3D_ASSETS.has(path);
+  const isAdminAsset = ADMIN_ONLY_3D_ASSETS.has(decodedAssetPath(path));
   if (isAdminPage || isAdminAsset) {
     let response = NextResponse.next({ request });
     const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,4 +71,8 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ['/admin/:path*', '/collections/test-3d/:path*', '/3d/:path*', '/api/:path*'] };
+export const config = { matcher: [
+  '/admin/:path*', '/collections/test-3d/:path*', '/api/:path*',
+  '/3d/:path*',
+  '/((?:3|%33)(?:d|%64)(?:/|%2[Ff]).*)',
+] };

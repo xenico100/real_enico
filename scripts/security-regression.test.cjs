@@ -177,7 +177,13 @@ test('3D review assets cannot be fetched without the verified owner session', as
   const { proxy, config } = load('src/proxy.ts');
   const { NextRequest } = nativeRequire('next/server');
   assert.ok(config.matcher.includes('/3d/:path*'));
-  for (const path of ['/3d/bomber_jacket.glb', '/3d/bomber_jacket.obj']) {
+  assert.ok(config.matcher.some(pattern => pattern.includes('%33')));
+  for (const path of [
+    '/3d/bomber_jacket.glb', '/3d/bomber_jacket.obj',
+    '/3d/%62omber_jacket.glb', '/3d/bomber_jacket%2Eglb',
+    '/3d%2fbomber_jacket.glb', '/%33d/bomber_jacket.glb',
+    '/3%64/bomber_jacket.glb', '/%33%64/bomber_jacket.glb',
+  ]) {
     for (const user of [null, { ...owner, id: 'attacker' }, { ...owner, email_confirmed_at: null }]) {
       authUser = user;
       const response = await proxy(new NextRequest(`https://enicoveck.com${path}`));
