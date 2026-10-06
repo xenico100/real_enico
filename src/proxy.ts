@@ -4,14 +4,22 @@ import { isPrimaryAdmin } from '@/lib/security/identity';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
 const PAYMENT_CALLBACKS = new Set(['/api/orders/nicepay/return', '/api/payments/nice/return']);
+const ADMIN_ONLY_3D_ASSETS = new Set(['/3d/bomber_jacket.glb', '/3d/bomber_jacket.obj']);
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  if (path === '/admin' || path.startsWith('/admin/')) {
+  const isAdminPage = path === '/admin' || path.startsWith('/admin/') ||
+    path === '/collections/test-3d' || path.startsWith('/collections/test-3d/');
+  const isAdminAsset = ADMIN_ONLY_3D_ASSETS.has(path);
+  if (isAdminPage || isAdminAsset) {
     let response = NextResponse.next({ request });
     const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!rawUrl || !key) return NextResponse.redirect(new URL('/', request.url));
+    if (!rawUrl || !key) {
+      return isAdminAsset
+        ? new NextResponse('Not Found', { status: 404, headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
+        : NextResponse.redirect(new URL('/', request.url));
+    }
     const supabase = createServerClient(assertExpectedSupabaseProject(rawUrl), key, {
       cookies: {
         getAll: () => request.cookies.getAll(),
@@ -24,7 +32,9 @@ export async function proxy(request: NextRequest) {
     });
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !isPrimaryAdmin(user)) {
-      const denied = NextResponse.redirect(new URL('/', request.url));
+      const denied = isAdminAsset
+        ? new NextResponse('Not Found', { status: 404 })
+        : NextResponse.redirect(new URL('/', request.url));
       response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
       response = denied;
     }
@@ -47,4 +57,4 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ['/admin/:path*', '/api/:path*'] };
+export const config = { matcher: ['/admin/:path*', '/collections/test-3d/:path*', '/3d/:path*', '/api/:path*'] };

@@ -111,7 +111,6 @@ export function AccountAuthPanel() {
   const [recoverEmail, setRecoverEmail] = useState('');
   const [recoverError, setRecoverError] = useState<string | null>(null);
   const [recoverMessage, setRecoverMessage] = useState<string | null>(null);
-  const [foundEmails, setFoundEmails] = useState<string[]>([]);
   const [isFindingId, setIsFindingId] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [guestLookupPhone, setGuestLookupPhone] = useState('');
@@ -189,7 +188,6 @@ export function AccountAuthPanel() {
     event.preventDefault();
     setRecoverError(null);
     setRecoverMessage(null);
-    setFoundEmails([]);
 
     const fullName = recoverName.trim();
     const phone = recoverPhone.trim();
@@ -208,15 +206,12 @@ export function AccountAuthPanel() {
 
       const payload = (await response.json()) as {
         message?: string;
-        emails?: string[];
       };
       if (!response.ok) {
         throw new Error(payload.message || '아이디 찾기 실패');
       }
 
-      const emails = Array.isArray(payload.emails) ? payload.emails : [];
-      setFoundEmails(emails);
-      setRecoverMessage(payload.message || '일치하는 계정을 찾았습니다.');
+      setRecoverMessage(payload.message || '일치하는 계정이 있으면 등록된 이메일로 안내를 보내드립니다.');
     } catch (error) {
       setRecoverError(error instanceof Error ? error.message : '아이디 찾기 실패');
     } finally {
@@ -607,6 +602,9 @@ export function AccountAuthPanel() {
         <div className="mx-auto w-full max-w-[760px] space-y-4 border border-[#d1d5db] bg-white p-4 md:p-5 shadow-sm rounded-[2rem]">
           <form onSubmit={handleFindEmail} className="space-y-3">
             <p className="text-xs text-[#b8001f] font-bold uppercase tracking-widest">아이디(이메일) 찾기</p>
+            <p className="text-[11px] font-medium leading-relaxed text-[#4b5563]">
+              계정이 확인되면 등록된 이메일 주소로 안내를 보내드립니다. 보안을 위해 이 화면에는 이메일을 표시하지 않습니다.
+            </p>
             <input
               type="text"
               value={recoverName}
@@ -628,18 +626,9 @@ export function AccountAuthPanel() {
               disabled={isFindingId}
               className="w-full py-3 border border-[#b8001f] text-[#b8001f] hover:bg-[#b8001f] hover:text-white transition-colors uppercase text-xs font-bold tracking-widest rounded-xl shadow-sm disabled:opacity-50"
             >
-              {isFindingId ? '조회중...' : '아이디 찾기'}
+              {isFindingId ? '요청중...' : '가입 이메일 안내 요청'}
             </button>
           </form>
-
-          {foundEmails.length > 0 && (
-            <div className="border border-[#d1d5db] bg-[#f8f9fa] p-3 text-xs rounded-xl">
-              <p className="text-[#4b5563] font-bold mb-2">조회 결과</p>
-              {foundEmails.map((email) => (
-                <p key={email} className="text-[#111827] font-semibold">{email}</p>
-              ))}
-            </div>
-          )}
 
           <form onSubmit={handlePasswordReset} className="space-y-3 pt-3 border-t border-[#d1d5db]">
             <p className="text-xs text-[#b8001f] font-bold uppercase tracking-widest">비밀번호 찾기</p>

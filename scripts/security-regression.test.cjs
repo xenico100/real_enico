@@ -45,6 +45,7 @@ function load(file) {
     if (name === '@supabase/ssr') return {
       createServerClient: () => ({ auth: { getUser: async () => ({ data: { user: authUser }, error: null }) } }),
     };
+    if (name === 'next/headers') return { cookies: async () => ({ getAll: () => [] }) };
     if (name.startsWith('@/')) {
       const base = path.resolve('src', name.slice(2));
       return load(fs.existsSync(`${base}.ts`) ? `${base}.ts` : `${base}.tsx`);
@@ -162,7 +163,7 @@ test('proxy denies cross-site writes, caps request size, preserves signed paymen
 test('proxy guards every admin page while allowing the verified owner', async () => {
   const { proxy } = load('src/proxy.ts');
   const { NextRequest } = nativeRequire('next/server');
-  for (const path of ['/admin', '/admin/collections', '/admin/migrate', '/admin/sync']) {
+  for (const path of ['/admin', '/admin/collections', '/admin/migrate', '/admin/sync', '/collections/test-3d']) {
     authUser = null;
     assert.equal((await proxy(new NextRequest(`https://enicoveck.com${path}`))).status, 307);
     authUser = { ...owner, id: 'attacker' };
@@ -170,4 +171,32 @@ test('proxy guards every admin page while allowing the verified owner', async ()
     authUser = owner;
     assert.equal((await proxy(new NextRequest(`https://enicoveck.com${path}`))).headers.get('x-middleware-next'), '1');
   }
+});
+
+test('3D review assets cannot be fetched without the verified owner session', async () => {
+  const { proxy, config } = load('src/proxy.ts');
+  const { NextRequest } = nativeRequire('next/server');
+  assert.ok(config.matcher.includes('/3d/:path*'));
+  for (const path of ['/3d/bomber_jacket.glb', '/3d/bomber_jacket.obj']) {
+    for (const user of [null, { ...owner, id: 'attacker' }, { ...owner, email_confirmed_at: null }]) {
+      authUser = user;
+      const response = await proxy(new NextRequest(`https://enicoveck.com${path}`));
+      assert.equal(response.status, 404);
+      assert.match(response.headers.get('cache-control') || '', /no-store/);
+    }
+    authUser = owner;
+    assert.equal((await proxy(new NextRequest(`https://enicoveck.com${path}`))).headers.get('x-middleware-next'), '1');
+  }
+  authUser = null;
+  assert.equal((await proxy(new NextRequest('https://enicoveck.com/3d/public_product.glb'))).headers.get('x-middleware-next'), '1');
+});
+
+test('3D review server layout rejects everyone except the verified owner', async () => {
+  const layout = load('src/app/collections/test-3d/layout.tsx').default;
+  for (const user of [null, { ...owner, id: 'attacker' }, { ...owner, email_confirmed_at: null }]) {
+    authUser = user;
+    await assert.rejects(() => layout({ children: 'private-review' }), /NEXT_REDIRECT/);
+  }
+  authUser = owner;
+  assert.equal(await layout({ children: 'private-review' }), 'private-review');
 });

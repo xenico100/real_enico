@@ -5,18 +5,17 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { ArrowLeft, Layers, Lock, Sparkles } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { isPrimaryAdmin } from '@/lib/security/identity';
 
 const Viewer3D = dynamic(() => import('@/components/common/Viewer3D').then((module) => module.Viewer3D), {
   ssr: false,
 });
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const BOMBER_MODEL_URL = '/3d/bomber_jacket.glb';
 const FILM_MODEL_URL = process.env.NEXT_PUBLIC_FILM_3D_URL?.trim() || '';
 
 export default function Test3DPage() {
-  const { isConfigured, isAuthReady, isAuthenticated, user } = useAuth();
+  const { isAuthReady, user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const [selectedModel, setSelectedModel] = useState(FILM_MODEL_URL || BOMBER_MODEL_URL);
@@ -30,42 +29,16 @@ export default function Test3DPage() {
       setIsCheckingAdmin(false);
     };
 
-    const checkAdmin = async () => {
+    const checkAdmin = () => {
       if (!isAuthReady) return;
-      if (!isConfigured || !isAuthenticated || !user) {
-        finish(false);
-        return;
-      }
-
-      if ((user.email || '').trim().toLowerCase() === PRIMARY_ADMIN_EMAIL) {
-        finish(true);
-        return;
-      }
-
-      try {
-        const supabase = getSupabaseBrowserClient();
-        if (!supabase) {
-          finish(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from('admins')
-          .select('user_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        finish(!error && Boolean(data?.user_id));
-      } catch {
-        finish(false);
-      }
+      finish(isPrimaryAdmin(user));
     };
 
-    void checkAdmin();
+    checkAdmin();
     return () => {
       active = false;
     };
-  }, [isConfigured, isAuthReady, isAuthenticated, user]);
+  }, [isAuthReady, user]);
 
   if (!isAuthReady || isCheckingAdmin) {
     return (

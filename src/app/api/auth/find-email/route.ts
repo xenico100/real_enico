@@ -1,104 +1,131 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
+import { after, NextResponse } from 'next/server';
+import { isVerifiedMember } from '@/lib/security/identity';
 import { requestBudget } from '@/lib/security/requestBudget';
 import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
-import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
-function getServerConfig() {
-  const url = assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) return null;
-  return { url, serviceRoleKey };
-}
+export const runtime = 'nodejs';
+
+const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
+const USERS_PER_PAGE = 1000;
+const MAX_USER_PAGES = 20;
+const GENERIC_MESSAGE = '입력한 정보와 일치하는 계정이 있으면 등록된 이메일로 안내를 보내드립니다. 메일이 오지 않으면 고객센터로 문의해 주세요.';
 
 function normalizeText(value: unknown) {
-  if (typeof value !== 'string') return '';
-  return value.trim();
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function normalizePhone(value: unknown) {
-  if (typeof value !== 'string') return '';
-  return value.replace(/\D+/g, '');
+  return typeof value === 'string' ? value.replace(/\D+/g, '') : '';
 }
 
-function maskEmail(email: string) {
-  const normalized = email.trim().toLowerCase();
-  const [local, domain] = normalized.split('@');
-  if (!local || !domain) return '';
+function matchesAccount(user: User, fullName: string, phone: string) {
+  if (!isVerifiedMember(user)) return false;
+  const metadata = user.user_metadata && typeof user.user_metadata === 'object'
+    ? user.user_metadata as Record<string, unknown>
+    : {};
+  return normalizeText(metadata.full_name).toLowerCase() === fullName &&
+    normalizePhone(metadata.phone) === phone;
+}
 
-  if (local.length <= 2) {
-    return `${local[0] || '*'}*@${domain}`;
+async function findMatchingAccount(
+  url: string,
+  serviceRoleKey: string,
+  fullName: string,
+  phone: string,
+): Promise<User | null> {
+  const serviceClient = createClient(url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  for (let page = 1; page <= MAX_USER_PAGES; page += 1) {
+    const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage: USERS_PER_PAGE });
+    if (error) throw error;
+    const users = data.users || [];
+    const match = users.find((user) => matchesAccount(user, fullName, phone));
+    if (match) return match;
+    if (users.length < USERS_PER_PAGE) return null;
   }
+  console.error('Find email search reached the account pagination limit');
+  return null;
+}
 
-  return `${local.slice(0, 2)}${'*'.repeat(Math.max(1, local.length - 2))}@${domain}`;
+async function sendAccountReminder(email: string, resendApiKey: string) {
+  const from = (
+    process.env.AUTH_FROM_EMAIL ||
+    process.env.ORDER_FROM_EMAIL ||
+    'Enico Veck Auth <onboarding@resend.dev>'
+  ).trim();
+  const response = await fetch(RESEND_API_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: '[ENICO VECK] 가입 이메일 안내',
+      text: [
+        'ENICO VECK 가입 이메일 안내',
+        '',
+        `가입 이메일: ${email}`,
+        '',
+        '요청한 적이 없다면 이 메일을 무시해 주세요.',
+      ].join('\n'),
+    }),
+  });
+  if (!response.ok) throw new Error(`Account reminder delivery failed (${response.status})`);
 }
 
 export async function POST(request: Request) {
   const blocked = await requestBudget(request, 'find-email', 10, 900);
   if (blocked) return blocked;
-  let payload: { fullName?: string; phone?: string } = {};
+
+  let payload: Record<string, unknown>;
   try {
-    payload = await readJsonObject(request, 4096) as typeof payload;
+    payload = await readJsonObject(request, 4096);
   } catch (error) {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
+    return NextResponse.json(
+      { message: '잘못된 요청 본문입니다.' },
+      { status: error instanceof RequestBodyError ? error.status : 400 },
+    );
   }
 
   const fullName = normalizeText(payload.fullName).toLowerCase();
   const phone = normalizePhone(payload.phone);
   if (!fullName || fullName.length > 100 || phone.length < 8 || phone.length > 20) {
-    return NextResponse.json(
-      { message: '이름과 전화번호를 모두 입력해 주세요.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: '이름과 전화번호를 모두 입력해 주세요.' }, { status: 400 });
   }
 
-  const config = getServerConfig();
-  if (!config) {
-    return NextResponse.json(
-      { message: 'Supabase server config is missing.' },
-      { status: 500 },
-    );
+  let url: string;
+  try {
+    url = assertExpectedSupabaseProject(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  } catch {
+    return NextResponse.json({ message: '요청을 처리하지 못했습니다.' }, { status: 503 });
+  }
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!serviceRoleKey || !resendApiKey) {
+    return NextResponse.json({ message: '요청을 처리하지 못했습니다.' }, { status: 503 });
   }
 
-  const serviceClient = createClient(config.url, config.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  // Lookup and delivery happen after the identical response for matching and
+  // non-matching inputs, avoiding email/domain disclosure and delivery timing leaks.
+  after(async () => {
+    try {
+      const match = await findMatchingAccount(url, serviceRoleKey, fullName, phone);
+      if (!match?.email) return;
+      const accountBlocked = await requestBudget(request, 'find-email-account', 1, 86400, match.id);
+      if (accountBlocked) return;
+      await sendAccountReminder(match.email, resendApiKey);
+    } catch (error) {
+      console.error('Find email reminder failed', error);
+    }
   });
 
-  const { data, error } = await serviceClient.auth.admin.listUsers({
-    page: 1,
-    perPage: 500,
-  });
-
-  if (error) {
-    return NextResponse.json(
-      { message: `아이디 조회 실패: ${error.message}` },
-      { status: 500 },
-    );
-  }
-
-  const matches = (data.users || [])
-    .filter((user) => {
-      const metadata =
-        user.user_metadata && typeof user.user_metadata === 'object'
-          ? (user.user_metadata as Record<string, unknown>)
-          : {};
-      const metaName = normalizeText(metadata.full_name).toLowerCase();
-      const metaPhone = normalizePhone(metadata.phone);
-      return Boolean(user.email) && metaName === fullName && metaPhone === phone;
-    })
-    .map((user) => maskEmail(user.email || ''))
-    .filter(Boolean)
-    .slice(0, 1);
-
-  if (matches.length === 0) {
-    return NextResponse.json(
-      { message: '일치하는 계정을 찾지 못했습니다.' },
-      { status: 404 },
-    );
-  }
-
-  return NextResponse.json({
-    message: '일치하는 계정을 찾았습니다.',
-    emails: Array.from(new Set(matches)),
-  });
+  return NextResponse.json(
+    { ok: true, message: GENERIC_MESSAGE },
+    { headers: { 'Cache-Control': 'private, no-store' } },
+  );
 }

@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test:security": "node --test scripts/security-regression.test.cjs",
+    "test:security": "node --test scripts/security-regression.test.cjs scripts/find-email-regression.test.cjs scripts/chat-message-regression.test.cjs",
     "test:payments": "node --test scripts/paypal-regression.test.cjs scripts/nicepay-regression.test.cjs scripts/bank-order-regression.test.cjs scripts/checkout-claims-regression.test.cjs scripts/inventory-regression.test.cjs scripts/receipt-upload-regression.test.cjs"
   },
   "dependencies": {

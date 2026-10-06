@@ -307,6 +307,9 @@ export function useRandomChat(enabled: boolean) {
       const client = getClient();
       const message = text.trim();
       if (!message) return;
+      if (Array.from(message).length > 500) {
+        throw new Error('메시지는 500자 이내로 입력해 주세요.');
+      }
       if (!roomId || !myUserId) {
         throw new Error('채팅방 매칭이 완료되지 않았습니다.');
       }
@@ -314,21 +317,26 @@ export function useRandomChat(enabled: boolean) {
         throw new Error('현재 방이 종료되어 메시지를 보낼 수 없습니다. 새로 매칭해 주세요.');
       }
 
-      const { data, error: insertError } = await client
-        .from('chat_room_messages')
-        .insert({
-          room_id: roomId,
-          user_id: myUserId,
-          message,
-        })
-        .select('id, room_id, user_id, message, created_at')
-        .single();
-
-      if (insertError) {
-        throw new Error(insertError.message);
+      const { data: { session }, error: sessionError } = await client.auth.getSession();
+      if (sessionError || !session?.access_token) {
+        throw new Error('채팅 세션이 만료됐습니다. 다시 접속해 주세요.');
+      }
+      const response = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ roomId, message }),
+      });
+      const result: unknown = await response.json();
+      if (!response.ok) {
+        const errorMessage = result && typeof result === 'object' && 'message' in result &&
+          typeof result.message === 'string' ? result.message : '메시지를 보내지 못했습니다.';
+        throw new Error(errorMessage);
       }
 
-      appendMessages([data as MessageRow]);
+      appendMessages([result as MessageRow]);
       void setTyping(false).catch(() => undefined);
     },
     [appendMessages, getClient, myUserId, roomId, roomStatus, setTyping],
