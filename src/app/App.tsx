@@ -37,6 +37,7 @@ interface AppProps {
   initialCollections?: Collection[];
   usingFallbackCollections?: boolean;
   initialPopup?: 'about' | 'contact' | 'mypage' | null;
+  initialProductId?: string;
   initialMyPageTab?:
     | 'overview'
     | 'orders'
@@ -54,6 +55,7 @@ export default function App({
   initialCollections,
   usingFallbackCollections,
   initialPopup,
+  initialProductId,
   initialMyPageTab,
 }: AppProps) {
   const router = useRouter();
@@ -64,13 +66,19 @@ export default function App({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [ignoreInitialPopup, setIgnoreInitialPopup] = useState(false);
+  const [ignoreInitialProduct, setIgnoreInitialProduct] = useState(false);
   const deepLinkPopup =
     ignoreInitialPopup ? null : initialPopup || null;
   const shownPopup = activePopup || deepLinkPopup;
+  const deepLinkProduct =
+    !ignoreInitialProduct && !usingFallbackProducts && initialProductId
+      ? initialProducts?.find((product) => product.id === initialProductId) || null
+      : null;
+  const shownProduct = shownPopup ? null : selectedProduct || deepLinkProduct;
   const shouldLockBodyScroll =
     isCartOpen ||
     Boolean(shownPopup) ||
-    Boolean(selectedProduct) ||
+    Boolean(shownProduct) ||
     Boolean(selectedCollection);
 
   useEffect(() => {
@@ -135,11 +143,19 @@ export default function App({
           />
         )}
         
-        {selectedProduct && (
+        {shownProduct && (
           <ProductDetailPopup
-            key={selectedProduct.id}
-            product={selectedProduct}
-            onClose={() => setSelectedProduct(null)}
+            key={shownProduct.id}
+            product={shownProduct}
+            onClose={() => {
+              setSelectedProduct(null);
+              if (deepLinkProduct) setIgnoreInitialProduct(true);
+              const url = new URL(window.location.href);
+              if (url.searchParams.has('product')) {
+                url.searchParams.delete('product');
+                router.replace(`${pathname || '/'}${url.search}${url.hash}`, { scroll: false });
+              }
+            }}
           />
         )}
         

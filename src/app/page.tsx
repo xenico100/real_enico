@@ -5,7 +5,10 @@ import {
   getCachedStorefrontProducts,
 } from '@/lib/storefront/server';
 import { resolveInitialCollectionCatalog } from '@/lib/storefront/collectionCatalog';
-import { resolveInitialProductCatalog } from '@/lib/storefront/productCatalog';
+import {
+  NICEPAY_TEST_PRODUCT_ID,
+  resolveInitialProductCatalog,
+} from '@/lib/storefront/productCatalog';
 
 export const metadata: Metadata = {
   alternates: {
@@ -17,6 +20,7 @@ type HomePageProps = {
   searchParams: Promise<{
     popup?: string;
     tab?: string;
+    product?: string | string[];
   }>;
 };
 
@@ -32,6 +36,21 @@ export default async function Home({ searchParams }: HomePageProps) {
     params.popup === 'about' || params.popup === 'contact' || params.popup === 'mypage'
       ? params.popup
       : null;
+  const publishedProductIds = new Set(
+    initialProductRows.filter((row) => row.is_published === true).map((row) => row.id),
+  );
+  const initialProductId =
+    !initialPopup && typeof params.product === 'string' && !productCatalog.usingFallbackCatalog
+      ? productCatalog.products.find(
+          (product) =>
+            product.id === params.product &&
+            publishedProductIds.has(product.id) &&
+            product.id !== NICEPAY_TEST_PRODUCT_ID &&
+            !product.isSoldOut &&
+            Number.isSafeInteger(product.price) &&
+            product.price > 0,
+        )?.id
+      : undefined;
   const initialMyPageTab =
     params.tab === 'overview' ||
     params.tab === 'orders' ||
@@ -67,6 +86,7 @@ export default async function Home({ searchParams }: HomePageProps) {
         usingFallbackCollections={collectionCatalog.usingFallbackCatalog}
         initialPopup={initialPopup}
         initialMyPageTab={initialMyPageTab}
+        initialProductId={initialProductId}
       />
     </>
   );

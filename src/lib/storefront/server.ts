@@ -55,10 +55,12 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
   client,
   table,
   baseFields,
+  throwOnError = false,
 }: {
   client: NonNullable<ReturnType<typeof getStorefrontServerClient>>;
   table: 'products' | 'collections';
   baseFields: readonly string[];
+  throwOnError?: boolean;
 }) {
   let fields: string[] = [...baseFields];
   let orderColumn: 'created_at' | 'updated_at' | null = 'created_at';
@@ -75,13 +77,19 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
     const { data, error } = await query.returns<Row[]>();
 
     if (!error) {
+      if (throwOnError && !Array.isArray(data)) {
+        throw new Error('Storefront products are unavailable.');
+      }
       return (data || []) as Row[];
     }
 
     const message = getStorefrontErrorMessage(error).toLowerCase();
     const missingColumn = extractMissingStorefrontColumn(error);
 
-    if (message.includes('is_published')) return [] as Row[];
+    if (message.includes('is_published')) {
+      if (throwOnError) throw new Error('Storefront products are unavailable.');
+      return [] as Row[];
+    }
 
     if (orderColumn && message.includes(orderColumn)) {
       orderColumn = orderColumn === 'created_at' ? 'updated_at' : null;
@@ -93,15 +101,18 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
       continue;
     }
 
+    if (throwOnError) throw new Error('Storefront products are unavailable.');
     return [] as Row[];
   }
 
+  if (throwOnError) throw new Error('Storefront products are unavailable.');
   return [] as Row[];
 }
 
-async function fetchProductsUncached() {
+async function fetchProductsUncached(throwOnError = false) {
   const client = getStorefrontServerClient();
   if (!client) {
+    if (throwOnError) throw new Error('Storefront products are unavailable.');
     return [] as StorefrontProductRow[];
   }
 
@@ -109,6 +120,7 @@ async function fetchProductsUncached() {
     client,
     table: 'products',
     baseFields: STOREFRONT_PRODUCT_FIELDS,
+    throwOnError,
   });
 }
 
@@ -129,6 +141,17 @@ export const getCachedStorefrontProducts = unstable_cache(fetchProductsUncached,
   revalidate: 300,
   tags: ['storefront-products'],
 });
+
+// The public feed must distinguish a valid empty catalog from an upstream failure.
+// Keep the home page's existing fallback behavior on the original reader.
+export const getCachedStorefrontProductsStrict = unstable_cache(
+  () => fetchProductsUncached(true),
+  ['storefront-products-strict'],
+  {
+    revalidate: 300,
+    tags: ['storefront-products'],
+  },
+);
 
 export const getCachedStorefrontCollections = unstable_cache(
   fetchCollectionsUncached,
