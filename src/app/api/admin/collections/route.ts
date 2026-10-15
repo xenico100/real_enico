@@ -1,9 +1,14 @@
+import { revalidateTag } from 'next/cache';
 import { isPrimaryAdmin } from '@/lib/security/identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
+import { validateAdminDate, validateAdminId, validateAdminImages, validateAdminInteger, validateAdminPublished, validateAdminText } from '@/lib/security/adminInput';
 
 export const runtime = 'nodejs';
+
+const OPTIONAL_COLUMNS = new Set(['season', 'description', 'full_description', 'release_date', 'items', 'image', 'created_at', 'updated_at']);
 
 
 type AdminAuthResult =
@@ -36,22 +41,6 @@ function normalizeText(value: unknown) {
   return value.trim();
 }
 
-function normalizeDateInput(value: unknown) {
-  const raw = normalizeText(value);
-  if (!raw) return null;
-
-  const normalized = raw.replace(/[./]/g, '-');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    return null;
-  }
-
-  const date = new Date(`${normalized}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return normalized;
-}
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object') {
@@ -174,35 +163,21 @@ async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
 
 function sanitizeCollectionPayload(input: Record<string, unknown>, includeCreatedAt = false) {
   const now = new Date().toISOString();
-  const images =
-    Array.isArray(input.images) &&
-    input.images.every((item) => typeof item === 'string')
-      ? (input.images as string[]).map((item) => item.trim()).filter(Boolean)
-      : [];
-  const parsedItems =
-    typeof input.items === 'number'
-      ? input.items
-      : typeof input.items === 'string' && input.items.trim()
-        ? Number.parseInt(input.items, 10)
-        : 0;
-
+  const images = validateAdminImages(input.images);
+  const fallbackImage = input.image ? validateAdminImages([input.image])[0] : null;
   const payload: Record<string, unknown> = {
-    title: normalizeText(input.title) || null,
-    season: normalizeText(input.season) || null,
-    description: normalizeText(input.description) || null,
-    full_description: normalizeText(input.full_description) || null,
-    release_date: normalizeDateInput(input.release_date),
-    items: Number.isFinite(parsedItems) ? parsedItems : 0,
-    image: images[0] || normalizeText(input.image) || null,
+    title: validateAdminText(input.title, '컬렉션명', 200, true),
+    season: validateAdminText(input.season, '시즌', 100) || null,
+    description: validateAdminText(input.description, '컬렉션 소개', 50000) || null,
+    full_description: validateAdminText(input.full_description, '상세 설명', 50000) || null,
+    release_date: validateAdminDate(input.release_date),
+    items: validateAdminInteger(input.items ?? 0, '상품 수', 0),
+    image: images[0] || fallbackImage,
     images,
-    is_published: Boolean(input.is_published),
+    is_published: validateAdminPublished(input.is_published),
     updated_at: now,
   };
-
-  if (includeCreatedAt) {
-    payload.created_at = now;
-  }
-
+  if (includeCreatedAt) payload.created_at = now;
   return payload;
 }
 
@@ -226,7 +201,7 @@ async function insertWithMissingColumnFallback(
     }
 
     const missingColumn = extractMissingCollectionColumn(error);
-    if (!missingColumn || !(missingColumn in workingPayload)) {
+    if (!missingColumn || !OPTIONAL_COLUMNS.has(missingColumn) || !(missingColumn in workingPayload)) {
       throw error;
     }
 
@@ -261,7 +236,7 @@ async function updateWithMissingColumnFallback(
     }
 
     const missingColumn = extractMissingCollectionColumn(error);
-    if (!missingColumn || !(missingColumn in workingPayload)) {
+    if (!missingColumn || !OPTIONAL_COLUMNS.has(missingColumn) || !(missingColumn in workingPayload)) {
       throw error;
     }
 
@@ -309,9 +284,9 @@ export async function POST(request: Request) {
 
   let payload = {} as Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 128 * 1024);
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   const title = normalizeText(payload.title);
@@ -324,6 +299,8 @@ export async function POST(request: Request) {
       auth.serviceClient,
       sanitizeCollectionPayload(payload, true),
     );
+    if (!result.row) throw new RequestBodyError('컬렉션을 찾지 못했습니다. 새로고침 후 다시 확인해 주세요.', 404);
+    revalidateTag('storefront-collections', { expire: 0 });
     return NextResponse.json({
       message:
         result.strippedColumns.length > 0
@@ -338,7 +315,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(
       { message: getErrorMessage(error, '컬렉션 저장 실패') },
-      { status: 500 },
+      { status: error instanceof RequestBodyError ? error.status : 500 },
     );
   }
 }
@@ -349,14 +326,14 @@ export async function PATCH(request: Request) {
 
   let payload = {} as Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 128 * 1024);
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
-  const id = normalizeText(payload.id);
-  if (!id) {
-    return NextResponse.json({ message: '수정 대상 id가 필요합니다.' }, { status: 400 });
+  let id: string;
+  try { id = validateAdminId(payload.id); } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, '대상 ID를 확인해 주세요.') }, { status: 400 });
   }
 
   const title = normalizeText(payload.title);
@@ -370,6 +347,8 @@ export async function PATCH(request: Request) {
       id,
       sanitizeCollectionPayload(payload, false),
     );
+    if (!result.row) throw new RequestBodyError('컬렉션을 찾지 못했습니다. 새로고침 후 다시 확인해 주세요.', 404);
+    revalidateTag('storefront-collections', { expire: 0 });
     return NextResponse.json({
       message:
         result.strippedColumns.length > 0
@@ -384,7 +363,7 @@ export async function PATCH(request: Request) {
     }
     return NextResponse.json(
       { message: getErrorMessage(error, '컬렉션 저장 실패') },
-      { status: 500 },
+      { status: error instanceof RequestBodyError ? error.status : 500 },
     );
   }
 }
@@ -395,14 +374,14 @@ export async function DELETE(request: Request) {
 
   let payload = {} as Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 128 * 1024);
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
-  const id = normalizeText(payload.id);
-  if (!id) {
-    return NextResponse.json({ message: '삭제 대상 id가 필요합니다.' }, { status: 400 });
+  let id: string;
+  try { id = validateAdminId(payload.id); } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, '대상 ID를 확인해 주세요.') }, { status: 400 });
   }
 
   const { error } = await auth.serviceClient.from('collections').delete().eq('id', id);
@@ -416,5 +395,6 @@ export async function DELETE(request: Request) {
     );
   }
 
+  revalidateTag('storefront-collections', { expire: 0 });
   return NextResponse.json({ message: '컬렉션 삭제 완료' });
 }

@@ -4,6 +4,8 @@ import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { buildInventoryRaw } from '@/lib/storefront/productAvailability';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
+import { validateAdminId, validateAdminInteger, validateAdminPublished } from '@/lib/security/adminInput';
 
 export const runtime = 'nodejs';
 
@@ -33,10 +35,6 @@ function getServerConfig() {
   return { url, anonKey, serviceRoleKey };
 }
 
-function normalizeText(value: unknown) {
-  if (typeof value !== 'string') return '';
-  return value.trim();
-}
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object') {
@@ -185,18 +183,21 @@ async function updateWithMissingColumnFallback(
   serviceClient: SupabaseClient,
   id: string,
   payload: Record<string, unknown>,
+  previous: Record<string, unknown>,
+  hasRawColumn: boolean,
 ) {
   const workingPayload: Record<string, unknown> = { ...payload };
   const strippedColumns: string[] = [];
   let row: Record<string, unknown> | null = null;
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const { data, error } = await serviceClient
-      .from('products')
-      .update(workingPayload)
-      .eq('id', id)
-      .select('*')
-      .maybeSingle();
+    let query = serviceClient.from('products').update(workingPayload).eq('id', id);
+    query = previous.is_published === null
+      ? query.is('is_published', null) : query.eq('is_published', previous.is_published);
+    if (hasRawColumn) {
+      query = previous.raw === null ? query.is('raw', null) : query.eq('raw', JSON.stringify(previous.raw));
+    }
+    const { data, error } = await query.select('*').maybeSingle();
 
     if (!error) {
       row = data as Record<string, unknown> | null;
@@ -204,7 +205,7 @@ async function updateWithMissingColumnFallback(
     }
 
     const missingColumn = extractMissingProductColumn(error);
-    if (!missingColumn || !(missingColumn in workingPayload)) {
+    if (missingColumn !== 'updated_at' || !(missingColumn in workingPayload)) {
       throw error;
     }
 
@@ -221,29 +222,18 @@ export async function PATCH(request: Request) {
   const auth = await authenticateAdmin(request);
   if (!auth.ok) return auth.response;
 
-  let payload = {} as Record<string, unknown>;
+  let payload: Record<string, unknown>;
+  let id: string;
+  let quantity: number;
+  let isSoldOut: boolean;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 4096);
+    id = validateAdminId(payload.id);
+    quantity = validateAdminInteger(payload.quantity, '재고 수량', 0, 9999);
+    isSoldOut = validateAdminPublished(payload.isSoldOut) || quantity <= 0;
+  } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, '재고 정보를 확인해 주세요.') }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
-
-  const id = normalizeText(payload.id);
-  if (!id) {
-    return NextResponse.json({ message: '수정 대상 id가 필요합니다.' }, { status: 400 });
-  }
-
-  const parsedQuantity =
-    typeof payload.quantity === 'number'
-      ? payload.quantity
-      : Number.parseInt(normalizeText(payload.quantity), 10);
-
-  if (!Number.isFinite(parsedQuantity) || parsedQuantity < 0) {
-    return NextResponse.json({ message: '재고 수량은 0 이상의 숫자로 입력하세요.' }, { status: 400 });
-  }
-
-  const quantity = Math.min(Math.trunc(parsedQuantity), 9999);
-  const isSoldOut = Boolean(payload.isSoldOut) || quantity <= 0;
 
   try {
     const existing = await fetchProductForInventory(auth.serviceClient, id);
@@ -265,7 +255,8 @@ export async function PATCH(request: Request) {
           updated_at: new Date().toISOString(),
         };
 
-    const result = await updateWithMissingColumnFallback(auth.serviceClient, id, updatePayload);
+    const result = await updateWithMissingColumnFallback(auth.serviceClient, id, updatePayload, existing.row, existing.hasRawColumn);
+    if (!result.row) throw new RequestBodyError('결제 또는 다른 재고 작업으로 상품 상태가 변경되었습니다. 새로고침 후 다시 확인해 주세요.', 409);
     revalidateTag('storefront-products', 'max');
 
     return NextResponse.json({
@@ -286,7 +277,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(
       { message: getErrorMessage(error, '재고 저장 실패') },
-      { status: 500 },
+      { status: error instanceof RequestBodyError ? error.status : 500 },
     );
   }
 }

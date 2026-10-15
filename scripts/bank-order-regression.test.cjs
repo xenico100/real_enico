@@ -18,7 +18,7 @@ const owner = {
   is_anonymous: false,
 };
 const member = {
-  id: 'member-fixture',
+  id: '1b46e3bc-dbda-49c3-a800-b7d1badf91e1',
   email: 'member@example.com',
   email_confirmed_at: '2026-01-01',
   is_anonymous: false,
@@ -48,9 +48,9 @@ function createQuery(kind, changes = null) {
   let limit = Infinity;
   const query = {
     select: () => query,
-    eq: (key, value) => { predicates.push(row => row[key] === value); return query; },
+    eq: (key, value) => { predicates.push(row => (key === 'raw_payload->>customerUserId' ? row.raw_payload?.customerUserId ?? null : key === 'raw_payload' && typeof value === 'string' ? JSON.stringify(row.raw_payload) : row[key]) === value); return query; },
     neq: (key, value) => { predicates.push(row => row[key] !== value); return query; },
-    is: (key, value) => { predicates.push(row => row[key] === value); return query; },
+    is: (key, value) => { predicates.push(row => (key === 'raw_payload->>customerUserId' ? row.raw_payload?.customerUserId ?? null : key === 'raw_payload' && typeof value === 'string' ? JSON.stringify(row.raw_payload) : row[key]) === value); return query; },
     ilike: (key, pattern) => { predicates.push(row => matchesIlike(row[key], pattern)); return query; },
     order: (key, options) => { ordering = { key, ascending: options?.ascending !== false }; return query; },
     limit: (value) => { limit = value; return query; },
@@ -91,6 +91,12 @@ function load(file) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   function mockRequire(name) {
+    if (name === '@/lib/orders/notifications') return {
+      dispatchOrderNotifications: async () => ({ channels: {} }),
+      getOrderNotificationHistory: () => [],
+      getOrderNotificationSummary: () => null,
+      getCurrentOrderNotificationEvent: order => order.payment_status === 'pending_transfer' ? 'order_received' : order.payment_status === 'refund_pending' ? 'refund_pending' : order.payment_status === 'cancelled' ? 'cancelled' : 'payment_confirmed',
+    };
     if (name === 'server-only') return {};
     if (name === 'next/cache') return {
       revalidateTag: (...args) => { revalidatedTags.push(args); },
@@ -136,7 +142,7 @@ function fixture(overrides = {}) {
     channel: 'member', payment_method: 'bank_transfer', payment_status: 'pending_transfer',
     shipping_status: 'preparing', customer_email: member.email,
     customer_name: 'Test', customer_phone: '010-1111-1234', customer_country: '대한민국',
-    customer_address: 'Test address', raw_payload: {}, items: [], amount_total: 10000,
+    customer_address: 'Test address', raw_payload: { customerUserId: member.id }, items: [], amount_total: 10000,
     created_at: '2026-10-06T10:00:00Z',
     ...overrides,
   };

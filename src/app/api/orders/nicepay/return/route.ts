@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { dispatchOrderNotifications } from '@/lib/orders/notifications';
 import { NextResponse } from 'next/server';
 import { generateGuestOrderNumber } from '@/lib/orders/guestLookup';
 import { claimCheckoutProducts, releaseCheckoutProducts } from '@/lib/orders/checkoutClaims';
@@ -25,9 +26,6 @@ import {
   fetchProductAvailabilitySnapshot,
   markProductsSoldOut,
 } from '@/lib/storefront/productAvailabilityDb';
-
-const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
-const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
 
 type NicepayReturnParams = {
   authResultCode: string | null;
@@ -54,10 +52,6 @@ function getOrderServerConfig() {
   }
 
   return { url, serviceRoleKey, clientKey, secretKey };
-}
-
-function formatKrw(value: number) {
-  return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
 function normalizeText(value: unknown) {
@@ -265,6 +259,7 @@ function buildRawPayload(
   return {
     transactionId: pendingOrder.transactionId,
     channel: pendingOrder.channel,
+    customerUserId: pendingOrder.channel === 'member' ? pendingOrder.customerUserId || null : null,
     guestLookupPassword: pendingOrder.channel === 'guest' ? '[REDACTED]' : null,
     customer: pendingOrder.customer,
     pricing: pendingOrder.pricing,
@@ -306,89 +301,6 @@ async function markPurchasedItemsSoldOut(
     'nicepay',
     pendingOrder.transactionId,
   );
-}
-
-function buildEmailText(
-  pendingOrder: NonNullable<ReturnType<typeof verifyNicepayPendingOrder>>,
-  guestOrderNumber: string | null,
-  params: NicepayReturnParams,
-  approvalPayload: Record<string, unknown> | null,
-) {
-  const lines = pendingOrder.items.map((item, index) => {
-    const sizeText = item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : '';
-    return `${index + 1}. ${item.name} (${item.category}${sizeText}) x${item.quantity} = ${formatKrw(item.lineTotal)}`;
-  });
-
-  return [
-    '[NICE Payments 주문 접수]',
-    `거래번호: ${pendingOrder.transactionId}`,
-    `구매유형: ${pendingOrder.channel === 'member' ? '회원 구매' : '비회원 구매'}`,
-    ...(guestOrderNumber ? [`비회원 주문조회 번호: ${guestOrderNumber}`] : []),
-    '',
-    '[NICE 승인 정보]',
-    `orderId: ${pendingOrder.orderId}`,
-    `tid: ${params.tid || '-'}`,
-    `clientId: ${params.clientId || '-'}`,
-    `인증결과: ${params.authResultCode || '-'} / ${params.authResultMsg || '-'}`,
-    `결제금액: ${params.amount || '-'} KRW`,
-    `인증 signature: ${params.signature || '-'}`,
-    `승인상태: ${normalizeText(approvalPayload?.status) || normalizeText(approvalPayload?.resultCode) || 'paid'}`,
-    `승인 signature: ${normalizeText(approvalPayload?.signature) || '-'}`,
-    '',
-    '[주문자 정보]',
-    `이름: ${pendingOrder.customer.name}`,
-    `이메일: ${pendingOrder.customer.email}`,
-    `핸드폰: ${pendingOrder.customer.phone}`,
-    `국가/구역: ${pendingOrder.customer.country}`,
-    `주소: ${pendingOrder.customer.address}`,
-    '',
-    '[내부 금액(KRW)]',
-    `상품합계: ${formatKrw(pendingOrder.pricing.subtotal)}`,
-    `배송비: ${formatKrw(pendingOrder.pricing.shipping)}`,
-    `세금: ${formatKrw(pendingOrder.pricing.tax)}`,
-    `총액: ${formatKrw(pendingOrder.pricing.total)} (${pendingOrder.pricing.currency})`,
-    '',
-    '[주문 상품]',
-    ...lines,
-  ].join('\n');
-}
-
-async function sendOrderEmail(
-  pendingOrder: NonNullable<ReturnType<typeof verifyNicepayPendingOrder>>,
-  guestOrderNumber: string | null,
-  params: NicepayReturnParams,
-  approvalPayload: Record<string, unknown> | null,
-) {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
-  }
-
-  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
-  const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
-  const subject = `[NICE 주문] ${pendingOrder.channel === 'member' ? '회원' : '비회원'} ${pendingOrder.transactionId}`;
-
-  const emailResponse = await fetch(RESEND_API_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text: buildEmailText(pendingOrder, guestOrderNumber, params, approvalPayload),
-      reply_to: pendingOrder.customer.email,
-    }),
-  });
-
-  if (!emailResponse.ok) {
-    const payload = (await emailResponse.json().catch(() => null)) as
-      | { error?: { message?: string } }
-      | null;
-    throw new Error(payload?.error?.message || '메일 발송 API 응답 오류');
-  }
 }
 
 export async function GET(request: Request) {
@@ -603,6 +515,7 @@ export async function POST(request: Request) {
   if (
     savedPending.orderId !== pendingOrder.orderId ||
     savedPending.transactionId !== pendingOrder.transactionId ||
+    normalizeText(savedPending.customerUserId) !== normalizeText(pendingOrder.customerUserId) ||
     savedPending.nicepay.amount !== pendingOrder.nicepay.amount ||
     Number(pendingLookup.data?.amount_total) !== pendingOrder.nicepay.amount ||
     normalizeText(pendingLookup.data?.currency) !== pendingOrder.pricing.currency
@@ -789,10 +702,11 @@ export async function POST(request: Request) {
 
     let mailFailed = false;
     try {
-      await sendOrderEmail(pendingOrder, guestOrderNumber, params, approvalPayload);
+      const notifications = await dispatchOrderNotifications(serviceClient, persistResult.data.id, 'payment_confirmed');
+      mailFailed = notifications.channels.adminEmail?.status !== 'sent';
     } catch (error) {
       mailFailed = true;
-      console.error('NICE order email failed', error);
+      console.error('NICE order notifications failed', error);
     }
 
     const successResponse = buildRedirect(

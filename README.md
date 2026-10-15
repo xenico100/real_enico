@@ -31,9 +31,5 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY=...
 CLOUDFLARE_R2_PUBLIC_BASE_URL=https://<public-domain-or-r2-dev-url>
 ```
 
-기존 Supabase Storage URL 마이그레이션(의류 `products.images`, 컬렉션 `collections.image/images`)은 관리자 인증 토큰으로 아래 API를 호출하면 됩니다.
-
-```bash
-curl -X POST http://localhost:3000/api/admin/migrate-images-to-r2 \
-  -H "Authorization: Bearer <SUPABASE_ACCESS_TOKEN>"
-```
+일회성 SmartStore 가져오기·이미지 일괄 이전 관리자 화면과 API는 운영 관리에서 제거했습니다.
+상품·컬렉션 편집기의 이미지 업로드를 사용하세요.

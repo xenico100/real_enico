@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { requestBudget } from '@/lib/security/requestBudget';
 import { readJsonObject } from '@/lib/security/requestBody';
@@ -8,6 +8,8 @@ import {
   hashGuestLookupPassword,
 } from '@/lib/orders/guestLookup';
 import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
+import { BANK_ACCOUNT } from '@/lib/orders/bankAccount';
+import { dispatchOrderNotifications } from '@/lib/orders/notifications';
 import {
   authenticateOrderRequest,
   buildCanonicalOrder,
@@ -20,14 +22,6 @@ import {
   type ServerOrderChannel,
 } from '@/lib/orders/serverOrderValidation';
 
-const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
-const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
-const BANK_ACCOUNT = {
-  bankName: '카카오뱅크',
-  accountNumber: '3333-09-2834969',
-  accountHolder: '백형석',
-} as const;
-
 type CustomerDetails = {
   name: string;
   email: string;
@@ -39,6 +33,7 @@ type CustomerDetails = {
 type BankTransferOrderPayload = {
   transactionId: string;
   channel: ServerOrderChannel;
+  customerUserId: string | null;
   paymentReceiptUrl: string | null;
   customer: CustomerDetails;
   bankAccount: typeof BANK_ACCOUNT;
@@ -160,54 +155,9 @@ function parseRequestBody(body: unknown): ParsedBankTransferRequest {
   };
 }
 
-function normalizePaymentReceiptUrl(
-  value: string | null,
-  user: User | null,
-  transactionId: string,
-) {
-  if (!value) return null;
-  if (!user) {
-    throw new OrderValidationError('이체확인 이미지는 로그인한 회원만 첨부할 수 있습니다.', 403);
-  }
-  if (process.env.PAYMENT_RECEIPT_UPLOAD_ENABLED !== 'true') {
-    throw new OrderValidationError('이체확인 이미지 업로드가 비활성화되어 있습니다.', 403);
-  }
-
-  const publicBaseUrl = (
-    process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL || process.env.R2_PUBLIC_BASE_URL || ''
-  ).trim();
-  if (!publicBaseUrl) {
-    throw new OrderValidationError('이체확인 이미지 저장소 설정이 없습니다.', 500);
-  }
-
-  try {
-    const baseUrl = new URL(publicBaseUrl);
-    const receiptUrl = new URL(value);
-    const basePath = baseUrl.pathname.replace(/\/+$/, '');
-    const expectedPrefix = `${basePath}/payment-receipts/${user.id}/${transactionId}/`.replace(
-      /\/{2,}/g,
-      '/',
-    );
-    if (
-      baseUrl.protocol !== 'https:' ||
-      receiptUrl.protocol !== 'https:' ||
-      receiptUrl.origin !== baseUrl.origin ||
-      !receiptUrl.pathname.startsWith(expectedPrefix) ||
-      receiptUrl.username ||
-      receiptUrl.password ||
-      receiptUrl.search ||
-      receiptUrl.hash
-    ) {
-      throw new Error('invalid receipt URL');
-    }
-    return receiptUrl.toString();
-  } catch {
-    throw new OrderValidationError('허용되지 않은 이체확인 이미지 주소입니다.');
-  }
-}
-
-function formatKrw(value: number) {
-  return `${Math.round(value).toLocaleString('ko-KR')}원`;
+function normalizePaymentReceiptUrl(value: string | null) {
+  if (value) throw new OrderValidationError('이체 증빙 이미지 업로드는 지원하지 않습니다. 입금 확인은 고객센터로 문의해 주세요.', 403);
+  return null;
 }
 
 function buildRawPayload(payload: BankTransferOrderPayload) {
@@ -220,73 +170,6 @@ function buildRawPayload(payload: BankTransferOrderPayload) {
   }) || {};
   rawPayload.paymentReceiptUrl = payload.paymentReceiptUrl;
   return rawPayload;
-}
-
-function buildEmailText(payload: BankTransferOrderPayload, guestOrderNumber: string | null) {
-  const lines = payload.items.map((item, index) => {
-    const sizeText = item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : '';
-    return `${index + 1}. ${item.name} (${item.category}${sizeText}) x${item.quantity} = ${formatKrw(item.lineTotal)}`;
-  });
-
-  return [
-    '[계좌이체 주문 접수]',
-    `거래번호: ${payload.transactionId}`,
-    `구매유형: ${payload.channel === 'member' ? '회원 구매' : '비회원 구매'}`,
-    ...(guestOrderNumber ? [`비회원 주문조회 번호: ${guestOrderNumber}`] : []),
-    '',
-    '[주문자 정보]',
-    `이름: ${payload.customer.name}`,
-    `이메일: ${payload.customer.email}`,
-    `핸드폰: ${payload.customer.phone}`,
-    `국가/구역: ${payload.customer.country}`,
-    `주소: ${payload.customer.address}`,
-    '',
-    '[계좌 정보]',
-    `${payload.bankAccount.bankName} ${payload.bankAccount.accountNumber}`,
-    `예금주: ${payload.bankAccount.accountHolder}`,
-    ...(payload.paymentReceiptUrl ? [`이체확인 이미지: ${payload.paymentReceiptUrl}`] : []),
-    '',
-    '[결제 금액]',
-    `상품합계: ${formatKrw(payload.pricing.subtotal)}`,
-    `배송비: ${formatKrw(payload.pricing.shipping)}`,
-    `세금: ${formatKrw(payload.pricing.tax)}`,
-    `총액: ${formatKrw(payload.pricing.total)} (${payload.pricing.currency})`,
-    '',
-    '[주문 상품]',
-    ...lines,
-  ].join('\n');
-}
-
-async function sendOrderEmail(payload: BankTransferOrderPayload, guestOrderNumber: string | null) {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    throw new Error('RESEND_API_KEY가 설정되어 있지 않습니다.');
-  }
-
-  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
-  const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
-  const response = await fetch(RESEND_API_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: `[주문접수] ${payload.channel === 'member' ? '회원' : '비회원'} ${payload.transactionId}`,
-      text: buildEmailText(payload, guestOrderNumber),
-      reply_to: payload.customer.email,
-    }),
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (!response.ok) {
-    const responsePayload = (await response.json().catch(() => null)) as
-      | { error?: { message?: string } }
-      | null;
-    throw new Error(responsePayload?.error?.message || '주문 메일 발송 API 응답 오류');
-  }
 }
 
 async function ensureOrderNotRecorded(
@@ -314,7 +197,7 @@ async function persistOrder(
   payload: BankTransferOrderPayload,
   guestMeta: PersistGuestMeta,
 ) {
-  const { error } = await serviceClient.from('orders').insert({
+  const { data, error } = await serviceClient.from('orders').insert({
     order_code: payload.transactionId,
     channel: payload.channel,
     payment_method: 'bank_transfer',
@@ -336,9 +219,10 @@ async function persistOrder(
     shipping_status: 'preparing',
     items: payload.items,
     raw_payload: buildRawPayload(payload),
-  });
+  }).select('id').single();
 
-  if (!error) return;
+  if (!error && data?.id) return data.id as string;
+  if (!error) throw new OrderValidationError('주문 저장 결과를 확인하지 못했습니다. 주문내역을 확인해 주세요.', 503);
   if (error.code === '23505') {
     throw new OrderValidationError('이미 접수된 계좌이체 주문입니다.', 409);
   }
@@ -378,11 +262,8 @@ export async function POST(request: Request) {
     const payload: BankTransferOrderPayload = {
       transactionId: parsed.transactionId,
       channel: parsed.channel,
-      paymentReceiptUrl: normalizePaymentReceiptUrl(
-        parsed.paymentReceiptUrl,
-        authentication.user,
-        parsed.transactionId,
-      ),
+      customerUserId: authentication.user?.id || null,
+      paymentReceiptUrl: normalizePaymentReceiptUrl(parsed.paymentReceiptUrl),
       customer: {
         ...parsed.customer,
         email: authenticatedEmail || parsed.customer.email,
@@ -400,24 +281,24 @@ export async function POST(request: Request) {
         ? hashGuestLookupPassword(parsed.guestLookupPassword)
         : null;
 
-    await persistOrder(serviceClient, payload, { guestOrderNumber, guestPasswordHash });
+    const orderId = await persistOrder(serviceClient, payload, { guestOrderNumber, guestPasswordHash });
 
-    const emailResult = await sendOrderEmail(payload, guestOrderNumber).then(
-      () => ({ sent: true as const }),
-      (error) => {
-        console.error('Bank transfer order email failed', error);
-        return { sent: false as const };
-      },
-    );
+    const notificationResult = await dispatchOrderNotifications(serviceClient, orderId, 'order_received').catch((error) => {
+      console.error('Bank order notification needs attention', { orderId, error: error instanceof Error ? error.message : 'unknown' });
+      return null;
+    });
 
     return NextResponse.json({
       ok: true,
-      message: emailResult.sent
-        ? '주문 접수 및 메일 발송 완료'
-        : '주문은 접수되었지만 알림 메일 발송에 실패했습니다.',
+      message: '주문이 접수되었습니다. 아직 입금 대기 상태입니다.',
+      orderCode: payload.transactionId,
       guestOrderNumber,
       bankAccount: BANK_ACCOUNT,
-      mailSent: emailResult.sent,
+      pricing: payload.pricing,
+      items: payload.items,
+      paymentStatus: 'pending_transfer',
+      notifications: notificationResult ? Object.fromEntries(Object.entries(notificationResult.channels).map(([key, value]) => [key, { status: value.status }])) : null,
+      mailSent: notificationResult?.channels.adminEmail?.status === 'sent',
       inventoryReserved: false,
     });
   } catch (error) {

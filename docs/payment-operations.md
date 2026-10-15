@@ -21,8 +21,18 @@ Payment providers must never be re-called merely because the browser timed out. 
 ## Configuration and verification
 
 - Both browser and server PayPal currency/rate settings must match. With no overrides, the current code uses USD and a fixed KRW/USD rate of 1,350. Set an explicit commercial FX policy before changing it; this default is not a live exchange rate.
-- `PAYMENT_RECEIPT_UPLOAD_ENABLED` is unset in the production Vercel project. Keep it disabled: the current R2 image URL is public, even though its HTTP cache header says `private`. A private-bucket delivery design is required before using receipt uploads for personal financial documents.
+- Receipt-image uploads are retired (HTTP 410); bank transfers never require a public image of financial documents. Historical objects are not deleted by this change.
 - Apply the four payment migrations before deploying code that calls their RPCs. The RPC functions are executable only by `service_role`, not browser roles.
 - Safe checks: `npm run test:payments`, `npm run test:security`, `npx tsc --noEmit`, `npm run build`, and read-only deployment checks. These never invoke a real payment or refund. Provider sandbox calls are intentionally not part of this checklist.
 
 Provider references: [PayPal request idempotency](https://developer.paypal.com/api/make-api-requests), [NICEPAY server-approval signatures](https://github.com/nicepayments/nicepay-manual/blob/main/api/payment-window-server.md), [NICEPAY cancellation and network cancellation](https://github.com/nicepayments/nicepay-manual/blob/main/api/cancel.md).
+
+## Customer and owner notifications
+
+- Bank details have one public source in `src/lib/orders/bankAccount.ts`. New member orders bind `raw_payload.customerUserId` to the verified account UUID. Email-only historical member orders need an administrator to verify ownership before linking; they are never reassigned automatically by an email match.
+- Notifications are stored under `orders.raw_payload.notifications`. Each order/event/channel is claimed with compare-and-swap before calling a provider. Concurrent payment/cancellation metadata is preserved. Accepted, unknown, or in-flight sends are not blindly replayed by the retry button.
+- Resend uses a deterministic per-event/channel idempotency key. Configure `ORDER_FROM_EMAIL` with an authenticated domain; the onboarding sender is intentionally blocked for customer mail. The production sender uses the already verified `mongsangin.life` domain. Provider acceptance is not proof of inbox delivery.
+- SOLAPI uses native HTTPS + HMAC and LMS. Required server variables: `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SMS_SENDER_PHONE` (registered sender), and `ADMIN_NOTIFICATION_PHONE` (owner recipient). Without these the admin health panel shows connection needed and never reports delivery. A provider timeout/ambiguous result is `unknown` and requires checking the supplier history, not another send.
+- The protected `GET /api/admin/notifications` returns readiness and masked phone numbers only. `POST /api/admin/orders` with action `retry_notifications` reprocesses only safe channels for the current order state. It does not capture, refund, confirm a deposit, or overwrite a paid result.
+- Bank order acceptance is pending transfer, not a bank debit. Deposit confirmation remains manual and atomic. One-of-a-kind stock is not reserved by a pending bank order; the confirmation UI and messages disclose this, and the existing confirmation RPC rejects conflicts. No arbitrary reservation duration or expiry has been introduced.
+- New checkout confirmation snapshots contain only public instructions, prices and product lines, expire after 24 hours, and never store contacts/passwords. Restored snapshots direct the buyer to authenticated/current order lookup before payment.

@@ -6,6 +6,7 @@ import { revalidateTag } from 'next/cache';
 import { getNicepayApiBaseUrl, verifyNicepayApprovalSignature } from '@/lib/orders/nicepay';
 import { releaseCheckoutProducts } from '@/lib/orders/checkoutClaims';
 import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
+import { dispatchOrderNotifications } from '@/lib/orders/notifications';
 import {
   extractPersistentProductIds,
 } from '@/lib/storefront/productAvailability';
@@ -15,8 +16,6 @@ import {
 } from '@/lib/storefront/productAvailabilityDb';
 
 type CancelActor = 'member' | 'admin';
-const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
-const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
 
 type CancelableOrderRow = {
   id: string;
@@ -241,84 +240,6 @@ function buildCancelledRawPayload(
   };
 }
 
-async function sendCancelNotificationEmail(
-  order: CancelableOrderRow & Record<string, unknown>,
-  cancelPayload: Record<string, unknown> | null,
-  meta: {
-    actor: CancelActor;
-    reason: string;
-    cancelledAt: string;
-  },
-) {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim() || '';
-  if (!resendApiKey) {
-    throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
-  }
-
-  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
-  const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
-  const orderCode = normalizeText(order.order_code) || normalizeText(order.id);
-  const customerName = normalizeText(order.customer_name) || '주문자 미입력';
-  const customerEmail = normalizeText(order.customer_email) || '-';
-  const customerPhone = normalizeText(order.customer_phone) || '-';
-  const shippingStatus = normalizeText(order.shipping_status) || 'preparing';
-  const paymentStatus = normalizeText(order.payment_status) || 'paid';
-  const cancelTid = normalizeText(cancelPayload?.tid);
-  const cancelResultCode = normalizeText(cancelPayload?.resultCode) || '0000';
-  const cancelResultMsg = normalizeText(cancelPayload?.resultMsg) || '정상 취소';
-  const cancelAmount = normalizeNumber(cancelPayload?.cancelAmt);
-  const totalAmount = normalizeNumber(order.amount_total);
-
-  const subject = `[NICE 취소] ${meta.actor === 'admin' ? '관리자' : '구매자'} ${orderCode}`;
-  const text = [
-    '[NICE 결제 취소 알림]',
-    `주문번호: ${orderCode}`,
-    `취소 요청자: ${meta.actor === 'admin' ? '관리자' : '구매자'}`,
-    `취소 사유: ${meta.reason}`,
-    `취소 시각: ${meta.cancelledAt}`,
-    '',
-    '[주문자 정보]',
-    `이름: ${customerName}`,
-    `이메일: ${customerEmail}`,
-    `연락처: ${customerPhone}`,
-    '',
-    '[주문 상태]',
-    `결제수단: NICE Payments`,
-    `기존 결제상태: ${paymentStatus}`,
-    `배송상태: ${shippingStatus}`,
-    `총 결제금액: ${totalAmount.toLocaleString('ko-KR')}원`,
-    '',
-    '[NICE 취소 응답]',
-    `resultCode: ${cancelResultCode}`,
-    `resultMsg: ${cancelResultMsg}`,
-    `tid: ${cancelTid || '-'}`,
-    `cancelAmt: ${cancelAmount > 0 ? `${cancelAmount.toLocaleString('ko-KR')}원` : '-'}`,
-  ].join('\n');
-
-  const response = await fetch(RESEND_API_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text,
-      reply_to: customerEmail && customerEmail !== '-' ? customerEmail : undefined,
-    }),
-  });
-
-  const responsePayload = (await response.json().catch(() => null)) as
-    | { error?: { message?: string } }
-    | null;
-
-  if (!response.ok) {
-    throw new Error(responsePayload?.error?.message || '취소 메일 발송 API 응답 오류');
-  }
-}
-
 async function restorePurchasedProducts(
   serviceClient: SupabaseClient,
   orderCode: string,
@@ -484,33 +405,43 @@ export async function cancelNicepayOrder<TRow>({
   }
 
   const cancelledAt = new Date().toISOString();
-  let persistedCancel: { data: TRow | null; error: { message: string } | null };
+  let cancelledOrder: TRow | null = null;
   try {
-    persistedCancel = (await serviceClient
-      .from('orders')
-      .update({
+    // Only retry local persistence after the provider's verified cancellation.
+    // Notification workers may update raw_payload while the provider is running.
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const latest = await serviceClient.from('orders')
+        .select('id, payment_status, shipping_status, raw_payload')
+        .eq('id', order.id)
+        .maybeSingle();
+      if (latest.error || !latest.data || latest.data.payment_status !== 'cancel_processing' ||
+          latest.data.shipping_status !== order.shipping_status) {
+        throw new Error('NICE 취소 후 저장할 주문 상태를 확인하지 못했습니다.');
+      }
+      let query = serviceClient.from('orders').update({
         payment_status: 'cancelled',
         updated_at: cancelledAt,
-        raw_payload: buildCancelledRawPayload(order.raw_payload, cancelPayload, {
-          actor,
-          reason: cancelReason,
-          cancelledAt,
+        raw_payload: buildCancelledRawPayload(latest.data.raw_payload, cancelPayload, {
+          actor, reason: cancelReason, cancelledAt,
         }),
-      })
-      .eq('id', order.id)
-      .eq('payment_status', 'cancel_processing')
-      .eq('shipping_status', order.shipping_status)
-      .select(selectQuery)
-      .maybeSingle()) as { data: TRow | null; error: { message: string } | null };
+      }).eq('id', order.id).eq('payment_status', 'cancel_processing')
+        .eq('shipping_status', order.shipping_status);
+      query = latest.data.raw_payload === null ? query.is('raw_payload', null)
+        : query.eq('raw_payload', JSON.stringify(latest.data.raw_payload));
+      const persisted = await query.select(selectQuery).maybeSingle();
+      if (persisted.error) throw new Error(persisted.error.message);
+      if (persisted.data) {
+        cancelledOrder = persisted.data as TRow;
+        break;
+      }
+    }
   } catch (error) {
     console.error('NICE cancel succeeded but order persistence request failed', { orderCode, error });
     throw buildUnconfirmedCancelError(orderCode);
   }
 
-  const { data, error } = persistedCancel;
-
-  if (error || !data) {
-    console.error('NICE cancel succeeded but order persistence failed', { orderCode, error });
+  if (!cancelledOrder) {
+    console.error('NICE cancel succeeded but order persistence conflicted', { orderCode });
     throw buildUnconfirmedCancelError(orderCode);
   }
 
@@ -527,14 +458,10 @@ export async function cancelNicepayOrder<TRow>({
   }
 
   try {
-    await sendCancelNotificationEmail(order as CancelableOrderRow & Record<string, unknown>, cancelPayload, {
-      actor,
-      reason: cancelReason,
-      cancelledAt,
-    });
+    await dispatchOrderNotifications(serviceClient, order.id, 'cancelled');
   } catch (error) {
-    console.error('Failed to send NICE cancel notification email', error);
+    console.error('Failed to send NICE cancel notifications', error);
   }
 
-  return data as TRow;
+  return cancelledOrder;
 }

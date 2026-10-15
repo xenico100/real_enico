@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
@@ -13,6 +14,8 @@ import {
   normalizePayPalCurrency,
 } from '@/lib/orders/paypalPricing';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { BankTransferInstructions, CustomerOrderNotifications, type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
+import { BANK_RECEIPT_STORAGE_KEY, readBankOrderReceipt, type BankOrderReceipt } from '@/lib/orders/bankReceipt';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface CartOverlayProps {
@@ -20,7 +23,7 @@ interface CartOverlayProps {
   onClose: () => void;
 }
 
-type CheckoutMode = 'cart' | 'checkout';
+type CheckoutMode = 'cart' | 'checkout' | 'confirmation';
 type OrderChannel = 'member' | 'guest';
 
 type PendingPayPalApproval = {
@@ -33,9 +36,6 @@ type PendingPayPalApproval = {
   customerAddress: string;
 };
 
-const BANK_NAME = '카카오뱅크';
-const BANK_ACCOUNT_NUMBER = '3333-09-2834969';
-const BANK_ACCOUNT_HOLDER = '백형석';
 const NICEPAY_SDK_SCRIPT_ID = 'nicepay-sdk-script';
 const PAYPAL_SDK_SCRIPT_ID = 'paypal-sdk-script';
 const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
@@ -44,7 +44,6 @@ const PAYPAL_KRW_PER_USD = normalizeKrwPerUsd(process.env.NEXT_PUBLIC_PAYPAL_KRW
 const DOMESTIC_REGION = '대한민국';
 const DOMESTIC_SHIPPING_FEE = 3000;
 const INTERNATIONAL_SHIPPING_FEE = 40000;
-const PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY = 'enicoveck_pending_account_profile_sync';
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
   'overflow-hidden rounded-[18px] border border-[#d1d5db] bg-white px-4 py-4 shadow-sm md:px-6 md:py-6';
@@ -329,6 +328,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
   const [pendingPayPalApproval, setPendingPayPalApproval] = useState<PendingPayPalApproval | null>(pendingPayPalApprovalInMemory);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [bankOrderReceipt, setBankOrderReceipt] = useState<BankOrderReceipt | null>(null);
+  const [isRestoredBankReceipt, setIsRestoredBankReceipt] = useState(false);
   const canUseNicepayCheckout = isAuthenticated;
   const shouldShowPaypal = true;
 
@@ -339,12 +340,21 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       return;
     }
 
+    let savedReceipt: BankOrderReceipt | null = null;
+    try {
+      savedReceipt = readBankOrderReceipt(window.sessionStorage.getItem(BANK_RECEIPT_STORAGE_KEY));
+      if (!savedReceipt) window.sessionStorage.removeItem(BANK_RECEIPT_STORAGE_KEY);
+    } catch { /* Confirmation remains available in memory if browser storage is blocked. */ }
+    setBankOrderReceipt(savedReceipt);
+    setIsRestoredBankReceipt(Boolean(savedReceipt));
     setTransactionId(generateTransactionId());
-    setMode('cart');
+    setMode(savedReceipt && cart.length === 0 ? 'confirmation' : 'cart');
     setNicepayError(null);
     setCheckoutMessage(null);
     setCheckoutError(null);
     setGuestLookupPassword('');
+  // Restore only when opening; cart mutations during submission must not reset the receipt.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   useEffect(() => {
@@ -528,6 +538,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
       return false;
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      announceCheckoutError('안내를 받을 수 있는 이메일 주소를 확인해 주세요.', checkoutEmailInputRef.current);
+      return false;
+    }
+
     if (!normalizedPhone) {
       announceCheckoutError(
         '주문정보를 입력하세요. 핸드폰 번호가 비어 있습니다.',
@@ -616,11 +631,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
             country: checkoutCountry,
             address: normalizedAddress,
           },
-          bankAccount: {
-            bankName: BANK_NAME,
-            accountNumber: BANK_ACCOUNT_NUMBER,
-            accountHolder: BANK_ACCOUNT_HOLDER,
-          },
           pricing: {
             subtotal,
             shipping,
@@ -647,41 +657,39 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
       const payload = (await response.json()) as {
         message?: string;
+        orderCode?: string;
         guestOrderNumber?: string;
+        bankAccount: BankAccountDetails;
+        pricing: { total: number };
+        items: BankOrderReceipt['items'];
+        notifications?: OrderNotificationSummary;
       };
       if (!response.ok) {
         throw new Error(payload.message || '주문 접수 중 오류가 발생했습니다.');
       }
 
-      if (channel === 'guest') {
-        setCheckoutMessage(
-          [
-            '비회원 계좌이체 주문이 접수되었습니다.',
-            payload.guestOrderNumber
-              ? `비회원 조회번호: ${payload.guestOrderNumber}`
-              : null,
-            `${BANK_NAME} ${BANK_ACCOUNT_NUMBER}`,
-            `예금주: ${BANK_ACCOUNT_HOLDER}`,
-            '입금자명은 수령인 이름과 동일하게 입력해 주세요.',
-            '모바일에서 주문한 핸드폰 번호와 비밀번호로 배송조회할 수 있습니다.',
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        );
-      } else {
+      const receipt = readBankOrderReceipt(JSON.stringify({
+        orderCode: payload.orderCode || '',
+        guestOrderNumber: payload.guestOrderNumber || '',
+        channel,
+        bankAccount: payload.bankAccount,
+        total: payload.pricing?.total,
+        items: payload.items,
+        notifications: payload.notifications,
+        savedAt: Date.now(),
+      }));
+      if (channel === 'member') {
         syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
-        setCheckoutMessage(
-          [
-            '계좌이체 주문이 접수되었습니다.',
-            `${BANK_NAME} ${BANK_ACCOUNT_NUMBER}`,
-            `예금주: ${BANK_ACCOUNT_HOLDER}`,
-            '입금자명은 수령인 이름과 동일하게 입력해 주세요.',
-            '입금 확인 후 순차 처리됩니다.',
-          ].join('\n'),
-        );
       }
+      setBankOrderReceipt(receipt);
+      setIsRestoredBankReceipt(false);
+      try {
+        if (receipt) window.sessionStorage.setItem(BANK_RECEIPT_STORAGE_KEY, JSON.stringify(receipt));
+        else window.sessionStorage.removeItem(BANK_RECEIPT_STORAGE_KEY);
+      } catch { /* The confirmation is still shown when browser storage is unavailable. */ }
+      if (!receipt) setCheckoutMessage('주문은 접수되었습니다. 주문조회에서 입금 계좌와 주문 상태를 확인해 주세요. 다시 주문하지 마세요.');
       clearCart();
-      setMode('cart');
+      setMode('confirmation');
       setCheckoutName('');
       setCheckoutAddress('');
       setCheckoutPhone('');
@@ -728,18 +736,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     [isAuthenticated, updateAccountProfile],
   );
 
-  const queueCheckoutDetailsSync = useCallback(
-    (phone: string, address: string) => {
-      if (!isAuthenticated || typeof window === 'undefined') return;
-
-      window.localStorage.setItem(
-        PENDING_ACCOUNT_PROFILE_SYNC_STORAGE_KEY,
-        JSON.stringify({ phone, address }),
-      );
-    },
-    [isAuthenticated],
-  );
-
   const handleNicepayCheckout = useCallback(async () => {
     if (pendingPayPalApprovalRef.current) {
       setCheckoutError('확인 중인 PayPal 결제가 있습니다. 새 결제를 시작하지 말고 PayPal 주문을 다시 확인해 주세요.');
@@ -767,7 +763,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     }
 
     if (!validateCheckoutFields(normalizedEmail)) return;
-    queueCheckoutDetailsSync(normalizedPhone, normalizedAddress);
+    syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
 
     if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
       announceCheckoutError(
@@ -876,7 +872,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     isAuthenticated,
     session?.access_token,
     shipping,
-    queueCheckoutDetailsSync,
+    syncCheckoutDetailsToAccount,
     subtotal,
     tax,
     total,
@@ -1150,7 +1146,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     id="cart-overlay-title"
                     className="mt-3 text-[1.85rem] font-heading font-black uppercase tracking-[0.01em] leading-[1.08] text-[#111827] md:text-[2.45rem]"
                   >
-                    {mode === 'checkout' ? '결제' : '장바구니'}
+                    {mode === 'confirmation' ? isRestoredBankReceipt ? '최근 주문 접수 내역' : '주문 접수 · 입금 대기' : mode === 'checkout' ? '결제' : '장바구니'}
                   </h2>
                 </div>
                 <button
@@ -1167,9 +1163,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
             <div
               ref={checkoutScrollRef}
-              className="checkout-scroll-area flex-1 min-h-0 space-y-4 overflow-y-auto px-4 py-4 pr-2 pb-28 md:space-y-5 md:px-7 md:py-6 md:pr-4 md:pb-8"
+              className="checkout-scroll-area flex-1 min-h-0 space-y-4 overflow-y-auto px-4 py-4 pr-2 pb-6 md:space-y-5 md:px-7 md:py-6 md:pr-4 md:pb-8"
             >
-              <div className="sticky top-0 z-10 rounded-[16px] border border-[#d1d5db] bg-white/95 px-4 py-3 shadow-sm backdrop-blur-xl md:py-4">
+              {mode !== 'confirmation' && <div className="sticky top-0 z-10 rounded-[16px] border border-[#d1d5db] bg-white/95 px-4 py-3 shadow-sm backdrop-blur-xl md:py-4">
                 <div className="flex items-end justify-between gap-4">
                   <div>
                     <p className="text-lg font-bold text-[#111827]">{itemCount}개 상품</p>
@@ -1200,7 +1196,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                     <p className="text-[11px] text-[#6b7280] font-medium">주문할 상품이 없습니다.</p>
                   )}
                 </div>
-              </div>
+              </div>}
 
               {(checkoutMessage || checkoutError) && (
                 <div
@@ -1216,7 +1212,28 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 </div>
               )}
 
-              {mode === 'cart' ? (
+              {mode === 'confirmation' ? (
+                <div className="space-y-4">
+                  {bankOrderReceipt && <>
+                    <section className={CHECKOUT_SECTION_CLASS}>
+                      <h3 className="font-bold">주문 접수 내역</h3>
+                      <p className="mt-3 break-all text-sm">주문번호: <strong>{bankOrderReceipt.orderCode}</strong></p>
+                      {bankOrderReceipt.guestOrderNumber && <p className="mt-2 break-all text-sm">비회원 조회번호: <strong>{bankOrderReceipt.guestOrderNumber}</strong></p>}
+                      <ul className="mt-4 space-y-2 border-t border-[#e5e7eb] pt-3 text-sm">
+                        {bankOrderReceipt.items.map((item, index) => <li key={`${item.id}-${index}`} className="flex justify-between gap-3"><span>{item.name}{item.selectedSize ? ` / ${item.selectedSize}` : ''} × {item.quantity}</span><span className="shrink-0">{formatKrw(item.lineTotal)}</span></li>)}
+                      </ul>
+                      <p className="mt-4 text-sm font-bold">배송비 포함 {isRestoredBankReceipt ? '접수 당시 주문금액' : '입금액'}: {formatKrw(bankOrderReceipt.total)}</p>
+                    </section>
+                    {isRestoredBankReceipt ? <p className="rounded-xl border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">저장된 접수 내역입니다. 이후 취소되거나 입금 확인되었을 수 있으니, 주문조회에서 현재 상태와 입금 안내를 확인해 주세요.</p> : <>
+                      <BankTransferInstructions bankAccount={bankOrderReceipt.bankAccount} amount={bankOrderReceipt.total} />
+                      <CustomerOrderNotifications notifications={bankOrderReceipt.notifications} />
+                    </>}
+                    <p className="text-xs leading-relaxed text-[#4b5563]">접수 시점의 안내입니다. 이후 입금 확인·취소·배송 상태는 주문조회에서 확인해 주세요.{bankOrderReceipt.channel === 'guest' ? ' 비회원은 주문한 핸드폰 번호와 설정한 주문조회 비밀번호가 필요합니다.' : ''}</p>
+                  </>}
+                  <Link href="/orders" className="block rounded-xl bg-[#b8001f] px-4 py-3 text-center text-sm font-bold text-white">주문·입금·배송 조회</Link>
+                  <button type="button" onClick={onClose} className="w-full rounded-xl border border-[#d1d5db] px-4 py-3 text-sm font-bold">쇼핑 계속하기</button>
+                </div>
+              ) : mode === 'cart' ? (
                 <>
                   {!canCheckout ? (
                     <div className="border border-dashed border-[#d1d5db] bg-[#f8f9fa] p-8 text-center rounded-2xl">
@@ -1299,6 +1316,9 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             id="checkout-email"
                             ref={checkoutEmailInputRef}
                             type="email"
+                            autoComplete="email"
+                            maxLength={320}
+                            readOnly={isAuthenticated}
                             value={checkoutEmail}
                             onChange={(e) => setCheckoutEmail(e.target.value)}
                             placeholder="example@email.com"
@@ -1317,6 +1337,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             id="checkout-phone"
                             ref={checkoutPhoneInputRef}
                             type="tel"
+                            autoComplete="tel"
+                            maxLength={30}
                             value={checkoutPhone}
                             onChange={(e) => setCheckoutPhone(e.target.value)}
                             placeholder="010-0000-0000"
@@ -1335,6 +1357,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             id="checkout-name"
                             ref={checkoutNameInputRef}
                             type="text"
+                            autoComplete="shipping name"
+                            maxLength={100}
                             value={checkoutName}
                             onChange={(e) => setCheckoutName(e.target.value)}
                             placeholder="수령인 이름 입력"
@@ -1407,6 +1431,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                             value={checkoutAddress}
                             onChange={(e) => setCheckoutAddress(e.target.value)}
                             rows={3}
+                            autoComplete="shipping street-address"
+                            maxLength={1000}
                             placeholder="수령지 / 도로명 / 건물명 / 도시 / 우편번호"
                             className={`${CHECKOUT_FIELD_CLASS} resize-none`}
                           />
@@ -1417,9 +1443,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
 
                 </div>
               )}
-            </div>
-
-            {(canCheckout || pendingPayPalApproval) && (
+            {mode !== 'confirmation' && (canCheckout || pendingPayPalApproval) && (
               <div className="relative z-20 border-t border-[#d1d5db] bg-white px-4 py-3 md:px-7 md:py-5 shadow-lg">
                 <div className="mb-3 rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-3 py-3 md:px-4 md:py-4 shadow-sm">
                   <div className="flex items-center justify-between gap-4">
@@ -1463,23 +1487,26 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                           id="guest-order-password"
                           ref={guestPasswordInputRef}
                           type="password"
+                          autoComplete="new-password"
+                          minLength={4}
+                          maxLength={128}
                           value={guestLookupPassword}
                           onChange={(e) => setGuestLookupPassword(e.target.value)}
                           placeholder="4자 이상 입력"
                           className={CHECKOUT_FIELD_CLASS}
                         />
                         <p className="mt-2 text-xs font-medium leading-relaxed text-[#4b5563]">
-                          비회원 구매 후 주문번호와 이 비밀번호로 배송조회합니다.
+                          비회원 주문 후 핸드폰 번호와 이 비밀번호로 주문·입금·배송 상태를 조회합니다.
                         </p>
                       </div>
                     )}
 
-                    {/* 계좌이체 구매 (회원) - 콤팩트 버튼 */}
+                    {/* Choose the authenticated route once; do not expose duplicate member/guest actions. */}
                     <div className="flex items-center justify-start">
                       <button
                         type="button"
-                        onClick={() => void submitBankTransferOrder('member')}
-                        disabled={isSubmittingOrder || Boolean(pendingPayPalApproval)}
+                        onClick={() => void submitBankTransferOrder(isAuthenticated ? 'member' : 'guest')}
+                        disabled={isSubmittingOrder || isStartingNicepay || Boolean(pendingPayPalApproval)}
                         style={{
                           backgroundColor: '#ffffff',
                           color: '#111827',
@@ -1488,7 +1515,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         className="group relative inline-flex min-h-[44px] items-center justify-between gap-3 overflow-hidden border border-gray-300 px-3.5 py-2 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
                       >
                         <span className="text-[0.88rem] font-bold tracking-[-0.02em] leading-snug text-black">
-                          {isSubmittingOrder ? '처리중...' : '계좌이체 구매'}
+                          {isSubmittingOrder ? '접수 중...' : isAuthenticated ? '무통장입금 주문' : '비회원 무통장입금 주문'}
                         </span>
                         <span className="text-sm font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                           →
@@ -1496,7 +1523,8 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </button>
                     </div>
 
-                    {/* 카드결제 (NICE Payments) - 페이팔 결제 버튼과 1:1 완벽 일치 규격 (풀위스, 높이 52px, 동일 컨테이너) */}
+                    <p className="text-xs leading-relaxed text-[#4b5563]">주문 접수 후 안내되는 계좌로 직접 송금하는 방식입니다. 접수만으로 결제가 완료되지 않습니다.</p>
+                    {canUseNicepayCheckout ? (
                     <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
                       {nicepayError && (
                         <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
@@ -1530,6 +1558,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                         </span>
                       </button>
                     </div>
+                    ) : <p className="rounded-xl border border-[#d1d5db] bg-[#f8f9fa] p-3 text-xs text-[#4b5563]">카드결제는 회원 로그인 후 이용할 수 있습니다. <Link href="/?popup=mypage" className="font-bold underline">로그인하기</Link></p>}
 
                     {shouldShowPaypal ? (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
@@ -1573,26 +1602,6 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </div>
                     ) : null}
 
-                    {!isAuthenticated ? (
-                      <div className="flex items-center justify-start">
-                        <button
-                          type="button"
-                          onClick={() => void submitBankTransferOrder('guest')}
-                          disabled={isSubmittingOrder || Boolean(pendingPayPalApproval)}
-                          style={{
-                            backgroundColor: '#111827',
-                            color: '#ffffff',
-                            borderRadius: '10px',
-                          }}
-                          className="group relative inline-flex min-h-[44px] items-center justify-between gap-3 overflow-hidden border border-[#d1d5db] px-3.5 py-2 text-left shadow-md transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] disabled:opacity-50 cursor-pointer"
-                        >
-                          <span className="text-[0.88rem] font-bold tracking-[-0.02em] leading-snug text-white">
-                            {isSubmittingOrder ? '처리중...' : '비회원 구매'}
-                          </span>
-                          <span className="text-sm font-black text-white transition-transform duration-200 group-hover:translate-x-1">→</span>
-                        </button>
-                      </div>
-                    ) : null}
                     <button
                       type="button"
                       onClick={() => setMode('cart')}
@@ -1605,6 +1614,7 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 )}
               </div>
             )}
+            </div>
           </motion.div>
         </>
       )}

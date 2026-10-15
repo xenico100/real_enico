@@ -1,7 +1,9 @@
-import { isPrimaryAdmin, PRIMARY_ADMIN_EMAIL } from '@/lib/security/identity';
+import { isPrimaryAdmin, PRIMARY_ADMIN_EMAIL, PRIMARY_ADMIN_ID } from '@/lib/security/identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
+import { validateAdminId, validateAdminText } from '@/lib/security/adminInput';
 
 
 type AdminAuthResult =
@@ -110,7 +112,7 @@ function buildMemberResponse(
     address,
     createdAt: authUser.created_at || profile?.created_at || null,
     updatedAt: authUser.updated_at || profile?.updated_at || null,
-    isPrimaryAdmin: loweredEmail === PRIMARY_ADMIN_EMAIL,
+    isPrimaryAdmin: authUser.id === PRIMARY_ADMIN_ID && loweredEmail === PRIMARY_ADMIN_EMAIL,
   };
 }
 
@@ -251,31 +253,28 @@ export async function PATCH(request: Request) {
   } = {};
 
   try {
-    payload = (await request.json()) as typeof payload;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 8 * 1024) as typeof payload;
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
-  const id = normalizeText(payload.id);
-  if (!id) {
-    return NextResponse.json({ message: '수정 대상 id가 필요합니다.' }, { status: 400 });
-  }
-
-  const email = normalizeText(payload.email);
-  const fullName = normalizeText(payload.fullName);
-  const phone = normalizeText(payload.phone);
-  const address = normalizeText(payload.address);
-  const password = normalizeText(payload.password);
-
-  if (!email) {
-    return NextResponse.json({ message: '이메일은 비워둘 수 없습니다.' }, { status: 400 });
-  }
-
-  if (password && password.length < 8) {
-    return NextResponse.json(
-      { message: '비밀번호는 8자 이상으로 입력하세요.' },
-      { status: 400 },
-    );
+  let id: string;
+  let fullName: string;
+  let phone: string;
+  let address: string;
+  let email: string;
+  try {
+    id = validateAdminId(payload.id);
+    email = validateAdminText(payload.email, '이메일', 254, true).toLowerCase();
+    fullName = validateAdminText(payload.fullName, '이름', 100);
+    phone = validateAdminText(payload.phone, '연락처', 30);
+    address = validateAdminText(payload.address, '주소', 500);
+    if (payload.password !== undefined && payload.password !== '') {
+      throw new RequestBodyError('비밀번호는 회원 본인이 계정 복구 절차로 변경해야 합니다.');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new RequestBodyError('이메일 형식을 확인해 주세요.');
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : '회원 정보를 확인해 주세요.' }, { status: 400 });
   }
 
   const { data: currentUserData, error: currentUserError } =
@@ -286,6 +285,10 @@ export async function PATCH(request: Request) {
       { message: `대상 회원 조회 실패: ${currentUserError?.message || '사용자 없음'}` },
       { status: 404 },
     );
+  }
+
+  if (email !== normalizeText(currentUserData.user.email).toLowerCase()) {
+    return NextResponse.json({ message: '로그인 이메일은 관리자에서 변경할 수 없습니다. 회원 본인이 이메일 확인 절차로 변경해야 합니다.' }, { status: 400 });
   }
 
   const currentMetadata =
@@ -301,17 +304,7 @@ export async function PATCH(request: Request) {
     address: address || null,
   };
 
-  const updateUserPayload: {
-    email: string;
-    password?: string;
-    user_metadata: Record<string, unknown>;
-  } = {
-    email,
-    user_metadata: nextMetadata,
-  };
-  if (password) {
-    updateUserPayload.password = password;
-  }
+  const updateUserPayload = { user_metadata: nextMetadata };
 
   const { data: updatedUserData, error: updateUserError } =
     await auth.serviceClient.auth.admin.updateUserById(id, updateUserPayload);
@@ -370,14 +363,14 @@ export async function DELETE(request: Request) {
 
   let payload: { id?: string } = {};
   try {
-    payload = (await request.json()) as typeof payload;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 8 * 1024) as typeof payload;
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
-  const id = normalizeText(payload.id);
-  if (!id) {
-    return NextResponse.json({ message: '삭제 대상 id가 필요합니다.' }, { status: 400 });
+  let id: string;
+  try { id = validateAdminId(payload.id); } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : '대상 ID를 확인해 주세요.' }, { status: 400 });
   }
 
   if (id === auth.adminId) {

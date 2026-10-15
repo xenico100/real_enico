@@ -3,8 +3,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
+import { validateAdminId, validateAdminImages, validateAdminInteger, validateAdminPublished, validateAdminText } from '@/lib/security/adminInput';
 
 export const runtime = 'nodejs';
+
+const OPTIONAL_COLUMNS = new Set(['category', 'description', 'specs', 'thumbnail_url', 'created_at', 'updated_at']);
 
 
 type AdminAuthResult =
@@ -32,10 +36,6 @@ function getServerConfig() {
   return { url, anonKey, serviceRoleKey };
 }
 
-function normalizeText(value: unknown) {
-  if (typeof value !== 'string') return '';
-  return value.trim();
-}
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object') {
@@ -160,35 +160,22 @@ async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
 
 function sanitizeProductPayload(input: Record<string, unknown>, includeCreatedAt = false) {
   const now = new Date().toISOString();
-  const parsedPrice =
-    typeof input.price === 'number'
-      ? input.price
-      : typeof input.price === 'string' && input.price.trim()
-        ? Number.parseInt(input.price, 10)
-        : Number.NaN;
-  const images =
-    Array.isArray(input.images) &&
-    input.images.every((item) => typeof item === 'string')
-      ? (input.images as string[]).map((item) => item.trim()).filter(Boolean)
-      : [];
-
+  const images = validateAdminImages(input.images);
+  const currency = validateAdminText(input.currency, '통화', 3).toUpperCase() || 'KRW';
+  if (currency !== 'KRW') throw new RequestBodyError('판매가는 원화(KRW)로 입력해 주세요.');
   const payload: Record<string, unknown> = {
-    title: normalizeText(input.title) || null,
-    category: normalizeText(input.category) || null,
-    description: normalizeText(input.description) || null,
-    specs: normalizeText(input.specs) || null,
-    price: Number.isFinite(parsedPrice) ? parsedPrice : null,
-    currency: normalizeText(input.currency).toUpperCase() || 'KRW',
+    title: validateAdminText(input.title, '상품명', 200, true),
+    category: validateAdminText(input.category, '카테고리', 100) || null,
+    description: validateAdminText(input.description, '상품 설명', 50000) || null,
+    specs: validateAdminText(input.specs, '상품 사양', 50000) || null,
+    price: validateAdminInteger(input.price, '판매가', 1),
+    currency,
     images,
     thumbnail_url: images[0] || null,
-    is_published: Boolean(input.is_published),
+    is_published: validateAdminPublished(input.is_published),
     updated_at: now,
   };
-
-  if (includeCreatedAt) {
-    payload.created_at = now;
-  }
-
+  if (includeCreatedAt) payload.created_at = now;
   return payload;
 }
 
@@ -212,7 +199,7 @@ async function insertWithMissingColumnFallback(
     }
 
     const missingColumn = extractMissingProductColumn(error);
-    if (!missingColumn || !(missingColumn in workingPayload)) {
+    if (!missingColumn || !OPTIONAL_COLUMNS.has(missingColumn) || !(missingColumn in workingPayload)) {
       throw error;
     }
 
@@ -247,7 +234,7 @@ async function updateWithMissingColumnFallback(
     }
 
     const missingColumn = extractMissingProductColumn(error);
-    if (!missingColumn || !(missingColumn in workingPayload)) {
+    if (!missingColumn || !OPTIONAL_COLUMNS.has(missingColumn) || !(missingColumn in workingPayload)) {
       throw error;
     }
 
@@ -305,21 +292,9 @@ export async function POST(request: Request) {
 
   let payload = {} as Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
-  }
-
-  if (!normalizeText(payload.title)) {
-    return NextResponse.json({ message: 'title은 필수입니다.' }, { status: 400 });
-  }
-
-  const price =
-    typeof payload.price === 'number'
-      ? payload.price
-      : Number.parseInt(normalizeText(payload.price), 10);
-  if (!Number.isFinite(price)) {
-    return NextResponse.json({ message: 'price는 숫자로 입력하세요.' }, { status: 400 });
+    payload = await readJsonObject(request, 128 * 1024);
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
   try {
@@ -327,6 +302,7 @@ export async function POST(request: Request) {
       auth.serviceClient,
       sanitizeProductPayload(payload, true),
     );
+    if (!result.row) throw new RequestBodyError('상품을 찾지 못했습니다. 새로고침 후 다시 확인해 주세요.', 404);
     revalidateTag('storefront-products', 'max');
     return NextResponse.json({
       message:
@@ -342,7 +318,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(
       { message: getErrorMessage(error, '상품 저장 실패') },
-      { status: 500 },
+      { status: error instanceof RequestBodyError ? error.status : 500 },
     );
   }
 }
@@ -353,26 +329,14 @@ export async function PATCH(request: Request) {
 
   let payload = {} as Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 128 * 1024);
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
-  const id = normalizeText(payload.id);
-  if (!id) {
-    return NextResponse.json({ message: '수정 대상 id가 필요합니다.' }, { status: 400 });
-  }
-
-  if (!normalizeText(payload.title)) {
-    return NextResponse.json({ message: 'title은 필수입니다.' }, { status: 400 });
-  }
-
-  const price =
-    typeof payload.price === 'number'
-      ? payload.price
-      : Number.parseInt(normalizeText(payload.price), 10);
-  if (!Number.isFinite(price)) {
-    return NextResponse.json({ message: 'price는 숫자로 입력하세요.' }, { status: 400 });
+  let id: string;
+  try { id = validateAdminId(payload.id); } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, '대상 ID를 확인해 주세요.') }, { status: 400 });
   }
 
   try {
@@ -381,6 +345,7 @@ export async function PATCH(request: Request) {
       id,
       sanitizeProductPayload(payload, false),
     );
+    if (!result.row) throw new RequestBodyError('상품을 찾지 못했습니다. 새로고침 후 다시 확인해 주세요.', 404);
     revalidateTag('storefront-products', 'max');
     return NextResponse.json({
       message:
@@ -396,7 +361,7 @@ export async function PATCH(request: Request) {
     }
     return NextResponse.json(
       { message: getErrorMessage(error, '상품 저장 실패') },
-      { status: 500 },
+      { status: error instanceof RequestBodyError ? error.status : 500 },
     );
   }
 }
@@ -407,14 +372,14 @@ export async function DELETE(request: Request) {
 
   let payload = {} as Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
+    payload = await readJsonObject(request, 128 * 1024);
+  } catch (error) {
+    return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: error instanceof RequestBodyError ? error.status : 400 });
   }
 
-  const id = normalizeText(payload.id);
-  if (!id) {
-    return NextResponse.json({ message: '삭제 대상 id가 필요합니다.' }, { status: 400 });
+  let id: string;
+  try { id = validateAdminId(payload.id); } catch (error) {
+    return NextResponse.json({ message: getErrorMessage(error, '대상 ID를 확인해 주세요.') }, { status: 400 });
   }
 
   const { error } = await auth.serviceClient.from('products').delete().eq('id', id);

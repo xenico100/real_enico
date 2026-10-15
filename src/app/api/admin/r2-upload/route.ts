@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { uploadToR2 } from '@/lib/r2Storage';
 import { validatedImageExtension } from '@/lib/security/imageUpload';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { readFormData, RequestBodyError } from '@/lib/security/requestBody';
 
 export const runtime = 'nodejs';
 
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     const authResult = await authenticateAdmin(request);
     if (authResult instanceof NextResponse) return authResult;
 
-    const formData = await request.formData();
+    const formData = await readFormData(request, 64 * 1024 * 1024);
     const files = formData.getAll('files').filter((item): item is File => item instanceof File);
     const folder = formData.get('folder')?.toString().trim() || 'products';
     if (!['products', 'collections'].includes(folder)) {
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
       {
         message: error instanceof Error ? error.message : 'R2 업로드 실패',
       },
-      { status: 500 },
+      { status: error instanceof RequestBodyError ? error.status : 500 },
     );
   }
 }

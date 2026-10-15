@@ -128,6 +128,7 @@ function parseRequestBody(body: unknown): ParsedNicepayRequest {
 function buildPendingRawPayload(pendingOrder: NicepayPendingOrder) {
   return {
     stage: 'pending',
+    customerUserId: pendingOrder.channel === 'member' ? pendingOrder.customerUserId : null,
     pendingOrder,
   };
 }
@@ -173,6 +174,7 @@ function isSamePendingCheckout(existing: NicepayPendingOrder, current: NicepayPe
   return (
     existing.transactionId === current.transactionId &&
     existing.channel === current.channel &&
+    existing.customerUserId === current.customerUserId &&
     existing.guestPasswordHash === current.guestPasswordHash &&
     sameCustomer &&
     samePricing &&
@@ -235,8 +237,9 @@ export async function POST(request: Request) {
     const parsed = parseRequestBody(await readJsonObject(request));
     const authentication = await authenticateOrderRequest(request, parsed.channel);
     const authenticatedEmail = authentication.user?.email?.trim();
-    if (!authenticatedEmail) {
-      throw new OrderValidationError('회원 계정 이메일을 확인할 수 없습니다.', 400);
+    const customerUserId = authentication.user?.id?.trim();
+    if (!authenticatedEmail || !customerUserId) {
+      throw new OrderValidationError('회원 계정 정보를 확인할 수 없습니다.', 400);
     }
 
     const serviceClient = createClient(config.url, config.serviceRoleKey, {
@@ -259,6 +262,7 @@ export async function POST(request: Request) {
       orderId,
       transactionId: parsed.transactionId,
       channel: 'member',
+      customerUserId,
       guestPasswordHash: null,
       customer: {
         ...parsed.customer,

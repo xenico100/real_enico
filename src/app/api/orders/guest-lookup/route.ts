@@ -4,6 +4,7 @@ import { readJsonObject, RequestBodyError } from '@/lib/security/requestBody';
 import { NextResponse } from 'next/server';
 import { verifyGuestLookupPassword } from '@/lib/orders/guestLookup';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { getOrderBankAccount } from '@/lib/orders/bankAccount';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
 type GuestLookupRow = {
@@ -23,6 +24,8 @@ type GuestLookupRow = {
   customer_phone: string | null;
   customer_country: string | null;
   customer_address: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
   items: unknown;
   raw_payload: unknown;
   shipping_status: string | null;
@@ -118,7 +121,7 @@ export async function POST(request: Request) {
   });
 
   const selectColumns =
-    'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, items, raw_payload, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at, guest_password_hash';
+    'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, items, raw_payload, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at, guest_password_hash';
   const candidateColumns = 'id, customer_phone, guest_password_hash';
 
   const mapLookupError = (error: { code?: string; message: string }) => {
@@ -212,6 +215,7 @@ export async function POST(request: Request) {
     customerPhone: normalizeText(matchedOrder.customer_phone),
     customerCountry: normalizeText(matchedOrder.customer_country),
     customerAddress: normalizeText(matchedOrder.customer_address),
+    bankAccount: matchedOrder.payment_method === 'bank_transfer' ? getOrderBankAccount(matchedOrder) : null,
     paymentReceiptUrl: extractPaymentReceiptUrl(matchedOrder.raw_payload),
     items: normalizeItems(matchedOrder.items),
     shippingStatus: normalizeText(matchedOrder.shipping_status || 'preparing'),

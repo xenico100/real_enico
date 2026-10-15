@@ -4,11 +4,11 @@ import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { cancelNicepayOrder } from '@/lib/orders/nicepayCancel';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { dispatchOrderNotifications, getCurrentOrderNotificationEvent, getOrderNotificationHistory, getOrderNotificationSummary, type NotificationChannel, type OrderNotificationEvent } from '@/lib/orders/notifications';
+import { getOrderBankAccount } from '@/lib/orders/bankAccount';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
-const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
 const DEFAULT_SHIPPING_COMPANY = '우체국';
-const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
 const ORDER_SELECT =
   'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, paypal_order_id, paypal_capture_id, paypal_currency, paypal_value, items, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, raw_payload, created_at, updated_at';
 
@@ -165,6 +165,9 @@ function mapOrderRow(row: OrderRow) {
     customerPhone: normalizeText(row.customer_phone),
     customerCountry: normalizeText(row.customer_country),
     customerAddress: normalizeText(row.customer_address),
+    bankAccount: row.payment_method === 'bank_transfer' ? getOrderBankAccount(row) : null,
+    notifications: getOrderNotificationSummary(row.raw_payload),
+    notificationHistory: getOrderNotificationHistory(row.raw_payload),
     bankName: normalizeText(row.bank_name),
     bankAccountNumber: normalizeText(row.bank_account_number),
     paypalOrderId: normalizeText(row.paypal_order_id),
@@ -265,56 +268,11 @@ function getCancelErrorStatus(error: unknown) {
   return 500;
 }
 
-async function sendAdminCancelNotificationEmail(order: OrderRow, reason: string) {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim() || '';
-  if (!resendApiKey) {
-    throw new Error('서버에 RESEND_API_KEY가 설정되어 있지 않습니다.');
-  }
-
-  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
-  const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
-  const orderCode = normalizeText(order.order_code) || order.id;
-  const paymentMethod =
-    normalizeText(order.payment_method).toLowerCase() === 'bank_transfer'
-      ? '계좌이체'
-      : normalizeText(order.payment_method) || '-';
-
-  const subject = `[주문취소] 관리자 ${orderCode}`;
-  const text = [
-    '[관리자 주문 취소 알림]',
-    `주문번호: ${orderCode}`,
-    `취소 요청자: 관리자`,
-    `취소 사유: ${reason}`,
-    `결제수단: ${paymentMethod}`,
-    `결제상태: ${normalizeText(order.payment_status) || '-'}`,
-    `주문자: ${normalizeText(order.customer_name) || '-'}`,
-    `이메일: ${normalizeText(order.customer_email) || '-'}`,
-    `연락처: ${normalizeText(order.customer_phone) || '-'}`,
-    `총 결제금액: ${normalizeNumber(order.amount_total).toLocaleString('ko-KR')}원`,
-  ].join('\n');
-
-  const response = await fetch(RESEND_API_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text,
-      reply_to: normalizeText(order.customer_email) || undefined,
-    }),
-  });
-
-  const responsePayload = (await response.json().catch(() => null)) as
-    | { error?: { message?: string } }
-    | null;
-
-  if (!response.ok) {
-    throw new Error(responsePayload?.error?.message || '취소 메일 발송 API 응답 오류');
-  }
+async function notifyAndRefresh(serviceClient: SupabaseClient, order: OrderRow, event: OrderNotificationEvent) {
+  try { await dispatchOrderNotifications(serviceClient, order.id, event); }
+  catch (error) { console.error('Order notification needs attention', { orderId: order.id, event, error: error instanceof Error ? error.message : 'unknown' }); }
+  const { data } = await serviceClient.from('orders').select(ORDER_SELECT).eq('id', order.id).maybeSingle();
+  return (data || order) as OrderRow;
 }
 
 async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
@@ -608,7 +566,7 @@ export async function PATCH(request: Request) {
     }
     return NextResponse.json({
       message: '이체확인 및 단품 재고 처리가 완료되었습니다. 배송정보는 별도로 저장해 주세요.',
-      order: mapOrderRow(confirmedOrder as OrderRow),
+      order: mapOrderRow(await notifyAndRefresh(auth.serviceClient, confirmedOrder as OrderRow, 'payment_confirmed')),
     });
   }
 
@@ -666,6 +624,9 @@ export async function PATCH(request: Request) {
   updateQuery = existing.shipping_status === null
     ? updateQuery.is('shipping_status', null)
     : updateQuery.eq('shipping_status', existing.shipping_status);
+  if ('raw_payload' in updatePayload) {
+    updateQuery = existing.raw_payload === null ? updateQuery.is('raw_payload', null) : updateQuery.eq('raw_payload', JSON.stringify(existing.raw_payload));
+  }
   const { data, error } = await updateQuery.select(ORDER_SELECT).maybeSingle();
 
   if (error) {
@@ -694,6 +655,14 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const changedPayment = requestedPaymentStatus && requestedPaymentStatus !== currentPaymentStatus;
+  const changedShipping = requestedShippingStatus && requestedShippingStatus !== existing.shipping_status &&
+    ['shipping', 'delivered'].includes(requestedShippingStatus);
+  const nextEvent = data.payment_status === 'cancelled' && currentPaymentStatus === 'refund_pending'
+    ? 'refunded' : getCurrentOrderNotificationEvent(data);
+  const finalOrder = (changedPayment || changedShipping) && nextEvent
+    ? await notifyAndRefresh(auth.serviceClient, data as OrderRow, nextEvent) : data as OrderRow;
+
   return NextResponse.json({
     message:
       paymentMethod === 'bank_transfer' && requestedPaymentStatus === 'cancelled'
@@ -705,7 +674,7 @@ export async function PATCH(request: Request) {
             currentPaymentStatus !== 'refund_pending'
           ? '환불 진행중 상태로 저장되었습니다.'
           : '주문 상태/배송 정보가 저장되었습니다.',
-    order: mapOrderRow(data as OrderRow),
+    order: mapOrderRow(finalOrder),
   });
 }
 
@@ -717,6 +686,7 @@ export async function POST(request: Request) {
     id?: string;
     action?: string;
     reason?: string;
+    channels?: NotificationChannel[];
   } = {};
 
   try {
@@ -733,7 +703,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: '취소 대상 id가 필요합니다.' }, { status: 400 });
   }
 
-  if (action !== 'cancel_payment') {
+  if (action !== 'cancel_payment' && action !== 'retry_notifications') {
     return NextResponse.json({ message: '지원하지 않는 관리자 주문 액션입니다.' }, { status: 400 });
   }
 
@@ -752,6 +722,22 @@ export async function POST(request: Request) {
 
   if (!existing) {
     return NextResponse.json({ message: '대상 주문이 없습니다.' }, { status: 404 });
+  }
+
+  if (action === 'retry_notifications') {
+    const allowedChannels: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms'];
+    if (payload.channels && (!Array.isArray(payload.channels) || payload.channels.some(c => !allowedChannels.includes(c)))) {
+      return NextResponse.json({ message: '알림 채널이 올바르지 않습니다.' }, { status: 400 });
+    }
+    const event = getCurrentOrderNotificationEvent(existing as OrderRow);
+    if (!event) return NextResponse.json({ message: '결제 결과 확인 중인 주문에는 알림을 재발송할 수 없습니다.' }, { status: 409 });
+    try {
+      const notifications = await dispatchOrderNotifications(auth.serviceClient, id, event, { channels: payload.channels, retry: true });
+      const { data } = await auth.serviceClient.from('orders').select(ORDER_SELECT).eq('id', id).maybeSingle();
+      return NextResponse.json({ message: '발송 가능한 알림을 처리했습니다. 완료·결과 확인 필요 알림은 중복 발송하지 않습니다.', notifications, order: mapOrderRow((data || existing) as OrderRow) });
+    } catch {
+      return NextResponse.json({ message: '알림 처리 결과를 확인하지 못했습니다. 주문은 유지됩니다. 발송 내역을 확인해 주세요.' }, { status: 503 });
+    }
   }
 
   try {
@@ -805,6 +791,7 @@ export async function POST(request: Request) {
       updateQuery = existing.shipping_status === null
         ? updateQuery.is('shipping_status', null)
         : updateQuery.eq('shipping_status', 'preparing');
+      updateQuery = existing.raw_payload === null ? updateQuery.is('raw_payload', null) : updateQuery.eq('raw_payload', JSON.stringify(existing.raw_payload));
       const { data, error } = await updateQuery.select(ORDER_SELECT).maybeSingle();
 
       if (error) {
@@ -820,11 +807,7 @@ export async function POST(request: Request) {
 
       updatedOrder = data as OrderRow;
 
-      try {
-        await sendAdminCancelNotificationEmail(updatedOrder, reason);
-      } catch (error) {
-        console.error('Failed to send admin cancel notification email', error);
-      }
+      updatedOrder = await notifyAndRefresh(auth.serviceClient, updatedOrder, wasUnpaid ? 'cancelled' : 'refund_pending');
     } else {
       return NextResponse.json(
         { message: '관리자 주문취소는 NICE Payments와 계좌이체 주문만 지원합니다.' },
@@ -835,10 +818,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message:
         paymentMethod === 'nicepay'
-          ? '카드결제 취소가 완료되고 관리자 메일로도 정보가 전송됩니다.'
+          ? '카드결제 취소가 완료되었습니다.'
           : paymentStatus === 'pending_transfer'
-            ? '미입금 주문이 취소되고 관리자 메일로도 정보가 전송됩니다.'
-            : '환불 요청 상태로 변경되고 관리자 메일로도 정보가 전송됩니다.',
+            ? '미입금 주문이 취소되었습니다.'
+            : '환불 요청 상태로 변경되었습니다.',
       order: mapOrderRow(updatedOrder),
     });
   } catch (error) {

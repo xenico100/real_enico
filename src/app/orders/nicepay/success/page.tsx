@@ -11,8 +11,7 @@ type NicepaySuccessPageProps = {
 
 export default async function NicepaySuccessPage({ searchParams }: NicepaySuccessPageProps) {
   const params = await searchParams;
-  const orderLookupHref =
-    params.channel === 'member' ? '/?popup=mypage&tab=orders' : '/?popup=mypage';
+  const orderLookupHref = '/orders';
 
   return (
     <main className="min-h-screen bg-[#050505] px-4 py-12 text-[#e5e5e5] md:px-6">

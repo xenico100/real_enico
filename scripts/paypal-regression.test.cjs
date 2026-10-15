@@ -26,6 +26,9 @@ function loadTypeScript(file, mocks = {}) {
     if (name === '@/lib/orders/paypalPricing') {
       return loadTypeScript('src/lib/orders/paypalPricing.ts');
     }
+    if (name === '@/lib/orders/rawPayload') {
+      return loadTypeScript('src/lib/orders/rawPayload.ts');
+    }
     throw new Error(`Unexpected import in payment regression test: ${name}`);
   };
   vm.runInThisContext(`(function(require,module,exports){${compiled}\n})`, {
@@ -185,17 +188,17 @@ test('browser and server PayPal currencies must agree before any provider call',
   }
 });
 
-function routeFixture() {
+function routeFixture({ channel = 'guest', ownerId, authenticatedUserId = '11111111-1111-4111-8111-111111111111', paymentStatus = 'COMPLETED' } = {}) {
   const existing = {
     id: 'row-123',
     order_code: 'ORDER-123',
     payment_method: 'paypal',
     paypal_order_id: 'PAYPAL-ORDER-123',
     paypal_capture_id: 'CAPTURE-123',
-    payment_status: 'COMPLETED',
+    payment_status: paymentStatus,
     guest_order_number: 'GUEST-123',
     guest_password_hash: 'secret-pass',
-    channel: 'guest',
+    channel,
     customer_name: 'Buyer',
     customer_email: 'buyer@example.com',
     customer_phone: '01012345678',
@@ -203,6 +206,7 @@ function routeFixture() {
     customer_address: 'Seoul',
     amount_total: 1350,
     items: [{ id: 'product-123', quantity: 1, selectedSize: null }],
+    raw_payload: ownerId ? { customerUserId: ownerId } : {},
   };
   let canonicalCalls = 0;
   let captureCalls = 0;
@@ -238,12 +242,15 @@ function routeFixture() {
     '@/lib/orders/paypalServer': {
       capturePayPalOrder: async () => { captureCalls += 1; throw new Error('No payment API permitted'); },
     },
+    '@/lib/orders/notifications': {
+      dispatchOrderNotifications: async () => { throw new Error('No notification sends permitted'); },
+    },
     '@/lib/orders/checkoutClaims': {
       claimCheckoutProducts: async () => { throw new Error('No claim writes permitted'); },
       releaseCheckoutProducts: async () => { throw new Error('No claim writes permitted'); },
     },
     '@/lib/orders/serverOrderValidation': {
-      authenticateOrderRequest: async () => ({ user: null }),
+      authenticateOrderRequest: async () => ({ user: channel === 'member' ? { id: authenticatedUserId, email: 'buyer@example.com' } : null }),
       buildCanonicalOrder: async () => { canonicalCalls += 1; throw new Error('Sold out'); },
       getOrderErrorStatus: (error) => error.status || 500,
       normalizeTransactionId: (value) => value,
@@ -257,7 +264,7 @@ function routeFixture() {
   });
   const body = {
     transactionId: 'ORDER-123',
-    channel: 'guest',
+    channel,
     guestLookupPassword: 'secret-pass',
     customer: {
       name: 'Buyer', email: 'buyer@example.com', phone: '01012345678',
@@ -295,132 +302,161 @@ test('a retry with a wrong guest password or changed product is rejected', async
   assert.deepEqual(getCalls(), { canonicalCalls: 0, captureCalls: 0 });
 });
 
-test('concurrent retries finalize once and send only one order email', async () => {
-  let saved = null;
-  let successfulFinalizations = 0;
-  let emailCalls = 0;
-  let claimCalls = 0;
-  let releaseCalls = 0;
-  let captureStarts = 0;
-  let callbackCount = 0;
-  let releaseCaptures;
-  const bothCapturesStarted = new Promise((resolve) => { releaseCaptures = resolve; });
-  const db = {
-    from(table) {
-      assert.equal(table, 'orders');
-      const filters = [];
-      let insertData = null;
-      let updateData = null;
-      const query = {
-        select: () => query,
-        eq: (field, value) => { filters.push([field, value]); return query; },
-        insert: (value) => { insertData = value; return query; },
-        update: (value) => { updateData = value; return query; },
-        single: async () => {
-          if (saved) return { data: null, error: { code: '23505' } };
-          saved = { id: 'row-456', ...insertData };
-          return { data: saved, error: null };
-        },
-        maybeSingle: async () => {
-          if (!saved || !filters.every(([field, value]) => saved[field] === value)) {
-            return { data: null, error: null };
-          }
-          if (updateData) {
-            saved = { ...saved, ...updateData };
-            successfulFinalizations += 1;
-          }
-          return { data: saved, error: null };
-        },
-      };
-      return query;
-    },
-  };
-  const originalFetch = global.fetch;
-  const originalResendKey = process.env.RESEND_API_KEY;
-  process.env.SUPABASE_URL = 'https://fixture.supabase.co';
-  process.env.SUPABASE_SERVICE_ROLE_KEY = 'fixture-service-key';
-  process.env.RESEND_API_KEY = 'fixture-resend-key';
-  global.fetch = async (url) => {
-    assert.equal(url, 'https://api.resend.com/emails');
-    emailCalls += 1;
-    return Response.json({ id: 'fixture-email' });
-  };
-  try {
-    const route = loadTypeScript('src/app/api/orders/paypal/route.ts', {
-      'next/cache': { revalidateTag() {} },
-      'next/server': { NextResponse: { json: (value, options) => Response.json(value, options) } },
-      '@supabase/supabase-js': { createClient: () => db },
-      '@/lib/security/requestBudget': { requestBudget: async () => null },
-      '@/lib/security/requestBody': { readJsonObject: async (request) => request.json() },
-      '@/lib/supabase/projectGuard': { assertExpectedSupabaseProject: (url) => url },
-      '@/lib/orders/guestLookup': {
-        generateGuestOrderNumber: () => 'GUEST-NEW',
-        hashGuestLookupPassword: (value) => value,
-        verifyGuestLookupPassword: (value, stored) => value === stored,
-      },
-      '@/lib/orders/paypalServer': {
-        capturePayPalOrder: async (_input, beforeCapture) => {
-          // One request has already been captured upstream; both paths must
-          // still verify the same product claim before local finalization.
-          await beforeCapture(callbackCount++ === 1);
-          captureStarts += 1;
-          if (captureStarts === 2) releaseCaptures();
-          await bothCapturesStarted;
-          return {
-            orderId: 'PAYPAL-ORDER-123', captureId: 'CAPTURE-123',
-            status: 'COMPLETED', currency: 'USD', value: '1.00',
-          };
-        },
-      },
-      '@/lib/orders/checkoutClaims': {
-        claimCheckoutProducts: async () => { claimCalls += 1; },
-        releaseCheckoutProducts: async () => { releaseCalls += 1; },
-      },
-      '@/lib/orders/serverOrderValidation': {
-        authenticateOrderRequest: async () => ({ user: null }),
-        buildCanonicalOrder: async () => ({
-          items: [{
-            id: 'product-123', name: 'Fixture', category: '기타', selectedSize: null,
-            quantity: 1, unitPrice: 1350, lineTotal: 1350,
-          }],
-          pricing: { subtotal: 1350, shipping: 0, tax: 0, total: 1350, currency: 'KRW' },
-        }),
-        getOrderErrorStatus: (error) => error.status || 500,
-        normalizeTransactionId: (value) => value,
-        OrderValidationError,
-      },
-      '@/lib/storefront/productAvailability': { extractPersistentProductIds: () => ['product-123'] },
-      '@/lib/storefront/productAvailabilityDb': {
-        fetchProductAvailabilitySnapshot: async () => ({
-          rows: [{ id: 'product-123' }], hasRawColumn: false,
-        }),
-        markProductsSoldOut: async () => {},
-      },
-    });
-    const body = {
-      transactionId: 'ORDER-123', channel: 'guest', guestLookupPassword: 'secret-pass',
-      customer: {
-        name: 'Buyer', email: 'buyer@example.com', phone: '01012345678',
-        country: '대한민국', address: 'Seoul',
-      },
-      pricing: { total: 1350 },
-      paypal: { orderId: 'PAYPAL-ORDER-123' },
-      items: [{ id: 'product-123', quantity: 1 }],
-    };
-    const send = () => route.POST(new Request('http://localhost/api/orders/paypal', {
+test('member payment retry rejects a different stored owner even when all customer details match', async () => {
+  const { route, body, getCalls } = routeFixture({ channel: 'member', ownerId: '22222222-2222-4222-8222-222222222222' });
+  const response = await route.POST(new Request('http://localhost/api/orders/paypal', {
+    method: 'POST', body: JSON.stringify(body),
+  }));
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).guestOrderNumber, undefined);
+  assert.deepEqual(getCalls(), { canonicalCalls: 0, captureCalls: 0 });
+});
+
+test('legacy completed member payment can recover without recapture but unowned pending payment is blocked', async () => {
+  for (const paymentStatus of ['COMPLETED', 'pending_payment']) {
+    const { route, body, getCalls } = routeFixture({ channel: 'member', paymentStatus });
+    const response = await route.POST(new Request('http://localhost/api/orders/paypal', {
       method: 'POST', body: JSON.stringify(body),
     }));
-    const responses = await Promise.all([send(), send()]);
-    assert.deepEqual(responses.map((response) => response.status), [200, 200]);
-    const results = await Promise.all(responses.map((response) => response.json()));
-    assert.equal(results.filter((result) => result.alreadyProcessed).length, 1);
-    assert.equal(successfulFinalizations, 1);
-    assert.equal(emailCalls, 1);
-    assert.equal(claimCalls, 2);
-    assert.equal(releaseCalls, 1);
-  } finally {
-    global.fetch = originalFetch;
-    if (originalResendKey === undefined) delete process.env.RESEND_API_KEY;
-    else process.env.RESEND_API_KEY = originalResendKey;
+    assert.equal(response.status, paymentStatus === 'COMPLETED' ? 200 : 409);
+    assert.deepEqual(getCalls(), { canonicalCalls: 0, captureCalls: 0 });
+  }
+});
+
+test('concurrent retries preserve one payment finalization when notifications succeed or fail', async (t) => {
+  for (const channel of ['guest', 'member']) {
+    for (const notificationFails of [false, true]) {
+      await t.test(`${channel}: ${notificationFails ? 'notification failure' : 'notification success'}`, async () => {
+        let saved = null;
+        let successfulFinalizations = 0;
+        let notificationCalls = 0;
+        let claimCalls = 0;
+        let releaseCalls = 0;
+        let captureStarts = 0;
+        let callbackCount = 0;
+        let releaseCaptures;
+        const bothCapturesStarted = new Promise((resolve) => { releaseCaptures = resolve; });
+        const db = {
+          from(table) {
+            assert.equal(table, 'orders');
+            const filters = [];
+            let insertData = null;
+            let updateData = null;
+            const query = {
+              select: () => query,
+              eq: (field, value) => { filters.push([field, value]); return query; },
+              insert: (value) => { insertData = value; return query; },
+              update: (value) => { updateData = value; return query; },
+              single: async () => {
+                if (saved) return { data: null, error: { code: '23505' } };
+                assert.equal(insertData.raw_payload.customerUserId, channel === 'member' ? '11111111-1111-4111-8111-111111111111' : null);
+                saved = { id: 'row-456', ...insertData };
+                return { data: saved, error: null };
+              },
+              maybeSingle: async () => {
+                if (!saved || !filters.every(([field, value]) => saved[field] === value)) {
+                  return { data: null, error: null };
+                }
+                if (updateData) {
+                  assert.equal(updateData.raw_payload.customerUserId, channel === 'member' ? '11111111-1111-4111-8111-111111111111' : null);
+                  saved = { ...saved, ...updateData };
+                  successfulFinalizations += 1;
+                }
+                return { data: saved, error: null };
+              },
+            };
+            return query;
+          },
+        };
+        process.env.SUPABASE_URL = 'https://fixture.supabase.co';
+        process.env.SUPABASE_SERVICE_ROLE_KEY = 'fixture-service-key';
+        const route = loadTypeScript('src/app/api/orders/paypal/route.ts', {
+          'next/cache': { revalidateTag() {} },
+          'next/server': { NextResponse: { json: (value, options) => Response.json(value, options) } },
+          '@supabase/supabase-js': { createClient: () => db },
+          '@/lib/security/requestBudget': { requestBudget: async () => null },
+          '@/lib/security/requestBody': { readJsonObject: async (request) => request.json() },
+          '@/lib/supabase/projectGuard': { assertExpectedSupabaseProject: (url) => url },
+          '@/lib/orders/guestLookup': {
+            generateGuestOrderNumber: () => 'GUEST-NEW',
+            hashGuestLookupPassword: (value) => value,
+            verifyGuestLookupPassword: (value, stored) => value === stored,
+          },
+          '@/lib/orders/paypalServer': {
+            capturePayPalOrder: async (_input, beforeCapture) => {
+              // One request has already been captured upstream; both paths must
+              // still verify the same product claim before local finalization.
+              await beforeCapture(callbackCount++ === 1);
+              captureStarts += 1;
+              if (captureStarts === 2) releaseCaptures();
+              await bothCapturesStarted;
+              return {
+                orderId: 'PAYPAL-ORDER-123', captureId: 'CAPTURE-123',
+                status: 'COMPLETED', currency: 'USD', value: '1.00',
+              };
+            },
+          },
+          '@/lib/orders/notifications': {
+            dispatchOrderNotifications: async (serviceClient, orderId, event) => {
+              assert.equal(serviceClient, db);
+              assert.equal(orderId, 'row-456');
+              assert.equal(event, 'payment_confirmed');
+              assert.equal(saved.payment_status, 'COMPLETED');
+              assert.equal(releaseCalls, 1);
+              notificationCalls += 1;
+                if (notificationFails) throw new Error('simulated notification persistence failure');
+              return { event, eventKey: 'payment_confirmed', channels: { adminEmail: { status: 'sent' } } };
+            },
+          },
+          '@/lib/orders/checkoutClaims': {
+            claimCheckoutProducts: async () => { claimCalls += 1; },
+            releaseCheckoutProducts: async () => { releaseCalls += 1; },
+          },
+          '@/lib/orders/serverOrderValidation': {
+            authenticateOrderRequest: async () => ({ user: channel === 'member' ? { id: '11111111-1111-4111-8111-111111111111', email: 'buyer@example.com' } : null }),
+            buildCanonicalOrder: async () => ({
+              items: [{
+                id: 'product-123', name: 'Fixture', category: '기타', selectedSize: null,
+                quantity: 1, unitPrice: 1350, lineTotal: 1350,
+              }],
+              pricing: { subtotal: 1350, shipping: 0, tax: 0, total: 1350, currency: 'KRW' },
+            }),
+            getOrderErrorStatus: (error) => error.status || 500,
+            normalizeTransactionId: (value) => value,
+            OrderValidationError,
+          },
+          '@/lib/storefront/productAvailability': { extractPersistentProductIds: () => ['product-123'] },
+          '@/lib/storefront/productAvailabilityDb': {
+            fetchProductAvailabilitySnapshot: async () => ({
+              rows: [{ id: 'product-123' }], hasRawColumn: false,
+            }),
+            markProductsSoldOut: async () => {},
+          },
+        });
+        const body = {
+          transactionId: 'ORDER-123', channel, guestLookupPassword: 'secret-pass', customerUserId: 'attacker-controlled-value',
+          customer: {
+            name: 'Buyer', email: 'buyer@example.com', phone: '01012345678',
+            country: '대한민국', address: 'Seoul',
+          },
+          pricing: { total: 1350 },
+          paypal: { orderId: 'PAYPAL-ORDER-123' },
+          items: [{ id: 'product-123', quantity: 1 }],
+        };
+        const send = () => route.POST(new Request('http://localhost/api/orders/paypal', {
+          method: 'POST', body: JSON.stringify(body),
+        }));
+        const responses = await Promise.all([send(), send()]);
+        assert.deepEqual(responses.map((response) => response.status), [200, 200]);
+        const results = await Promise.all(responses.map((response) => response.json()));
+        assert.equal(results.filter((result) => result.alreadyProcessed).length, 1);
+        assert.equal(successfulFinalizations, 1);
+        assert.equal(notificationCalls, 1);
+        assert.equal(results.filter((result) => result.mailSent).length, notificationFails ? 0 : 1);
+        assert.equal(results.filter((result) => result.inventorySynced).length, 1);
+        assert.equal(claimCalls, 2);
+        assert.equal(releaseCalls, 1);
+      });
+    }
   }
 });

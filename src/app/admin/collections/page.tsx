@@ -369,9 +369,9 @@ function AdminCollectionsConsoleInner() {
     }
 
     if (form.items.trim()) {
-      const parsed = Number.parseInt(form.items, 10);
-      if (Number.isNaN(parsed)) {
-        setPageError('items는 숫자로 입력하세요.');
+      const parsed = Number(form.items);
+      if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 2147483647) {
+        setPageError('상품 수는 0 이상의 정수로 입력하세요.');
         return;
       }
     }
@@ -385,7 +385,7 @@ function AdminCollectionsConsoleInner() {
       }
 
       const cleanedImages = form.images.map((item) => item.trim()).filter(Boolean);
-      const parsedItems = form.items.trim() ? Number.parseInt(form.items, 10) : 0;
+      const parsedItems = form.items.trim() ? Number(form.items) : 0;
 
       const payload = {
         title: form.title.trim(),

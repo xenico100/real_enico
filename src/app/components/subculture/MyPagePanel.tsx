@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   useCallback,
   useEffect,
@@ -18,6 +19,8 @@ import { useFashionCart } from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import { getUnifiedAdminUrl } from '@/lib/unified-admin';
 import { AccountAuthPanel } from './AccountAuthPanel';
+import { BankTransferInstructions, CustomerOrderNotifications, type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
+import { BANK_ACCOUNT } from '@/lib/orders/bankAccount';
 import styles from './MyPagePanel.module.css';
 
 type MyPageTab =
@@ -46,18 +49,11 @@ type AdminAccessState = {
   error: string | null;
 };
 
-const PRIMARY_ADMIN_EMAIL = 'morba9850@gmail.com';
 const EMPTY_ADMIN_CAPABILITIES: AdminCapabilities = {
   canManageCatalog: false,
   canManageMembers: false,
   canManageOrders: false,
   canViewDailyStats: false,
-};
-const PRIMARY_ADMIN_CAPABILITIES: AdminCapabilities = {
-  canManageCatalog: true,
-  canManageMembers: true,
-  canManageOrders: true,
-  canViewDailyStats: true,
 };
 const MY_PAGE_TAB_LABELS: Record<MyPageTab, string> = {
   overview: '요약',
@@ -70,7 +66,6 @@ const MY_PAGE_TAB_LABELS: Record<MyPageTab, string> = {
   inventory: '재고관리',
   adminOrders: '배송관리',
 };
-const DEFAULT_BANK_ACCOUNT_HOLDER = '백형석';
 const DEFAULT_SHIPPING_COMPANY = '우체국';
 
 type VisitSourceBreakdown = {
@@ -114,7 +109,6 @@ type MemberDraft = {
   fullName: string;
   phone: string;
   address: string;
-  password: string;
 };
 
 type AdminOrderItem = {
@@ -149,6 +143,8 @@ type OrderRecord = {
   customerAddress: string;
   bankName: string;
   bankAccountNumber: string;
+  bankAccount?: BankAccountDetails;
+  notifications?: OrderNotificationSummary;
   paypalOrderId: string;
   paypalCaptureId: string;
   paypalCurrency: string;
@@ -247,8 +243,8 @@ function getPaymentStatusLabel(paymentMethod: string, status: string) {
   if (normalizedStatus === 'partialcancelled') return '부분취소';
 
   if (normalizedMethod === 'bank_transfer') {
-    if (normalizedStatus === 'transfer_confirmed') return '이체확인';
-    if (normalizedStatus === 'pending_transfer') return '이체확인중';
+    if (normalizedStatus === 'transfer_confirmed') return '입금 확인';
+    if (normalizedStatus === 'pending_transfer') return '입금 대기';
   }
 
   if (normalizedMethod === 'paypal') {
@@ -669,7 +665,6 @@ function createMemberDraft(member: MemberRecord): MemberDraft {
     fullName: member.fullName || '',
     phone: member.phone || '',
     address: member.address || '',
-    password: '',
   };
 }
 
@@ -737,6 +732,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const [memberOrdersUserId, setMemberOrdersUserId] = useState(user?.id || '');
   const [storedMemberOrders, setMemberOrders] = useState<MemberOrderRecord[]>([]);
   const [storedMemberOrdersLoaded, setMemberOrdersLoaded] = useState(false);
+  const [storedLegacyLinkRequired, setLegacyLinkRequired] = useState(false);
   const [storedIsLoadingMemberOrders, setIsLoadingMemberOrders] = useState(false);
   const [storedMemberOrderMessage, setMemberOrderMessage] = useState<string | null>(null);
   const [storedMemberOrderError, setMemberOrderError] = useState<string | null>(null);
@@ -762,6 +758,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const isMemberOrderStateCurrent = memberOrdersUserId === currentUserId;
   const memberOrders = isMemberOrderStateCurrent ? storedMemberOrders : [];
   const memberOrdersLoaded = isMemberOrderStateCurrent ? storedMemberOrdersLoaded : false;
+  const legacyLinkRequired = isMemberOrderStateCurrent && storedLegacyLinkRequired;
   const isLoadingMemberOrders = isMemberOrderStateCurrent
     ? storedIsLoadingMemberOrders
     : false;
@@ -770,11 +767,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const cancellingMemberOrderId = isMemberOrderStateCurrent
     ? storedCancellingMemberOrderId
     : null;
-  const normalizedUserEmail = (user?.email || '').trim().toLowerCase();
-  const isPrimaryAdmin = normalizedUserEmail === PRIMARY_ADMIN_EMAIL;
-  const capabilities = isPrimaryAdmin
-    ? PRIMARY_ADMIN_CAPABILITIES
-    : adminAccess.userId === user?.id
+  const capabilities = adminAccess.userId === user?.id
       ? adminAccess.capabilities
       : EMPTY_ADMIN_CAPABILITIES;
   const {
@@ -784,11 +777,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     canViewDailyStats,
   } = capabilities;
   const isAdminAccessResolved =
-    isPrimaryAdmin ||
     (adminAccess.userId === currentUserId &&
       (adminAccess.status === 'resolved' || adminAccess.status === 'error'));
   const adminAccessError =
-    !isPrimaryAdmin &&
     adminAccess.userId === currentUserId &&
     adminAccess.status === 'error'
       ? adminAccess.error
@@ -833,6 +824,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     setMemberOrdersUserId(currentUserId);
     setMemberOrders([]);
     setMemberOrdersLoaded(false);
+    setLegacyLinkRequired(false);
     setIsLoadingMemberOrders(false);
     setMemberOrderMessage(null);
     setMemberOrderError(null);
@@ -859,16 +851,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
       return;
     }
 
-    if (isPrimaryAdmin) {
-      setAdminAccess({
-        userId: currentUserId,
-        status: 'resolved',
-        capabilities: PRIMARY_ADMIN_CAPABILITIES,
-        error: null,
-      });
-      return;
-    }
-
     const controller = new AbortController();
     setAdminAccess({
       userId: currentUserId,
@@ -890,6 +872,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         const payload = (await response.json()) as Partial<AdminCapabilities> & {
           message?: string;
         };
+
+        if (response.status === 401 || response.status === 403) {
+          setAdminAccess({ userId: currentUserId, status: 'resolved', capabilities: EMPTY_ADMIN_CAPABILITIES, error: null });
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(payload.message || '관리자 권한 확인 실패');
@@ -922,7 +909,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     return () => {
       controller.abort();
     };
-  }, [adminAccessRetryKey, currentUserId, isPrimaryAdmin, session?.access_token]);
+  }, [adminAccessRetryKey, currentUserId, session?.access_token]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const adminOrderViewCounts = useMemo(
@@ -1051,7 +1038,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   const openAdminComposer = (type: AdminComposerType) => {
     if (!canManageCatalog) return;
-    if (type === 'collections' && !isPrimaryAdmin) return;
 
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       window.location.href = getAdminComposerHref(type);
@@ -1118,13 +1104,10 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
       const nextMembers = Array.isArray(payload.members) ? payload.members : [];
       setMembers(nextMembers);
-      setMemberDrafts((prev) => {
+      setMemberDrafts(() => {
         const merged: Record<string, MemberDraft> = {};
         nextMembers.forEach((member) => {
-          const previousDraft = prev[member.id];
-          merged[member.id] = previousDraft
-            ? { ...createMemberDraft(member), password: previousDraft.password }
-            : createMemberDraft(member);
+          merged[member.id] = createMemberDraft(member);
         });
         return merged;
       });
@@ -1149,7 +1132,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           fullName: '',
           phone: '',
           address: '',
-          password: '',
         }),
         [field]: value,
       },
@@ -1176,7 +1158,6 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           fullName: draft.fullName,
           phone: draft.phone,
           address: draft.address,
-          password: draft.password,
         }),
       });
 
@@ -1194,10 +1175,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         );
         setMemberDrafts((prev) => ({
           ...prev,
-          [memberId]: {
-            ...(payload.member ? createMemberDraft(payload.member) : prev[memberId]),
-            password: '',
-          },
+          [memberId]: payload.member ? createMemberDraft(payload.member) : prev[memberId],
         }));
       }
 
@@ -1270,6 +1248,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
       const payload = (await response.json()) as {
         orders?: MemberOrderRecord[];
+        legacyLinkRequired?: boolean;
         message?: string;
       };
       if (!response.ok) {
@@ -1279,6 +1258,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
       const nextOrders = Array.isArray(payload.orders) ? payload.orders : [];
       setMemberOrders(nextOrders);
+      setLegacyLinkRequired(payload.legacyLinkRequired === true);
       setMemberOrdersLoaded(true);
       setMemberOrderMessage(`주문 ${nextOrders.length}건 로드 완료`);
     } catch (error) {
@@ -1635,7 +1615,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     return (
       <div className="font-mono md:h-full md:min-h-0">
         <div className="pb-[calc(env(safe-area-inset-bottom)+1rem)] md:h-full md:min-h-0 md:overflow-y-auto md:overscroll-contain md:pr-1">
-          <AccountAuthPanel />
+          <AccountAuthPanel initialTab={initialTab === 'orders' ? 'guestOrder' : 'login'} />
         </div>
       </div>
     );
@@ -1737,13 +1717,15 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
         )}
 
+        {legacyLinkRequired && <div role="status" className="rounded-lg border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">이전 주문은 계정 연결 확인이 필요합니다. 주문번호와 함께 고객센터로 문의해 주세요. <Link href="/?popup=contact" className="font-bold underline">문의하기</Link></div>}
+
         {isLoadingMemberOrders && memberOrders.length === 0 ? (
           <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
             주문 목록을 불러오는 중입니다...
           </div>
         ) : memberOrders.length === 0 ? (
           <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
-            주문 내역이 없습니다.
+            {legacyLinkRequired ? '계정 연결이 확인된 주문이 아직 없습니다.' : '주문 내역이 없습니다.'}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1778,7 +1760,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             {getPaymentMethodLabel(order.paymentMethod)}
                           </span>
                           <span className="rounded-full border border-[#7a808a] bg-black/25 px-3 py-1.5 text-[#d4dae2]">
-                            {getShippingStatusLabel(order.shippingStatus)}
+                            {order.paymentStatus === 'pending_transfer' ? '입금 확인 후 준비' : order.paymentStatus === 'cancelled' ? '주문 취소' : getShippingStatusLabel(order.shippingStatus)}
                           </span>
                         </div>
                         {cancelState.visible ? (
@@ -1827,17 +1809,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                       <p className="text-sm leading-7 text-[#d8dde4] break-all">{order.shippingNote || '-'}</p>
                     </div>
 
-                    {order.paymentMethod === 'bank_transfer' ? (
-                      <div className="rounded-[8px] border border-[#bcc5d0] bg-[linear-gradient(180deg,#15181c_0%,#101215_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                        <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">계좌이체 안내</p>
-                        <p className="break-all text-lg font-semibold text-white">
-                          {order.bankName || '카카오뱅크'} {order.bankAccountNumber || '3333-09-2834969'}
-                        </p>
-                        <p className="mt-2 text-sm text-[#d7dde4]">예금주: {DEFAULT_BANK_ACCOUNT_HOLDER}</p>
-                        <p className="mt-3 text-sm leading-7 text-[#ccd2da]">
-                          입금자명은 수령인 이름과 동일하게 입력해 주세요.
-                        </p>
-                      </div>
+                    {order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'pending_transfer' ? (
+                      <>
+                        <BankTransferInstructions bankAccount={order.bankAccount || { bankName: order.bankName || BANK_ACCOUNT.bankName, accountNumber: order.bankAccountNumber || BANK_ACCOUNT.accountNumber, accountHolder: BANK_ACCOUNT.accountHolder }} amount={order.amountTotal} />
+                        <div className="rounded-xl bg-white p-3"><CustomerOrderNotifications notifications={order.notifications} /></div>
+                      </>
                     ) : null}
 
                     {cancelState.visible ? (
@@ -2825,25 +2801,13 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                             <input
                               type="email"
                               value={draft.email}
-                              onChange={(event) =>
-                                updateMemberDraft(member.id, 'email', event.target.value)
-                              }
+                              readOnly
+                              disabled
                               className="w-full rounded-[4px] border border-[#949eab] bg-[#090b0f] px-3 py-2.5 text-[#eef2f7] focus:border-[#00ffd1] focus:outline-none"
                               placeholder="이메일"
                             />
                           </label>
-                          <label className="rounded-[6px] border border-[#bcc5d0] bg-[#0d1015] p-3 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                            <span className="mb-2 block text-[11px] uppercase tracking-[0.18em] text-[#c9d1dc]">비밀번호</span>
-                            <input
-                              type="password"
-                              value={draft.password}
-                              onChange={(event) =>
-                                updateMemberDraft(member.id, 'password', event.target.value)
-                              }
-                              className="w-full rounded-[4px] border border-[#949eab] bg-[#090b0f] px-3 py-2.5 text-[#eef2f7] focus:border-[#00ffd1] focus:outline-none"
-                              placeholder="비밀번호 변경 시에만 입력"
-                            />
-                          </label>
+                          <p className="text-xs leading-relaxed text-[#c9d1dc]">로그인 이메일·비밀번호는 회원 본인이 계정 복구 절차로 변경합니다.</p>
                         </div>
 
                         <div className="mt-auto grid grid-cols-1 gap-3 border-t border-[#aab2be]/35 pt-4">
@@ -2989,7 +2953,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                       >
                         재고관리
                       </button>
-                      {isPrimaryAdmin ? (
+                      {canManageCatalog ? (
                         <button
                           type="button"
                           onClick={() => openAdminComposer('collections')}
@@ -3121,7 +3085,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                 >
                   재고관리
                 </button>
-                {isPrimaryAdmin ? (
+                {canManageCatalog ? (
                   <button
                     type="button"
                     aria-pressed={adminComposer === 'collections'}

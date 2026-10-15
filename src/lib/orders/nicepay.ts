@@ -16,6 +16,7 @@ export type NicepayPendingOrder = {
   orderId: string;
   transactionId: string;
   channel: OrderChannel;
+  customerUserId?: string | null;
   guestPasswordHash: string | null;
   customer: {
     name: string;

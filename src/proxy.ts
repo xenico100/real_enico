@@ -62,8 +62,7 @@ export async function proxy(request: NextRequest) {
     if ((origin && !allowed.has(origin)) || request.headers.get('sec-fetch-site') === 'cross-site') {
       return NextResponse.json({ message: '허용되지 않은 요청입니다.' }, { status: 403 });
     }
-    const maxBytes = path === '/api/admin/r2-upload' ? 64 * 1024 * 1024 :
-      path === '/api/orders/receipt-upload' ? 9 * 1024 * 1024 : 128 * 1024;
+    const maxBytes = path === '/api/admin/r2-upload' ? 64 * 1024 * 1024 : 128 * 1024;
     if (Number(request.headers.get('content-length') || 0) > maxBytes) {
       return NextResponse.json({ message: '요청 본문이 너무 큽니다.' }, { status: 413 });
     }

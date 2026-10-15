@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 import { requestBudget } from '@/lib/security/requestBudget';
 import { readJsonObject } from '@/lib/security/requestBody';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { dispatchOrderNotifications } from '@/lib/orders/notifications';
+import { parseOrderRawPayload } from '@/lib/orders/rawPayload';
 import {
   generateGuestOrderNumber,
   hashGuestLookupPassword,
@@ -28,9 +30,6 @@ import {
   markProductsSoldOut,
 } from '@/lib/storefront/productAvailabilityDb';
 
-const DEFAULT_ORDER_RECEIVER_EMAIL = 'morba9850@gmail.com';
-const RESEND_API_ENDPOINT = 'https://api.resend.com/emails';
-
 type CustomerDetails = {
   name: string;
   email: string;
@@ -50,6 +49,7 @@ type PayPalDetails = {
 type PayPalOrderPayload = {
   transactionId: string;
   channel: ServerOrderChannel;
+  customerUserId: string | null;
   customer: CustomerDetails;
   pricing: CanonicalOrderPricing;
   paypal: PayPalDetails;
@@ -92,10 +92,11 @@ type ExistingPayPalOrder = {
   customer_address: string;
   amount_total: number;
   items: unknown;
+  raw_payload: unknown;
 };
 
 const PAYPAL_ORDER_SELECT =
-  'id, order_code, paypal_order_id, paypal_capture_id, payment_status, guest_order_number, guest_password_hash, channel, customer_name, customer_email, customer_phone, customer_country, customer_address, amount_total, items';
+  'id, order_code, paypal_order_id, paypal_capture_id, payment_status, guest_order_number, guest_password_hash, channel, customer_name, customer_email, customer_phone, customer_country, customer_address, amount_total, items, raw_payload';
 
 function createOrderServiceClient() {
   const url = assertExpectedSupabaseProject(
@@ -204,83 +205,11 @@ function parseRequestBody(body: unknown): ParsedPayPalRequest {
   };
 }
 
-function formatKrw(value: number) {
-  return `${Math.round(value).toLocaleString('ko-KR')}원`;
-}
-
 function buildRawPayload(payload: PayPalOrderPayload) {
   return {
     ...payload,
     verification: 'paypal_server_api',
   };
-}
-
-function buildEmailText(payload: PayPalOrderPayload, guestOrderNumber: string | null) {
-  const lines = payload.items.map((item, index) => {
-    const sizeText = item.selectedSize ? ` / 사이즈 ${item.selectedSize}` : '';
-    return `${index + 1}. ${item.name} (${item.category}${sizeText}) x${item.quantity} = ${formatKrw(item.lineTotal)}`;
-  });
-
-  return [
-    '[PayPal 주문 접수]',
-    `거래번호: ${payload.transactionId}`,
-    `구매유형: ${payload.channel === 'member' ? '회원 구매' : '비회원 구매'}`,
-    ...(guestOrderNumber ? [`비회원 주문조회 번호: ${guestOrderNumber}`] : []),
-    '',
-    '[PayPal 서버 검증 정보]',
-    `Order ID: ${payload.paypal.orderId}`,
-    `Capture ID: ${payload.paypal.captureId}`,
-    `상태: ${payload.paypal.status}`,
-    `결제 금액: ${payload.paypal.value} ${payload.paypal.currency}`,
-    '',
-    '[주문자 정보]',
-    `이름: ${payload.customer.name}`,
-    `이메일: ${payload.customer.email}`,
-    `핸드폰: ${payload.customer.phone}`,
-    `국가/구역: ${payload.customer.country}`,
-    `주소: ${payload.customer.address}`,
-    '',
-    '[내부 금액(KRW)]',
-    `상품합계: ${formatKrw(payload.pricing.subtotal)}`,
-    `배송비: ${formatKrw(payload.pricing.shipping)}`,
-    `세금: ${formatKrw(payload.pricing.tax)}`,
-    `총액: ${formatKrw(payload.pricing.total)} (${payload.pricing.currency})`,
-    '',
-    '[주문 상품]',
-    ...lines,
-  ].join('\n');
-}
-
-async function sendOrderEmail(payload: PayPalOrderPayload, guestOrderNumber: string | null) {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    throw new Error('RESEND_API_KEY가 설정되어 있지 않습니다.');
-  }
-
-  const to = (process.env.ORDER_NOTIFICATION_EMAIL || DEFAULT_ORDER_RECEIVER_EMAIL).trim();
-  const from = (process.env.ORDER_FROM_EMAIL || 'Enico Veck Orders <onboarding@resend.dev>').trim();
-  const response = await fetch(RESEND_API_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: `[PayPal 주문] ${payload.channel === 'member' ? '회원' : '비회원'} ${payload.transactionId}`,
-      text: buildEmailText(payload, guestOrderNumber),
-      reply_to: payload.customer.email,
-    }),
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (!response.ok) {
-    const responsePayload = (await response.json().catch(() => null)) as
-      | { error?: { message?: string } }
-      | null;
-    throw new Error(responsePayload?.error?.message || '주문 메일 발송 API 응답 오류');
-  }
 }
 
 async function findExistingOrder(
@@ -330,7 +259,20 @@ function assertExistingOrderMatchesRequest(
   existing: ExistingPayPalOrder,
   parsed: ParsedPayPalRequest,
   customerEmail: string,
+  customerUserId: string | null,
 ) {
+  if (parsed.channel === 'member') {
+    const rawPayload = parseOrderRawPayload(existing.raw_payload);
+    const ownerId = typeof rawPayload?.customerUserId === 'string'
+      ? rawPayload.customerUserId.trim()
+      : '';
+    if (!customerUserId || (ownerId && ownerId !== customerUserId)) {
+      throw new OrderValidationError('기존 PayPal 주문 정보와 요청이 일치하지 않습니다.', 409);
+    }
+    if (!ownerId && existing.payment_status.toUpperCase() !== 'COMPLETED') {
+      throw new OrderValidationError('기존 주문의 회원 소유권을 확인할 수 없습니다. 새 결제를 하지 말고 관리자에게 문의해 주세요.', 409);
+    }
+  }
   const sameCustomer =
     existing.customer_name === parsed.customer.name &&
     existing.customer_email.trim().toLowerCase() === customerEmail.trim().toLowerCase() &&
@@ -503,8 +445,9 @@ export async function POST(request: Request) {
     const authentication = await authenticateOrderRequest(request, parsed.channel);
     const serviceClient = createOrderServiceClient();
     const authenticatedEmail = authentication.user?.email?.trim();
-    if (parsed.channel === 'member' && !authenticatedEmail) {
-      throw new OrderValidationError('회원 계정 이메일을 확인할 수 없습니다.', 400);
+    const customerUserId = parsed.channel === 'member' ? authentication.user?.id?.trim() || null : null;
+    if (parsed.channel === 'member' && (!authenticatedEmail || !customerUserId)) {
+      throw new OrderValidationError('회원 계정 정보를 확인할 수 없습니다.', 400);
     }
     const customerEmail = authenticatedEmail || parsed.customer.email;
     let pendingOrder = await findExistingOrder(
@@ -513,7 +456,7 @@ export async function POST(request: Request) {
       parsed.paypal.orderId,
     );
     if (pendingOrder) {
-      assertExistingOrderMatchesRequest(pendingOrder, parsed, customerEmail);
+      assertExistingOrderMatchesRequest(pendingOrder, parsed, customerEmail, customerUserId);
       if (pendingOrder.payment_status.toUpperCase() === 'COMPLETED') {
         return NextResponse.json({
           ok: true,
@@ -533,6 +476,7 @@ export async function POST(request: Request) {
     const basePayload: PayPalOrderBasePayload = {
       transactionId: parsed.transactionId,
       channel: parsed.channel,
+      customerUserId,
       customer: {
         ...parsed.customer,
         email: customerEmail,
@@ -563,7 +507,7 @@ export async function POST(request: Request) {
             parsed.paypal.orderId,
             newGuestMeta,
           );
-          assertExistingOrderMatchesRequest(pendingOrder, parsed, customerEmail);
+          assertExistingOrderMatchesRequest(pendingOrder, parsed, customerEmail, customerUserId);
         }
         try {
           await claimCheckoutProducts(
@@ -604,25 +548,26 @@ export async function POST(request: Request) {
       });
     }
 
-    const [inventoryResult, emailResult] = await Promise.allSettled([
+    const [inventoryResult] = await Promise.allSettled([
       markPurchasedItemsSoldOut(serviceClient, payload),
-      sendOrderEmail(payload, guestOrderNumber),
     ]);
     if (inventoryResult.status === 'rejected') {
       console.error('PayPal inventory update failed', inventoryResult.reason);
     }
-    if (emailResult.status === 'rejected') {
-      console.error('PayPal order email failed', emailResult.reason);
+    let notifications: Awaited<ReturnType<typeof dispatchOrderNotifications>> | null = null;
+    try {
+      notifications = await dispatchOrderNotifications(serviceClient, pendingOrder.id, 'payment_confirmed');
+    } catch (error) {
+      console.error('PayPal order notifications failed', error);
     }
 
-    const mailSent = emailResult.status === 'fulfilled';
+    const mailSent = notifications?.channels.adminEmail?.status === 'sent';
     return NextResponse.json({
       ok: true,
-      message: mailSent
-        ? 'PayPal 주문 접수 및 메일 발송 완료'
-        : 'PayPal 주문은 접수되었지만 알림 메일 발송에 실패했습니다.',
+      message: 'PayPal 결제가 완료되었습니다. 주문 내역에서 진행 상태를 확인해 주세요.',
       guestOrderNumber,
       mailSent,
+      notifications,
       inventorySynced: inventoryResult.status === 'fulfilled',
     });
   } catch (error) {

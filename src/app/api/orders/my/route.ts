@@ -2,7 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import { isVerifiedMember, literalEmailPattern } from '@/lib/security/identity';
 import { NextResponse } from 'next/server';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
+import { getOrderBankAccount } from '@/lib/orders/bankAccount';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { isMemberOrderOwner, LEGACY_MEMBER_ORDER_LINK_MESSAGE } from '@/lib/orders/memberOrderOwnership';
 
 type OrderRow = {
   id: string;
@@ -103,11 +105,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: 'Unauthorized.' }, { status: 401 });
   }
 
-  const targetEmail = normalizeText(user.email || '');
-  if (!targetEmail) {
-    return NextResponse.json({ orders: [] });
-  }
-
   const serviceClient = createClient(config.url, config.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -118,7 +115,7 @@ export async function GET(request: Request) {
       'id, order_code, guest_order_number, channel, payment_method, payment_status, currency, amount_subtotal, amount_shipping, amount_tax, amount_total, customer_name, customer_email, customer_phone, customer_country, customer_address, bank_name, bank_account_number, items, raw_payload, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, created_at, updated_at',
     )
     .eq('channel', 'member')
-    .ilike('customer_email', literalEmailPattern(targetEmail))
+    .eq('raw_payload->>customerUserId', user.id)
     .neq('payment_status', 'pending_payment')
     .order('created_at', { ascending: false })
     .limit(200);
@@ -142,7 +139,17 @@ export async function GET(request: Request) {
     );
   }
 
-  const orders = ((data || []) as OrderRow[]).map((row) => ({
+  // Only an existence/count query is allowed for legacy orders. Never return
+  // their addresses, products, IDs or payment data based on a reusable email.
+  const legacy = await serviceClient.from('orders').select('id', { count: 'exact', head: true })
+    .eq('channel', 'member')
+    .ilike('customer_email', literalEmailPattern(user.email || ''))
+    .is('raw_payload->>customerUserId', null)
+    .neq('payment_status', 'pending_payment');
+  const legacyLinkRequired = Boolean(legacy.error || (legacy.count || 0) > 0);
+  if (legacy.error) console.error('Legacy order link status could not be checked', { code: legacy.error.code });
+
+  const orders = ((data || []) as OrderRow[]).filter(row => isMemberOrderOwner(row, user.id)).map((row) => ({
     id: row.id,
     orderCode: normalizeText(row.order_code),
     guestOrderNumber: normalizeText(row.guest_order_number),
@@ -159,6 +166,7 @@ export async function GET(request: Request) {
     customerPhone: normalizeText(row.customer_phone),
     customerCountry: normalizeText(row.customer_country),
     customerAddress: normalizeText(row.customer_address),
+    bankAccount: row.payment_method === 'bank_transfer' ? getOrderBankAccount(row) : null,
     bankName: normalizeText(row.bank_name),
     bankAccountNumber: normalizeText(row.bank_account_number),
     paymentReceiptUrl: extractPaymentReceiptUrl(row.raw_payload),
@@ -173,5 +181,6 @@ export async function GET(request: Request) {
     updatedAt: row.updated_at,
   }));
 
-  return NextResponse.json({ orders });
+  return NextResponse.json({ orders, legacyLinkRequired,
+    ...(legacyLinkRequired ? { message: LEGACY_MEMBER_ORDER_LINK_MESSAGE } : {}) });
 }

@@ -217,7 +217,7 @@ function getInventoryStatus(product: ProductRow) {
   return {
     quantity,
     isSoldOut,
-    reason: rawSoldOut ? 'DB 품절' : titleSoldOut ? '기존 품절 목록' : '판매 가능',
+    reason: product.is_published === false ? '비공개 · 상품 편집에서 공개 설정' : rawSoldOut ? 'DB 품절' : titleSoldOut ? '기존 품절 목록' : '판매 가능',
   };
 }
 
@@ -580,9 +580,9 @@ function AdminConsoleInner() {
       return;
     }
 
-    const parsedPrice = Number.parseInt(form.price, 10);
-    if (Number.isNaN(parsedPrice)) {
-      setPageError('price는 숫자로 입력하세요.');
+    const parsedPrice = Number(form.price);
+    if (!Number.isSafeInteger(parsedPrice) || parsedPrice <= 0 || parsedPrice > 2147483647) {
+      setPageError('판매가는 1원 이상의 정수로 입력하세요.');
       return;
     }
 
@@ -600,7 +600,7 @@ function AdminConsoleInner() {
         description: form.description.trim() || null,
         specs: null,
         price: parsedPrice,
-        currency: form.currency.trim().toUpperCase() || 'KRW',
+        currency: 'KRW',
         images: form.images.map((item) => item.trim()).filter(Boolean),
         is_published: form.isPublished,
       };
@@ -650,9 +650,9 @@ function AdminConsoleInner() {
     }
 
     const draft = inventoryDrafts[product.id] ?? createInventoryDraft(product);
-    const parsedQuantity = Number.parseInt(draft.quantity, 10);
-    if (!Number.isFinite(parsedQuantity) || parsedQuantity < 0) {
-      setPageError('재고 수량은 0 이상의 숫자로 입력하세요.');
+    const parsedQuantity = Number(draft.quantity);
+    if (!draft.quantity.trim() || !Number.isSafeInteger(parsedQuantity) || parsedQuantity < 0 || parsedQuantity > 9999) {
+      setPageError('재고 수량은 0~9999 범위의 정수로 입력하세요.');
       return;
     }
 
@@ -1006,6 +1006,9 @@ function AdminConsoleInner() {
                       <input
                         type="number"
                         inputMode="numeric"
+                        min={1}
+                        max={2147483647}
+                        step={1}
                         value={form.price}
                         onChange={(e) => setForm((prev) => ({ ...prev, price: e.target.value }))}
                         className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
@@ -1019,10 +1022,9 @@ function AdminConsoleInner() {
                       </label>
                       <input
                         type="text"
-                        value={form.currency}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))
-                        }
+                        value="KRW"
+                        readOnly
+                        aria-label="통화: 대한민국 원(KRW)"
                         className="w-full bg-black border border-[#333] px-3 py-3 text-sm text-[#f1f1f1] placeholder:text-[#7f7f7f] focus:outline-none focus:border-[#00ffd1]"
                         placeholder="KRW"
                         maxLength={10}
@@ -1263,7 +1265,7 @@ function AdminConsoleInner() {
                                     : 'border-[#00ffd1]/45 bg-[#00ffd1]/10 text-[#bafff0]'
                                 }`}
                               >
-                                {status.isSoldOut ? '품절' : '판매 가능'}
+                                {product.is_published === false ? '비공개' : status.isSoldOut ? '품절' : '판매 가능'}
                               </span>
                               <span className="rounded-full border border-white/10 bg-[#181818] px-2.5 py-1 font-mono text-[10px] text-[#b8b8b8]">
                                 {status.reason}
@@ -1290,6 +1292,7 @@ function AdminConsoleInner() {
                               type="number"
                               min={0}
                               max={9999}
+                              step={1}
                               inputMode="numeric"
                               value={draft.quantity}
                               onChange={(e) =>
@@ -1333,7 +1336,7 @@ function AdminConsoleInner() {
                             className="inline-flex min-h-[42px] items-center justify-center gap-1 rounded-xl border border-[#00ffd1]/35 bg-[#00ffd1]/10 px-2 py-2 font-mono text-[11px] text-[#bafff0] transition-colors hover:bg-[#00ffd1]/20"
                           >
                             <PackageCheck size={12} />
-                            판매
+                            재고 복원
                           </button>
                           <button
                             type="button"

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { BankTransferInstructions, CustomerOrderNotifications, type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
 
 type AuthTab = 'login' | 'signup' | 'recover' | 'guestOrder';
 type ShippingStatus = 'preparing' | 'shipping' | 'delivered';
@@ -25,7 +26,22 @@ type GuestLookupOrder = {
   shippedAt: string | null;
   deliveredAt: string | null;
   createdAt: string | null;
+  bankAccount?: BankAccountDetails;
+  notifications?: OrderNotificationSummary;
+  items?: Array<{ id: string; name: string; quantity: number; selectedSize: string | null }>;
 };
+
+function getPaymentStatusLabel(status: string) {
+  if (status === 'pending_transfer') return '입금 대기';
+  if (status === 'transfer_confirmed') return '입금 확인';
+  if (['paid', 'completed', 'captured'].includes(status)) return '결제 완료';
+  if (status === 'pending_payment') return '결제 대기';
+  if (status === 'cancelled') return '주문 취소';
+  if (status === 'refund_pending') return '환불 처리 중';
+  if (status === 'approval_processing') return '승인 확인 중';
+  if (status === 'cancel_processing') return '취소 확인 중';
+  return '확인 중';
+}
 
 function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
@@ -78,7 +94,7 @@ function GoogleIcon() {
   );
 }
 
-export function AccountAuthPanel() {
+export function AccountAuthPanel({ initialTab = 'login' }: { initialTab?: AuthTab } = {}) {
   const {
     user,
     profile,
@@ -97,7 +113,7 @@ export function AccountAuthPanel() {
     refreshProfile,
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<AuthTab>('login');
+  const [activeTab, setActiveTab] = useState<AuthTab>(initialTab);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [signupName, setSignupName] = useState('');
@@ -253,7 +269,7 @@ export function AccountAuthPanel() {
 
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm(
-      '정말 탈퇴할까요? profiles/auth.users 관련 데이터가 같이 삭제될 수 있습니다.',
+      '정말 회원 탈퇴할까요? 계정에 다시 로그인할 수 없게 됩니다.',
     );
     if (!confirmed) return;
 
@@ -310,11 +326,10 @@ export function AccountAuthPanel() {
       <div className="space-y-6 font-mono">
         <div className="bg-white border border-[#d1d5db] p-6 shadow-sm">
           <h3 className="text-lg font-bold uppercase mb-3 text-[#b8001f]">
-            수파베이스 설정 필요
+            계정 서비스를 잠시 이용할 수 없습니다
           </h3>
           <p className="text-xs text-[#4b5563] leading-relaxed font-medium">
-            `.env.local`에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`를
-            추가하면 계정 로그인 UI가 활성화됩니다.
+            잠시 후 다시 시도해 주세요. 문제가 계속되면 고객지원으로 문의해 주세요.
           </p>
         </div>
       </div>
@@ -725,17 +740,21 @@ export function AccountAuthPanel() {
                 <p className="text-xs font-bold text-[#b8001f] uppercase tracking-widest">
                   비회원 주문 조회 결과
                 </p>
-                <p className="text-[11px] font-semibold text-[#881337]">{lookupOrder.customerPhone || '-'}</p>
+                <p className="text-[11px] font-semibold text-[#881337] break-all">{lookupOrder.orderCode || lookupOrder.guestOrderNumber}</p>
               </div>
+              <div className="border border-[#d1d5db] bg-white p-3 rounded-lg text-sm font-bold text-[#111827]">결제 상태: {getPaymentStatusLabel(lookupOrder.paymentStatus)}</div>
+              {lookupOrder.items && lookupOrder.items.length > 0 && <ul className="space-y-2 rounded-lg border border-[#d1d5db] bg-white p-3 text-sm text-[#111827]">{lookupOrder.items.map((item, index) => <li key={`${item.id}-${index}`}>{item.name}{item.selectedSize ? ` / ${item.selectedSize}` : ''} × {item.quantity}</li>)}</ul>}
+              {lookupOrder.paymentMethod === 'bank_transfer' && lookupOrder.paymentStatus === 'pending_transfer' && <BankTransferInstructions bankAccount={lookupOrder.bankAccount} amount={lookupOrder.amountTotal} />}
+              {lookupOrder.paymentStatus === 'pending_transfer' && <CustomerOrderNotifications notifications={lookupOrder.notifications} />}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                 <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
                   <p className="text-[#6b7280] font-bold mb-1">배송 상태</p>
                   <p className="text-[#111827] font-semibold">
-                    {getShippingStatusLabel(lookupOrder.shippingStatus)}
+                    {lookupOrder.paymentStatus === 'pending_transfer' ? '입금 확인 후 준비' : lookupOrder.paymentStatus === 'cancelled' ? '주문 취소' : getShippingStatusLabel(lookupOrder.shippingStatus)}
                   </p>
                 </div>
                 <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
-                  <p className="text-[#6b7280] font-bold mb-1">결제 금액</p>
+                  <p className="text-[#6b7280] font-bold mb-1">주문 금액</p>
                   <p className="text-[#111827] font-semibold">{formatKrw(lookupOrder.amountTotal || 0)}</p>
                 </div>
                 <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
