@@ -5,7 +5,7 @@ local stop state, an SKT browser adapter built from the observed authenticated U
 and tests.
 
 **Local implementation; live worker verification pending.** No production token or
-customer message is included. The adapter is pinned to the verified operator sender
+customer message is included. The adapter checks the configured verified operator sender
 and uses the observed SKT selectors. Creating these files has not installed a task,
 connected a live queue, or sent a message. A real delivery using this worker still
 requires the operator's controlled test.
@@ -49,6 +49,12 @@ hard-code `loggedIn`, `freeRemaining`, or a success result in the real adapter.
 Set the absolute path to `skt-adapter.mjs` in `ENICO_SKT_ADAPTER`. The default state directory is
 `~/.local/state/enico-skt-sms`; override it using `ENICO_SKT_STATE_DIR`. It must be owned
 by the worker user with mode 0700. State and lock files use 0600.
+
+Set the required `ENICO_SKT_SENDER_PHONE` environment variable to the operator's
+verified SKT sender number: exactly 11 digits beginning with `010`, without spaces
+or hyphens. A missing or invalid value stops before any browser connection. Sender
+identity, history ownership, and the self-test destination all use this configured
+value. No personal sender number is stored in source or tests.
 
 The device key must come from exactly one of:
 
@@ -95,7 +101,7 @@ pauses or blocks the worker; scheduling does not authenticate or clear that stat
 
 `skt-adapter.mjs` connects only to the dedicated loopback browser on port 9237 and
 the one T world `/web/sms-send/bpcp` tab. It re-resolves the cross-origin SMS frame
-after navigation. A self-test may target only the pinned operator sender.
+after navigation. A self-test may target only the configured operator sender.
 
 Each attempt reads individual sent-message IDs before preparing the form, fills one
 recipient and the complete message, and rechecks the account, free mode, allowance,
