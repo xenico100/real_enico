@@ -1,7 +1,6 @@
 import { CdpClient } from './cdp.mjs';
 import { sktDomAction } from './skt-dom.mjs';
 
-export const EXPECTED_SENDER = '01098507214';
 export const SKT_PARENT_URL = 'https://www.tworld.co.kr/web/sms-send/bpcp';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -15,6 +14,13 @@ export class SktAdapterError extends Error {
   }
 }
 
+export function validateSenderPhone(value) {
+  if (typeof value !== 'string' || !/^010\d{8}$/.test(value)) {
+    throw new SktAdapterError('SENDER_PHONE_REQUIRED');
+  }
+  return value;
+}
+
 function parentUrlMatches(raw) {
   try {
     const value = new URL(raw);
@@ -23,16 +29,16 @@ function parentUrlMatches(raw) {
   } catch { return false; }
 }
 
-function ready(state) {
+function ready(state, expectedSender) {
   return state?.atExpectedOrigin === true && state.isComposer === true
-    && state.sender === EXPECTED_SENDER && state.freeMode === true
+    && state.sender === expectedSender && state.freeMode === true
     && Number.isSafeInteger(state.freeRemaining) && state.freeRemaining > 0
     && Number.isSafeInteger(state.dailySent) && state.dailySent >= 0 && state.dailySent < 500
     && state.sessionSeconds !== 0 && state.attachmentCount === 0 && state.submitCount === 1;
 }
 
-export function formMatchesJob(state, job) {
-  return ready(state) && state.text === job.text
+export function formMatchesJob(state, job, expectedSender) {
+  return ready(state, expectedSender) && state.text === job.text
     && state.recipients?.length === 1 && state.recipients[0] === job.to
     && ((state.mode === 'SMS' && [70, 160].includes(state.maxCharacters))
       || (state.mode === 'MMS' && state.maxCharacters === 2000))
@@ -40,8 +46,8 @@ export function formMatchesJob(state, job) {
     && state.usedCharacters <= state.maxCharacters;
 }
 
-export function historyProvesSubmission(before, after, job, startedAt, now, baseline) {
-  if (!ready(before) || after?.atExpectedOrigin !== true || after.isHistory !== true
+export function historyProvesSubmission(before, after, job, startedAt, now, baseline, expectedSender) {
+  if (!ready(before, expectedSender) || after?.atExpectedOrigin !== true || after.isHistory !== true
     || after.freeMode !== true || after.freeRemaining !== before.freeRemaining - 1
     || after.dailySent !== before.dailySent + 1 || !Array.isArray(after.entries)
     || baseline?.atExpectedOrigin !== true || baseline.isHistory !== true
@@ -56,7 +62,7 @@ export function historyProvesSubmission(before, after, job, startedAt, now, base
       && entry.statusCode === '00' && Number.isFinite(date)
       && date >= startedAt - 5_000 && date <= now + 60_000
       && entry.recipient === job.to && entry.recipientConsistent === true
-      && entry.sender === EXPECTED_SENDER && entry.outgoing === true
+      && entry.sender === expectedSender && entry.outgoing === true
       && typeof entry.text === 'string' && normalize(entry.text) === normalize(job.text);
   });
 }
@@ -71,8 +77,10 @@ export class CdpSktDriver {
   #unexpectedDialog = false;
   #submitting = false;
   #dialogListener;
+  #senderPhone;
 
-  constructor({ cdp, targetId, sleep = wait }) {
+  constructor({ cdp, targetId, sleep = wait, senderPhone }) {
+    this.#senderPhone = validateSenderPhone(senderPhone);
     this.#cdp = cdp;
     this.#targetId = targetId;
     this.#sleep = sleep;
@@ -127,7 +135,7 @@ export class CdpSktDriver {
 
   async #action(action, job) {
     const { sessionId, contextId } = await this.#frame();
-    const argument = { action, expectedSender: EXPECTED_SENDER, ...(job ? {
+    const argument = { action, expectedSender: this.#senderPhone, ...(job ? {
       job: { id: job.id, to: job.to, text: job.text },
     } : {}) };
     return this.#cdp.evaluate(sessionId, `(${sktDomAction.toString()})(${JSON.stringify(argument)})`, { contextId });
@@ -216,8 +224,10 @@ export class SktAdapter {
   #clock;
   #attempted = new Set();
   #busy = false;
+  #senderPhone;
 
-  constructor({ driver, clock = Date.now }) {
+  constructor({ driver, clock = Date.now, senderPhone }) {
+    this.#senderPhone = validateSenderPhone(senderPhone);
     this.#driver = driver;
     this.#clock = clock;
   }
@@ -225,8 +235,8 @@ export class SktAdapter {
   async preflight() {
     const state = await this.#driver.inspectComposer();
     return {
-      loggedIn: state?.atExpectedOrigin === true && state.isComposer === true && state.sender === EXPECTED_SENDER,
-      freeRemaining: ready(state) ? state.freeRemaining : null,
+      loggedIn: state?.atExpectedOrigin === true && state.isComposer === true && state.sender === this.#senderPhone,
+      freeRemaining: ready(state, this.#senderPhone) ? state.freeRemaining : null,
     };
   }
 
@@ -235,19 +245,19 @@ export class SktAdapter {
       || !/^010\d{8}$/.test(job.to) || typeof job.text !== 'string' || !job.text.trim()
       || Buffer.byteLength(job.text, 'utf8') > 2000 || /[\u0000\uD800-\uDFFF]/.test(job.text)
       || !['self_test', 'customer_sms'].includes(job.kind)
-      || (job.kind === 'self_test' && job.to !== EXPECTED_SENDER)) return { status: 'unknown' };
+      || (job.kind === 'self_test' && job.to !== this.#senderPhone)) return { status: 'unknown' };
     this.#busy = true;
     try {
-      if (!ready(await this.#driver.inspectComposer())) return { status: 'unknown' };
+      if (!ready(await this.#driver.inspectComposer(), this.#senderPhone)) return { status: 'unknown' };
       // Capture individual message IDs before modifying the composer. The safe
       // history GET also discards leftover drafts without invoking reset prompts.
       const baseline = await this.#driver.readHistory(job);
       if (baseline?.atExpectedOrigin !== true || baseline.isHistory !== true
         || !Array.isArray(baseline.entries)) return { status: 'unknown' };
-      if (!ready(await this.#driver.inspectComposer())) return { status: 'unknown' };
+      if (!ready(await this.#driver.inspectComposer(), this.#senderPhone)) return { status: 'unknown' };
       await this.#driver.prepare(job);
       const before = await this.#driver.inspectComposer();
-      if (!formMatchesJob(before, job)) return { status: 'unknown' };
+      if (!formMatchesJob(before, job, this.#senderPhone)) return { status: 'unknown' };
       this.#attempted.add(job.id);
       const startedAt = this.#clock();
       try {
@@ -261,7 +271,7 @@ export class SktAdapter {
       let after;
       try { after = await this.#driver.readHistory(job); } catch { return { status: 'unknown' }; }
       if (this.#driver.unexpectedDialog) return { status: 'unknown' };
-      return { status: historyProvesSubmission(before, after, job, startedAt, this.#clock(), baseline)
+      return { status: historyProvesSubmission(before, after, job, startedAt, this.#clock(), baseline, this.#senderPhone)
         ? 'submitted' : 'unknown' };
     } catch {
       return { status: 'unknown' };
@@ -274,8 +284,10 @@ export class SktAdapter {
   async close() { await this.#driver.close?.(); }
 }
 
-export async function createAdapter({ cdp, driver, clock, sleep, targetId } = {}) {
-  if (driver) return new SktAdapter({ driver, clock });
+export async function createAdapter({ cdp, driver, clock, sleep, targetId,
+  senderPhone = process.env.ENICO_SKT_SENDER_PHONE } = {}) {
+  validateSenderPhone(senderPhone);
+  if (driver) return new SktAdapter({ driver, clock, senderPhone });
   const client = cdp ?? await CdpClient.connect({ port: 9237 });
-  return new SktAdapter({ driver: new CdpSktDriver({ cdp: client, targetId, sleep }), clock });
+  return new SktAdapter({ driver: new CdpSktDriver({ cdp: client, targetId, sleep, senderPhone }), clock, senderPhone });
 }

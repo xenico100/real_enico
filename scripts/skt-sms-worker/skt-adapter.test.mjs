@@ -6,14 +6,41 @@ import * as fs from 'node:fs/promises';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { runOnce } from './core.mjs';
-import { EXPECTED_SENDER, SKT_PARENT_URL, CdpSktDriver, SktAdapter, formMatchesJob, historyProvesSubmission } from './skt-adapter.mjs';
+import { createAdapter, validateSenderPhone, SKT_PARENT_URL, CdpSktDriver, SktAdapter, formMatchesJob, historyProvesSubmission } from './skt-adapter.mjs';
 import { sktDomAction } from './skt-dom.mjs';
 
+const TEST_SENDER = '01099998888';
 const NOW = Date.parse('2026-10-15T07:22:10Z'); // 16:22 KST.
 const bankMessage = '[ENICO VECK] 무통장입금 주문 안내\n주문번호: TEST-ORDER-001\n상품: 테스트 바지 1개\n입금액: 123,000원\n은행: 테스트은행\n계좌: 000-000-000000\n예금주: 테스트\n입금 확인 후 제작·배송을 진행합니다. 주문이 취소된 경우 입금하지 마세요.';
 const job = Object.freeze({
   id: 'b0ada310-0e88-4fa3-91a5-8fb57fe9e92a', claimToken: 'C'.repeat(43),
   to: '01011112222', text: bankMessage, title: '[ENICO VECK] 주문 안내', kind: 'customer_sms',
+});
+
+test('sender configuration requires an explicit valid 010 number and is never included in errors', async () => {
+  assert.equal(validateSenderPhone(TEST_SENDER), TEST_SENDER);
+  for (const value of [undefined, null, '', '010-9999-8888', '01999998888', '0109999888', '010999988888']) {
+    assert.throws(() => validateSenderPhone(value), error => error.code === 'SENDER_PHONE_REQUIRED'
+      && error.message === 'SENDER_PHONE_REQUIRED');
+  }
+  let browserTouches = 0;
+  await assert.rejects(createAdapter({ senderPhone: '', cdp: { on() { browserTouches += 1; } } }),
+    error => error.code === 'SENDER_PHONE_REQUIRED');
+  assert.equal(browserTouches, 0, 'invalid configuration must fail before connecting to the browser');
+});
+
+test('adapter factory reads the sender only from required environment configuration', async () => {
+  const previous = process.env.ENICO_SKT_SENDER_PHONE;
+  try {
+    delete process.env.ENICO_SKT_SENDER_PHONE;
+    await assert.rejects(createAdapter({ driver: {} }), error => error.code === 'SENDER_PHONE_REQUIRED');
+    process.env.ENICO_SKT_SENDER_PHONE = TEST_SENDER;
+    const adapter = await createAdapter({ driver: { async inspectComposer() { return composer(); } } });
+    assert.deepEqual(await adapter.preflight(), { loggedIn: true, freeRemaining: 99 });
+  } finally {
+    if (previous === undefined) delete process.env.ENICO_SKT_SENDER_PHONE;
+    else process.env.ENICO_SKT_SENDER_PHONE = previous;
+  }
 });
 
 function counterDomFixture({ mode = 'MMS', formType = mode === 'MMS' ? '1' : '0' } = {}) {
@@ -24,7 +51,7 @@ function counterDomFixture({ mode = 'MMS', formType = mode === 'MMS' ? '1' : '0'
   const body = mode === 'MMS' ? '가'.repeat(338) : '테스트';
   const values = new Map([
     ['textarea#write_text[name="msg_txt"]', element({ value: body })],
-    ['#send_phone_text', element({ value: EXPECTED_SENDER })],
+    ['#send_phone_text', element({ value: TEST_SENDER })],
     ['#count_letter', element({ textContent: String(body.length) })],
     ['#count_letter_max', element({ textContent: mode === 'MMS' ? '2000' : '70' })],
     ['#count_letter_mms', element({ textContent: 'MMS' }, mode === 'MMS')],
@@ -65,7 +92,7 @@ test('visible MMS label without matching hidden message type remains unverified'
 
 function composer(overrides = {}) {
   return {
-    atExpectedOrigin: true, isComposer: true, sender: EXPECTED_SENDER,
+    atExpectedOrigin: true, isComposer: true, sender: TEST_SENDER,
     freeMode: true, freeRemaining: 99, dailySent: 1,
     text: '', recipients: [], mode: 'SMS', usedCharacters: 0,
     maxCharacters: 70, attachmentCount: 0, submitCount: 1, ...overrides,
@@ -77,7 +104,7 @@ function history(currentJob = job, overrides = {}) {
     atExpectedOrigin: true, isHistory: true, freeMode: true,
     freeRemaining: 98, dailySent: 2,
     entries: [{ recipient: currentJob.to, recipientConsistent: true,
-      sender: EXPECTED_SENDER, outgoing: true, text: currentJob.text,
+      sender: TEST_SENDER, outgoing: true, text: currentJob.text,
       id: '152275561978481', statusCode: '00', date: '2026-10-15 16:22:10' }],
     ...overrides,
   };
@@ -124,7 +151,7 @@ test('home URL before AJAX data cannot become an empty baseline or unknown post-
     { ...loaded, conversationSelected: true, detailReady: false },
     detailed,
   ]);
-  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {} });
+  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {}, senderPhone: TEST_SENDER });
   t.after(() => driver.close());
   const result = await driver.readHistory(job);
   assert.equal(result.entries[0].text, bankMessage);
@@ -137,7 +164,7 @@ test('a genuinely missing recipient is accepted only after the known sender list
     history(job, { historyReady: false, freeRemaining: null, dailySent: null, entries: [] }),
     history(job, { historyReady: true, entries: [] }),
   ], { opened: false, missing: true });
-  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {} });
+  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {}, senderPhone: TEST_SENDER });
   t.after(() => driver.close());
   const result = await driver.readHistory(job);
   assert.equal(result.historyReady, true);
@@ -149,7 +176,7 @@ test('a permanently incomplete home page never opens a conversation or returns e
   const browser = new HistoryBrowserFixture([
     history(job, { historyReady: false, freeRemaining: null, dailySent: null, entries: [] }),
   ]);
-  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {} });
+  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {}, senderPhone: TEST_SENDER });
   t.after(() => driver.close());
   await assert.rejects(driver.readHistory(job), error => error.code === 'HISTORY_UNAVAILABLE');
   assert.equal(browser.historyReads, 12);
@@ -179,7 +206,7 @@ function fixture({ initial, prepared, sent, throwAfterClick = false, unexpectedD
         ? history(job, { freeRemaining: 99, dailySent: 1, entries: [] }) : history(job, sent);
     },
   };
-  const adapter = new SktAdapter({ driver, clock: () => NOW });
+  const adapter = new SktAdapter({ driver, clock: () => NOW, senderPhone: TEST_SENDER });
   return { calls, adapter, driver };
 }
 
@@ -250,20 +277,20 @@ test('a self-test can target only the verified operator number', async () => {
 test('history must prove exact outgoing recipient and full body plus one free send', () => {
   const before = composer({ text: job.text, recipients: [job.to], mode: 'MMS',
     maxCharacters: 2000, usedCharacters: job.text.length });
-  assert.equal(formMatchesJob(before, job), true);
+  assert.equal(formMatchesJob(before, job, TEST_SENDER), true);
   const baseline = history(job, { freeRemaining: 99, dailySent: 1, entries: [] });
-  assert.equal(historyProvesSubmission(before, history(), job, NOW, NOW, baseline), true);
+  assert.equal(historyProvesSubmission(before, history(), job, NOW, NOW, baseline, TEST_SENDER), true);
   for (const overrides of [
     { freeRemaining: 99 }, { freeRemaining: 97 }, { dailySent: 1 },
-    { entries: [{ ...history().entries[0], recipient: EXPECTED_SENDER }] },
+    { entries: [{ ...history().entries[0], recipient: TEST_SENDER }] },
     { entries: [{ ...history().entries[0], text: 'a shortened preview' }] },
     { entries: [{ ...history().entries[0], outgoing: false }] },
     { entries: [{ ...history().entries[0], date: '2026-10-15 16:21:00' }] },
     { entries: [{ ...history().entries[0], statusCode: '99' }] },
     { entries: [{ ...history().entries[0], recipientConsistent: false }] },
-  ]) assert.equal(historyProvesSubmission(before, history(job, overrides), job, NOW, NOW, baseline), false);
+  ]) assert.equal(historyProvesSubmission(before, history(job, overrides), job, NOW, NOW, baseline, TEST_SENDER), false);
   assert.equal(historyProvesSubmission(before, history(), job, NOW, NOW,
-    { ...baseline, entries: history().entries }), false, 'an old message ID cannot prove a new send');
+    { ...baseline, entries: history().entries }, TEST_SENDER), false, 'an old message ID cannot prove a new send');
 });
 
 async function withQueue(t, adapter) {
