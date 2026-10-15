@@ -4,7 +4,7 @@ import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { cancelNicepayOrder } from '@/lib/orders/nicepayCancel';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
-import { dispatchOrderNotifications, getCurrentOrderNotificationEvent, getOrderNotificationHistory, getOrderNotificationSummary, type NotificationChannel, type OrderNotificationEvent } from '@/lib/orders/notifications';
+import { dispatchOrderNotifications, getCurrentOrderNotificationEvent, getOrderNotificationHistory, getOrderNotificationSummary, projectPhoneRelayOrderNotifications, type NotificationChannel, type OrderNotificationEvent } from '@/lib/orders/notifications';
 import { getOrderBankAccount } from '@/lib/orders/bankAccount';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 
@@ -364,7 +364,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const orders = ((data || []) as OrderRow[]).map((row) => mapOrderRow(row));
+  const orders = await projectPhoneRelayOrderNotifications(auth.serviceClient,
+    ((data || []) as OrderRow[]).map((row) => mapOrderRow(row)));
   return NextResponse.json({ orders });
 }
 

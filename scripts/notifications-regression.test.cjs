@@ -13,7 +13,7 @@ const ts = require('typescript');
 const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 const channels = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms'];
 
-function load(send) {
+function load(send, relay = {}) {
   const cache = new Map();
   function loadFile(file) {
     const absolute = path.resolve(file);
@@ -27,6 +27,13 @@ function load(send) {
       if (name === 'server-only') return {};
       if (name === 'node:crypto') return crypto;
       if (name === './notificationProviders') return { sendOrderNotificationMessage: send };
+      if (name === './phoneRelay') return {
+        enqueuePhoneRelayMessage: relay.enqueue || (async () => ({ status: 'not_configured' })),
+        getPhoneRelayHealth: relay.health || (async () => ({ ready: false })),
+        getPhoneRelayOrderRevision: relay.revision || (order => crypto.createHash('sha256')
+          .update(JSON.stringify([order.payment_status, order.shipping_status, order.shipping_company, order.tracking_number]))
+          .digest('hex')),
+      };
       if (name.startsWith('./')) return loadFile(path.join(path.dirname(absolute), name + '.ts'));
       throw new Error('Unexpected notification import: ' + name);
     }, mod, mod.exports, { env: { ORDER_NOTIFICATION_EMAIL: 'owner@example.test', ADMIN_NOTIFICATION_PHONE: '01099998888' } });
@@ -157,7 +164,7 @@ test('unrelated raw metadata added before a claim forces a retry rather than bei
   assert.deepEqual(db.row.raw_payload.otherTransaction, { id: 'must-survive', receipt: ['A', 'B'] });
 });
 
-for (const status of ['sent', 'unknown', 'sending']) {
+for (const status of ['queued', 'claimed', 'submitted', 'stale', 'sent', 'unknown', 'sending']) {
   test(`${status} channels never resend, even through an explicit administrator retry`, async () => {
     const order = fixture();
     const key = eventKey(order, 'order_received');
@@ -303,4 +310,150 @@ test('uppercase PayPal completion dispatches the same paid event without changin
   assert.equal(calls.length, 1);
   assert.equal(db.row.payment_status, 'COMPLETED');
   assert.match(calls[0].text, /입금·결제 확인/);
+});
+
+test('a durable phone job precedes the owner wake-up email and never also calls the SMS provider', async () => {
+  const db = dbFixture(fixture());
+  const calls = [];
+  const jobs = [];
+  const subject = load(async message => {
+    calls.push(clone(message));
+    assert.equal(jobs.length, 1, 'the phone job must already exist before any owner email is sent');
+    return { status: 'sent', providerId: 'provider-' + message.channel };
+  }, { enqueue: async (client, message) => {
+    assert.equal(client, db.client);
+    jobs.push(clone(message));
+    return { status: 'queued', providerId: 'phone-job-fixture' };
+  }, revision: order => `revision-${order.payment_status}`, health: async () => ({ ready: true }) });
+  const result = await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received');
+  assert.equal(result.channels.customerSms.status, 'queued');
+  assert.equal(result.channels.customerSms.providerId, 'phone-job-fixture');
+  assert.deepEqual(calls.map(message => message.channel), ['adminEmail', 'customerEmail']);
+  assert.equal(result.channels.adminSms.status, 'skipped');
+  assert.equal(result.channels.adminSms.errorCode, 'PHONE_RELAY_OWNER_LOCAL_NOTIFICATION');
+  assert.match(calls[0].subject, /^\[ENICO PHONE\] /);
+  assert.doesNotMatch(calls[1].subject, /^\[ENICO PHONE\] /);
+  assert.equal(jobs[0].orderId, db.row.id);
+  assert.equal(jobs[0].event, 'order_received');
+  assert.equal(jobs[0].eventRevision, 'revision-pending_transfer');
+  assert.equal(jobs[0].to, db.row.customer_phone);
+  assert.equal(jobs[0].eventKey, `${eventKey(db.row, 'order_received')}:customerSms`);
+  await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { retry: true });
+  assert.equal(jobs.length, 1, 'an administrator retry must not enqueue the accepted phone job again');
+  assert.equal(calls.length, 2);
+});
+
+test('a phone queue failure remains uncertain without a second provider or wake-up instruction', async () => {
+  const db = dbFixture(fixture());
+  const calls = [];
+  const subject = load(async message => {
+    calls.push(message);
+    return { status: 'sent', providerId: 'owner-email' };
+  }, { enqueue: async () => { throw new Error('database response lost after insert'); } });
+  const result = await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received',
+    { channels: ['adminEmail', 'customerSms'] });
+  assert.equal(result.channels.customerSms.status, 'unknown');
+  assert.equal(result.channels.customerSms.errorCode, 'PHONE_RELAY_ENQUEUE_OUTCOME_UNKNOWN');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].channel, 'adminEmail');
+  assert.doesNotMatch(calls[0].subject, /^\[ENICO PHONE\] /);
+});
+
+test('concurrent dispatchers cannot consume the owner email claim before the phone job is committed', async () => {
+  const db = dbFixture(fixture());
+  let releaseQueue;
+  const queueWait = new Promise(resolve => { releaseQueue = resolve; });
+  let enteredQueue;
+  const queueStarted = new Promise(resolve => { enteredQueue = resolve; });
+  let queueCommitted = false;
+  const calls = [];
+  const subject = load(async message => {
+    calls.push(message);
+    if (message.channel === 'adminEmail') {
+      assert.equal(queueCommitted, true);
+      assert.match(message.subject, /^\[ENICO PHONE\] /);
+    }
+    return { status: 'sent', providerId: 'accepted-' + message.channel };
+  }, { enqueue: async () => {
+    enteredQueue();
+    await queueWait;
+    queueCommitted = true;
+    return { status: 'queued', providerId: 'phone-job-concurrent' };
+  } });
+  const first = subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received');
+  await queueStarted;
+  await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received');
+  assert.equal(calls.filter(message => message.channel === 'adminEmail').length, 0);
+  releaseQueue();
+  await first;
+  assert.equal(calls.filter(message => message.channel === 'adminEmail').length, 1);
+  assert.equal(subject.getOrderNotificationSummary(db.row.raw_payload).channels.customerSms.status, 'queued');
+});
+
+test('phone validation or stale-order rejection cannot fall through to a paid SMS provider', async () => {
+  const db = dbFixture(fixture());
+  let queueCalls = 0;
+  const subject = load(async () => { throw new Error('A rejected relay job must not use a second provider'); },
+    { enqueue: async () => {
+      queueCalls += 1;
+      return { status: 'skipped', errorCode: 'PHONE_RELAY_STALE_ORDER' };
+    } });
+  const result = await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['customerSms'] });
+  assert.equal(queueCalls, 1);
+  assert.equal(result.channels.customerSms.status, 'skipped');
+  assert.equal(result.channels.customerSms.errorCode, 'PHONE_RELAY_STALE_ORDER');
+});
+
+test('a disabled phone relay preserves the existing SOLAPI path and ordinary owner email subject', async () => {
+  const db = dbFixture(fixture());
+  const calls = [];
+  const subject = load(async message => { calls.push(message); return { status: 'sent', providerId: 'solapi-or-email' }; });
+  await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['adminEmail', 'customerSms'] });
+  assert.deepEqual(calls.map(message => message.channel), ['customerSms', 'adminEmail']);
+  assert.doesNotMatch(calls[1].subject, /^\[ENICO PHONE\] /);
+});
+
+test('phone delivery views batch current queue outcomes without mutating durable order history', async () => {
+  const subject = load(async () => { throw new Error('Projection must never send'); });
+  const jobIds = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
+  const summary = (key, id) => ({ event: 'order_received', eventKey: key,
+    createdAt: '2026-10-15T00:00:00.000Z', channels: { customerSms: { status: 'queued', providerId: id } } });
+  const first = summary('first', jobIds[0]);
+  const second = summary('second', jobIds[1]);
+  const orders = [{ id: 'first', notifications: first, notificationHistory: [first] },
+    { id: 'second', notifications: second, notificationHistory: [second] }];
+  const original = clone(orders);
+  let queries = 0;
+  const client = { from(table) {
+    assert.equal(table, 'phone_relay_jobs');
+    queries += 1;
+    const query = {
+      select(columns) { assert.equal(columns, 'id,status'); return query; },
+      in(column, values) { assert.equal(column, 'id'); assert.deepEqual(values, jobIds); return query; },
+      eq(column, value) {
+        assert.equal(column, 'kind'); assert.equal(value, 'customer_sms');
+        return Promise.resolve({ data: [{ id: jobIds[0], status: 'submitted' }, { id: jobIds[1], status: 'claimed' }], error: null });
+      },
+    };
+    return query;
+  } };
+  const projected = await subject.projectPhoneRelayOrderNotifications(client, orders);
+  assert.equal(queries, 1);
+  assert.equal(projected[0].notifications.channels.customerSms.status, 'submitted');
+  assert.equal(projected[1].notificationHistory[0].channels.customerSms.status, 'claimed');
+  assert.deepEqual(orders, original, 'the source JSON and durable queued claim must remain untouched');
+});
+
+test('unavailable phone job status is never presented as confirmed delivery or silently retried', async () => {
+  const subject = load(async () => { throw new Error('Projection must never send'); });
+  const summary = { event: 'order_received', eventKey: 'key', createdAt: '2026-10-15T00:00:00.000Z',
+    channels: { customerSms: { status: 'queued', providerId: '11111111-1111-4111-8111-111111111111' } } };
+  const orders = [{ notifications: summary, notificationHistory: [summary] }];
+  const query = { select() { return query; }, in() { return query; },
+    eq() { return Promise.resolve({ data: null, error: { message: 'private database detail' } }); } };
+  const result = await subject.projectPhoneRelayOrderNotifications({ from: () => query }, orders);
+  assert.equal(result[0].notifications.channels.customerSms.status, 'unknown');
+  assert.equal(result[0].notifications.channels.customerSms.errorCode, 'PHONE_RELAY_STATUS_UNAVAILABLE');
+  assert.equal(orders[0].notifications.channels.customerSms.status, 'queued');
+  assert.ok(!JSON.stringify(result).includes('private database detail'));
 });

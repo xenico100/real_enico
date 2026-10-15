@@ -24,6 +24,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/phone-relay.shortcut',
+        headers: [
+          { key: 'Content-Type', value: 'application/octet-stream' },
+          { key: 'Content-Disposition', value: 'attachment; filename="ENICO-VECK.shortcut"' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        ],
+      },
+      {
         source: '/:path*',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },

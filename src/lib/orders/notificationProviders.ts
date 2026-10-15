@@ -4,8 +4,9 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 export type OrderNotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms';
 export type OrderNotificationResult = {
-  // "sent" means the provider accepted the request, not handset/inbox delivery.
-  status: 'sent' | 'failed' | 'not_configured' | 'skipped' | 'unknown';
+  // "queued" waits for the paired phone; "sent" is provider acceptance only.
+  // Neither status proves that a customer's handset received the message.
+  status: 'queued' | 'claimed' | 'submitted' | 'stale' | 'sent' | 'failed' | 'not_configured' | 'skipped' | 'unknown';
   providerId?: string;
   errorCode?: string;
 };

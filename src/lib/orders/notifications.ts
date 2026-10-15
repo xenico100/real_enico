@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { BANK_ACCOUNT, formatBankTransferAmount, getOrderBankAccount } from './bankAccount';
 import { parseOrderRawPayload } from './rawPayload';
 import { sendOrderNotificationMessage, type OrderNotificationResult } from './notificationProviders';
+import { enqueuePhoneRelayMessage, getPhoneRelayHealth, getPhoneRelayOrderRevision } from './phoneRelay';
 
 export type NotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms';
 export type OrderNotificationEvent = 'order_received' | 'payment_confirmed' | 'shipping_started' | 'delivered' | 'cancelled' | 'refund_pending' | 'refunded';
@@ -19,6 +20,7 @@ type NotificationOrder = {
 };
 const ORDER_COLUMNS = 'id,order_code,guest_order_number,channel,payment_method,payment_status,amount_total,currency,customer_name,customer_email,customer_phone,bank_name,bank_account_number,items,shipping_status,shipping_company,tracking_number,raw_payload';
 const CHANNELS: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms'];
+const DEFAULT_CHANNELS: NotificationChannel[] = ['customerSms', 'adminEmail', 'customerEmail', 'adminSms'];
 const LABELS: Record<OrderNotificationEvent, string> = {
   order_received: '주문 접수 · 입금 대기', payment_confirmed: '입금·결제 확인',
   shipping_started: '배송 시작', delivered: '배송 완료', cancelled: '주문 취소',
@@ -45,6 +47,36 @@ export function getOrderNotificationHistory(raw: unknown): NotificationSummary[]
 
 export function getOrderNotificationSummary(raw: unknown) {
   return getOrderNotificationHistory(raw)[0] || null;
+}
+
+/** Project the phone's latest outcome without ever rewriting financial JSON. */
+export async function projectPhoneRelayOrderNotifications<T extends {
+  notifications: NotificationSummary | null; notificationHistory: NotificationSummary[];
+}>(client: SupabaseClient, orders: T[]): Promise<T[]> {
+  const jobIds = [...new Set(orders.flatMap(order => order.notificationHistory.flatMap(summary => {
+    const message = summary.channels.customerSms;
+    return message?.status === 'queued' && typeof message.providerId === 'string'
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(message.providerId)
+      ? [message.providerId] : [];
+  })))];
+  if (!jobIds.length) return orders;
+  const statuses = new Map<string, OrderNotificationResult['status']>();
+  try {
+    const { data, error } = await client.from('phone_relay_jobs').select('id,status').in('id', jobIds).eq('kind', 'customer_sms');
+    if (!error) for (const job of data || []) {
+      if (typeof job.id === 'string' && jobIds.includes(job.id)
+        && ['queued', 'claimed', 'submitted', 'unknown', 'stale'].includes(job.status)) statuses.set(job.id, job.status);
+    }
+  } catch { /* Show unavailable metadata below; retain the durable queue claim. */ }
+  function project(summary: NotificationSummary | null): NotificationSummary | null {
+    const message = summary?.channels.customerSms;
+    if (!summary || message?.status !== 'queued' || !message.providerId || !jobIds.includes(message.providerId)) return summary;
+    const status = statuses.get(message.providerId);
+    return { ...summary, channels: { ...summary.channels, customerSms: { ...message,
+      status: status || 'unknown', ...(!status ? { errorCode: 'PHONE_RELAY_STATUS_UNAVAILABLE' } : {}) } } };
+  }
+  return orders.map(order => ({ ...order, notifications: project(order.notifications),
+    notificationHistory: order.notificationHistory.map(summary => project(summary) as NotificationSummary) }));
 }
 
 export function getCurrentOrderNotificationEvent(order: { payment_method: string | null; payment_status: string | null; shipping_status: string | null; raw_payload?: unknown }): OrderNotificationEvent | null {
@@ -124,7 +156,12 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
   const eventKey = notificationEventKey(initial, event);
   const base: NotificationSummary = readEvents(initial.raw_payload)[eventKey] || { event, eventKey, createdAt: new Date().toISOString(), channels: {} };
   if (!eventApplies(initial, event)) return { ...base, channels: Object.fromEntries(CHANNELS.map(c => [c, { status: 'skipped', errorCode: 'order_state_changed' }])) };
-  const channels = [...new Set(options.channels || CHANNELS)].filter(c => CHANNELS.includes(c));
+  const selectedChannels = [...new Set(options.channels || DEFAULT_CHANNELS)].filter(c => CHANNELS.includes(c));
+  // Persist a customer job before the owner's wake-up email can reach Mail.
+  // Keep every other channel's requested relative order unchanged.
+  const channels = selectedChannels.includes('customerSms')
+    ? ['customerSms' as const, ...selectedChannels.filter(c => c !== 'customerSms')]
+    : selectedChannels;
   for (const channel of channels) {
     const attemptId = randomUUID();
     let claimed: NotificationOrder | null = null;
@@ -135,9 +172,13 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
       if (!eventApplies(current, event) || notificationEventKey(current, event) !== eventKey) break;
       const existing = readEvents(current.raw_payload)[eventKey] || base;
       const previous = existing.channels[channel];
+      // Another dispatcher may be enqueuing the phone job. Let that claimant
+      // finish and send the wake-up mail; sending here could consume the email
+      // idempotency claim before a durable queued job exists.
+      if (channel === 'adminEmail' && existing.channels.customerSms?.status === 'sending') break;
       // An unknown provider result can have incurred a charge/delivered a message.
       // Never blindly repeat it, including from the administrator retry button.
-      if (previous && ['sent', 'unknown', 'sending'].includes(previous.status)) break;
+      if (previous && ['queued', 'claimed', 'submitted', 'stale', 'sent', 'unknown', 'sending'].includes(previous.status)) break;
       const next: NotificationSummary = { ...existing, channels: { ...existing.channels,
         [channel]: { status: 'sending' as OrderNotificationResult['status'], attemptedAt: new Date().toISOString(), attemptId } } };
       if (await writeEvent(client, current, next)) { claimed = current; break; }
@@ -151,10 +192,42 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
       : channel === 'adminSms' ? process.env.ADMIN_NOTIFICATION_PHONE || ''
       : channel === 'customerEmail' ? beforeSend.customer_email : beforeSend.customer_phone;
     const message = buildMessage(beforeSend, event, isAdmin);
-    const result: OrderNotificationResult = stillApplies
-      ? await sendOrderNotificationMessage({ channel, eventKey: `${eventKey}:${channel}`, to,
-        ...message, replyTo: isAdmin ? beforeSend.customer_email : 'morba9850@gmail.com' })
-      : { status: 'skipped', errorCode: 'order_state_changed' };
+    // The email is a wake-up signal, never an instruction containing a recipient
+    // to parse. The phone must fetch and claim the authenticated server queue.
+    if (channel === 'adminEmail' && readEvents(beforeSend.raw_payload)[eventKey]?.channels.customerSms?.status === 'queued') {
+      message.subject = `[ENICO PHONE] ${message.subject}`;
+    }
+    let result: OrderNotificationResult = { status: 'skipped', errorCode: 'order_state_changed' };
+    if (stillApplies) {
+      if (channel === 'customerSms') {
+        try {
+          result = await enqueuePhoneRelayMessage(client, { channel, eventKey: `${eventKey}:${channel}`, to,
+            ...message, orderId, event, eventRevision: getPhoneRelayOrderRevision(beforeSend) });
+        } catch {
+          // An insert can commit before the network fails. Never fall back to a
+          // second SMS provider after an uncertain queue outcome.
+          result = { status: 'unknown', errorCode: 'PHONE_RELAY_ENQUEUE_OUTCOME_UNKNOWN' };
+        }
+      } else if (channel === 'adminSms') {
+        try {
+          // The paired phone shows the owner's local Shortcut notification. Do
+          // not also pay for an SMS back to that same device.
+          result = (await getPhoneRelayHealth(client)).ready
+            ? { status: 'skipped', errorCode: 'PHONE_RELAY_OWNER_LOCAL_NOTIFICATION' }
+            : { status: 'not_configured' };
+        } catch {
+          result = { status: 'unknown', errorCode: 'PHONE_RELAY_HEALTH_UNAVAILABLE' };
+        }
+      } else {
+        result = { status: 'not_configured' };
+      }
+      // A disabled/unpaired relay explicitly yields not_configured. All other
+      // queue results own this delivery and must not invoke SOLAPI as well.
+      if (result.status === 'not_configured') {
+        result = await sendOrderNotificationMessage({ channel, eventKey: `${eventKey}:${channel}`, to,
+          ...message, replyTo: isAdmin ? beforeSend.customer_email : 'morba9850@gmail.com' });
+      }
+    }
     let saved = false;
     for (let attempt = 0; attempt < 6; attempt++) {
       const current = await readOrder(client, orderId);
