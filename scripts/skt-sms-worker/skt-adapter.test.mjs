@@ -4,8 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import * as fs from 'node:fs/promises';
 import vm from 'node:vm';
+import { EventEmitter } from 'node:events';
 import { runOnce } from './core.mjs';
-import { EXPECTED_SENDER, SktAdapter, formMatchesJob, historyProvesSubmission } from './skt-adapter.mjs';
+import { EXPECTED_SENDER, SKT_PARENT_URL, CdpSktDriver, SktAdapter, formMatchesJob, historyProvesSubmission } from './skt-adapter.mjs';
 import { sktDomAction } from './skt-dom.mjs';
 
 const NOW = Date.parse('2026-10-15T07:22:10Z'); // 16:22 KST.
@@ -81,6 +82,79 @@ function history(currentJob = job, overrides = {}) {
     ...overrides,
   };
 }
+
+class HistoryBrowserFixture extends EventEmitter {
+  historyReads = 0;
+  conversationOpens = 0;
+  constructor(snapshots, conversation = { opened: true }) {
+    super();
+    this.snapshots = snapshots;
+    this.last = snapshots.at(-1);
+    this.conversation = conversation;
+  }
+  async listTargets() { return [{ targetId: 'dedicated-tab', type: 'page', url: SKT_PARENT_URL }]; }
+  async attachToTarget() { return 'session'; }
+  async enableSession() {}
+  async call(method) {
+    if (method === 'Page.navigate') return {};
+    if (method === 'Page.createIsolatedWorld') return { executionContextId: 1 };
+    assert.equal(method, 'Page.getFrameTree');
+    return { frameTree: { frame: { id: 'outer', url: SKT_PARENT_URL }, childFrames: [
+      { frame: { id: 'sms-frame', url: 'https://msgmgr.tworld.co.kr/html/home/home_main.php' } },
+    ] } };
+  }
+  async evaluate(session, expression) {
+    if (expression.includes('"action":"openConversation"')) {
+      this.conversationOpens += 1;
+      return this.conversation;
+    }
+    assert.ok(expression.includes('"action":"history"'));
+    this.historyReads += 1;
+    return structuredClone(this.snapshots.shift() ?? this.last);
+  }
+  close() {}
+}
+
+test('home URL before AJAX data cannot become an empty baseline or unknown post-send proof', async t => {
+  const loaded = history(job, { historyReady: true, conversationSelected: false, entries: [] });
+  const detailed = history(job, { historyReady: true, conversationSelected: true, detailReady: true });
+  const browser = new HistoryBrowserFixture([
+    history(job, { historyReady: false, freeRemaining: null, dailySent: null, entries: [] }),
+    loaded,
+    { ...loaded, conversationSelected: true, detailReady: false },
+    detailed,
+  ]);
+  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {} });
+  t.after(() => driver.close());
+  const result = await driver.readHistory(job);
+  assert.equal(result.entries[0].text, bankMessage);
+  assert.equal(browser.historyReads, 4);
+  assert.equal(browser.conversationOpens, 1, 'conversation is opened once after its list loads');
+});
+
+test('a genuinely missing recipient is accepted only after the known sender list loads', async t => {
+  const browser = new HistoryBrowserFixture([
+    history(job, { historyReady: false, freeRemaining: null, dailySent: null, entries: [] }),
+    history(job, { historyReady: true, entries: [] }),
+  ], { opened: false, missing: true });
+  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {} });
+  t.after(() => driver.close());
+  const result = await driver.readHistory(job);
+  assert.equal(result.historyReady, true);
+  assert.equal(browser.historyReads, 2);
+  assert.equal(browser.conversationOpens, 1);
+});
+
+test('a permanently incomplete home page never opens a conversation or returns empty history', async t => {
+  const browser = new HistoryBrowserFixture([
+    history(job, { historyReady: false, freeRemaining: null, dailySent: null, entries: [] }),
+  ]);
+  const driver = new CdpSktDriver({ cdp: browser, sleep: async () => {} });
+  t.after(() => driver.close());
+  await assert.rejects(driver.readHistory(job), error => error.code === 'HISTORY_UNAVAILABLE');
+  assert.equal(browser.historyReads, 12);
+  assert.equal(browser.conversationOpens, 0);
+});
 
 function fixture({ initial, prepared, sent, throwAfterClick = false, unexpectedDialog = false } = {}) {
   const calls = { prepares: [], submits: [], historyReads: 0 };
