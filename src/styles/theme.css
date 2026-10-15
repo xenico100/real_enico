@@ -1,5 +1,5 @@
-@import 'tailwindcss/theme.css';
-@import 'tailwindcss/preflight.css';
+/* Tailwind theme and preflight are already loaded in tailwind.css layers.
+ * An unlayered second preflight overrides utility spacing and typography. */
 
 @custom-variant dark (&:is(.dark *));
 
