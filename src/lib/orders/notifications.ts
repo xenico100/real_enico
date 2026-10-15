@@ -1,31 +1,25 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { BANK_ACCOUNT, formatBankTransferAmount, getOrderBankAccount } from './bankAccount';
+import { BANK_ACCOUNT } from './bankAccount';
+import { buildOrderNotificationMessage, type NotificationMessageOrder, type OrderNotificationEvent } from './notificationMessage';
+export type { OrderNotificationEvent } from './notificationMessage';
 import { parseOrderRawPayload } from './rawPayload';
 import { sendOrderNotificationMessage, type OrderNotificationResult } from './notificationProviders';
 import { enqueuePhoneRelayMessage, getPhoneRelayHealth, getPhoneRelayOrderRevision } from './phoneRelay';
+import { getPhoneRelayDeliveryMetadata, unavailablePhoneRelayDelivery, PHONE_RELAY_DELIVERY_COLUMNS,
+  type PhoneRelayDeliveryMetadata, type PhoneRelayDeliveryRow } from './phoneRelayDelivery';
 
 export type NotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms';
-export type OrderNotificationEvent = 'order_received' | 'payment_confirmed' | 'shipping_started' | 'delivered' | 'cancelled' | 'refund_pending' | 'refunded';
-type ChannelRecord = Omit<OrderNotificationResult, 'status'> & { status: OrderNotificationResult['status'] | 'sending'; attemptedAt?: string; attemptId?: string };
-export type NotificationSummary = { event: OrderNotificationEvent; eventKey: string; createdAt: string; channels: Partial<Record<NotificationChannel, ChannelRecord>> };
-type NotificationOrder = {
-  id: string; order_code: string; guest_order_number: string | null; channel: string;
-  payment_method: string; payment_status: string; amount_total: number; currency: string;
-  customer_name: string; customer_email: string; customer_phone: string;
-  bank_name: string | null; bank_account_number: string | null; items: unknown;
-  shipping_status: string | null; shipping_company: string | null; tracking_number: string | null;
-  raw_payload: unknown;
+type ChannelRecord = Omit<OrderNotificationResult, 'status'> & Partial<Omit<PhoneRelayDeliveryMetadata, 'status'>> & {
+  status: OrderNotificationResult['status'] | 'sending'; attemptedAt?: string; attemptId?: string;
 };
+export type NotificationSummary = { event: OrderNotificationEvent; eventKey: string; createdAt: string; channels: Partial<Record<NotificationChannel, ChannelRecord>> };
+type NotificationOrder = NotificationMessageOrder;
 const ORDER_COLUMNS = 'id,order_code,guest_order_number,channel,payment_method,payment_status,amount_total,currency,customer_name,customer_email,customer_phone,bank_name,bank_account_number,items,shipping_status,shipping_company,tracking_number,raw_payload';
 const CHANNELS: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms'];
 const DEFAULT_CHANNELS: NotificationChannel[] = ['customerSms', 'adminEmail', 'customerEmail', 'adminSms'];
-const LABELS: Record<OrderNotificationEvent, string> = {
-  order_received: '주문 접수 · 입금 대기', payment_confirmed: '입금·결제 확인',
-  shipping_started: '배송 시작', delivered: '배송 완료', cancelled: '주문 취소',
-  refund_pending: '환불 진행 중', refunded: '환불 완료',
-};
+
 
 function readEvents(raw: unknown): Record<string, NotificationSummary> {
   const value = parseOrderRawPayload(raw)?.notifications;
@@ -42,6 +36,8 @@ export function getOrderNotificationHistory(raw: unknown): NotificationSummary[]
     .map(e => ({ event: e.event, eventKey: e.eventKey, createdAt: e.createdAt,
       channels: Object.fromEntries(Object.entries(e.channels || {}).filter(([key]) => CHANNELS.includes(key as NotificationChannel))
         .map(([key, record]) => [key, { status: record.status, attemptedAt: record.attemptedAt,
+          ...(key === 'customerSms' || key === 'adminSms' ? { deliveryConfirmed: false } : {}),
+          ...(record.provider === 'phone_relay' ? { provider: 'phone_relay' as const } : {}),
           ...(record.providerId ? { providerId: record.providerId } : {}), ...(record.errorCode ? { errorCode: record.errorCode } : {}) }])) }));
 }
 
@@ -49,34 +45,49 @@ export function getOrderNotificationSummary(raw: unknown) {
   return getOrderNotificationHistory(raw)[0] || null;
 }
 
-/** Project the phone's latest outcome without ever rewriting financial JSON. */
+/** Project the consumer's latest outcome without ever rewriting financial JSON. */
 export async function projectPhoneRelayOrderNotifications<T extends {
-  notifications: NotificationSummary | null; notificationHistory: NotificationSummary[];
+  id: string; notifications: NotificationSummary | null; notificationHistory: NotificationSummary[];
 }>(client: SupabaseClient, orders: T[]): Promise<T[]> {
-  const jobIds = [...new Set(orders.flatMap(order => order.notificationHistory.flatMap(summary => {
+  function relayCandidate(summary: NotificationSummary) {
     const message = summary.channels.customerSms;
-    return message?.status === 'queued' && typeof message.providerId === 'string'
-      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(message.providerId)
-      ? [message.providerId] : [];
-  })))];
-  if (!jobIds.length) return orders;
-  const statuses = new Map<string, OrderNotificationResult['status']>();
-  try {
-    const { data, error } = await client.from('phone_relay_jobs').select('id,status').in('id', jobIds).eq('kind', 'customer_sms');
-    if (!error) for (const job of data || []) {
-      if (typeof job.id === 'string' && jobIds.includes(job.id)
-        && ['queued', 'claimed', 'submitted', 'unknown', 'stale'].includes(job.status)) statuses.set(job.id, job.status);
-    }
-  } catch { /* Show unavailable metadata below; retain the durable queue claim. */ }
-  function project(summary: NotificationSummary | null): NotificationSummary | null {
-    const message = summary?.channels.customerSms;
-    if (!summary || message?.status !== 'queued' || !message.providerId || !jobIds.includes(message.providerId)) return summary;
-    const status = statuses.get(message.providerId);
-    return { ...summary, channels: { ...summary.channels, customerSms: { ...message,
-      status: status || 'unknown', ...(!status ? { errorCode: 'PHONE_RELAY_STATUS_UNAVAILABLE' } : {}) } } };
+    return message && (message.provider === 'phone_relay'
+      || ['queued', 'claimed', 'submitted', 'stale', 'sending'].includes(message.status)
+      || (message.status === 'unknown' && message.errorCode?.startsWith('PHONE_RELAY_')));
   }
-  return orders.map(order => ({ ...order, notifications: project(order.notifications),
-    notificationHistory: order.notificationHistory.map(summary => project(summary) as NotificationSummary) }));
+  const eventKeys = [...new Set(orders.flatMap(order => order.notificationHistory
+    .filter(relayCandidate).filter(summary => /^[a-f0-9]{64}$/.test(summary.eventKey))
+    .map(summary => `${summary.eventKey}:customerSms`)))];
+  if (!eventKeys.length) return orders;
+  const jobs = new Map<string, PhoneRelayDeliveryRow>();
+  // event_key is globally UNIQUE. A bounded chunk cannot be silently truncated
+  // by PostgREST's default row limit, even for a long order history.
+  for (let offset = 0; offset < eventKeys.length; offset += 100) {
+    const chunk = eventKeys.slice(offset, offset + 100);
+    try {
+      const { data, error } = await client.from('phone_relay_jobs').select(PHONE_RELAY_DELIVERY_COLUMNS)
+        .in('event_key', chunk).eq('kind', 'customer_sms');
+      if (!error) for (const job of data || []) {
+        if (typeof job.event_key === 'string' && chunk.includes(job.event_key)) jobs.set(job.event_key, job as PhoneRelayDeliveryRow);
+      }
+    } catch { /* Missing rows remain explicit unknowns; never trigger delivery. */ }
+  }
+  function project(orderId: string, summary: NotificationSummary | null): NotificationSummary | null {
+    const message = summary?.channels.customerSms;
+    if (!summary || !message || !relayCandidate(summary)) return summary;
+    const job = jobs.get(`${summary.eventKey}:customerSms`);
+    // A capability-like provider ID in raw JSON never grants access to another
+    // order's queue metadata. Match both immutable order and event identifiers.
+    const matches = job && job.order_id === orderId
+      && (!message.providerId || message.providerId === job.id);
+    if (!matches && message.status === 'sending' && message.provider !== 'phone_relay') return summary;
+    const metadata = matches ? getPhoneRelayDeliveryMetadata(job)
+      : unavailablePhoneRelayDelivery(message.providerId);
+    return { ...summary, channels: { ...summary.channels, customerSms: { ...message, ...metadata,
+      ...(matches ? { providerId: job.id } : {}), errorCode: metadata.reasonCode || undefined } } };
+  }
+  return orders.map(order => ({ ...order, notifications: project(order.id, order.notifications),
+    notificationHistory: order.notificationHistory.map(summary => project(order.id, summary) as NotificationSummary) }));
 }
 
 export function getCurrentOrderNotificationEvent(order: { payment_method: string | null; payment_status: string | null; shipping_status: string | null; raw_payload?: unknown }): OrderNotificationEvent | null {
@@ -86,7 +97,10 @@ export function getCurrentOrderNotificationEvent(order: { payment_method: string
   if (payment === 'refund_pending') return 'refund_pending';
   if (payment === 'cancelled') return parseOrderRawPayload(order.raw_payload)?.refundStatus === 'completed' ? 'refunded' : 'cancelled';
   if (method === 'bank_transfer' && payment === 'pending_transfer') return 'order_received';
-  if (!['transfer_confirmed', 'paid', 'captured', 'completed'].includes(payment)) return null;
+  const confirmed = method === 'bank_transfer' ? payment === 'transfer_confirmed'
+    : method === 'nicepay' ? payment === 'paid'
+      : method === 'paypal' && ['captured', 'completed'].includes(payment);
+  if (!confirmed) return null;
   if (shipping === 'delivered') return 'delivered';
   if (shipping === 'shipping') return 'shipping_started';
   return 'payment_confirmed';
@@ -126,29 +140,6 @@ async function writeEvent(client: SupabaseClient, order: NotificationOrder, even
   return Boolean(data);
 }
 
-function productText(items: unknown) {
-  return Array.isArray(items) ? items.slice(0, 5).map(item => {
-    if (!item || typeof item !== 'object') return '';
-    return `${String(item.name || '상품').replace(/[\r\n]/g, ' ').slice(0, 65)} × ${Number(item.quantity) || 1}`;
-  }).filter(Boolean).join(', ') : '';
-}
-
-function buildMessage(order: NotificationOrder, event: OrderNotificationEvent, admin: boolean) {
-  const bank = getOrderBankAccount(order);
-  const lines = [`[ENICO VECK] ${LABELS[event]}`, `주문번호: ${order.order_code}`];
-  if (order.guest_order_number) lines.push(`비회원 조회번호: ${order.guest_order_number}`);
-  if (admin) lines.push(`주문자: ${order.customer_name}`, `연락처: ${order.customer_phone}`);
-  lines.push(`상품: ${productText(order.items)}`, `금액: ${formatBankTransferAmount(Number(order.amount_total))}`);
-  if (event === 'order_received') lines.push(`${bank.bankName} ${bank.accountNumber}`, `예금주: ${bank.accountHolder}`,
-    '입금자명은 주문자 이름과 동일하게 입력해 주세요.', '현재 입금 대기 상태이며, 운영자가 입금을 확인한 뒤 처리합니다.',
-    '단품 재고는 주문 접수만으로 예약되지 않습니다. 송금 전에 주문 상태와 재고를 확인해 주세요.');
-  if (event === 'shipping_started' || event === 'delivered') lines.push(`택배사: ${order.shipping_company || '우체국'}`, `운송장: ${order.tracking_number || '관리자 확인 필요'}`);
-  if (event === 'refund_pending') lines.push('환불 요청이 접수되었습니다. 실제 환불 완료와는 구분됩니다.');
-  if (event === 'cancelled') lines.push('취소된 주문에는 입금하지 마세요. 이미 입금했다면 고객센터로 연락해 주세요.');
-  lines.push(admin ? '관리자에서 주문과 실제 입금 내역을 확인해 주세요.' : '주문조회: https://enicoveck.com/orders',
-    ...(admin ? [] : ['문의: morba9850@gmail.com']));
-  return { subject: `[ENICO VECK] ${LABELS[event]} ${order.order_code}`, text: lines.join('\n') };
-}
 
 export async function dispatchOrderNotifications(client: SupabaseClient, orderId: string, event: OrderNotificationEvent,
   options: { channels?: NotificationChannel[]; retry?: boolean } = {}): Promise<NotificationSummary> {
@@ -191,7 +182,7 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
     const to = channel === 'adminEmail' ? process.env.ORDER_NOTIFICATION_EMAIL || 'morba9850@gmail.com'
       : channel === 'adminSms' ? process.env.ADMIN_NOTIFICATION_PHONE || ''
       : channel === 'customerEmail' ? beforeSend.customer_email : beforeSend.customer_phone;
-    const message = buildMessage(beforeSend, event, isAdmin);
+    const message = buildOrderNotificationMessage(beforeSend, event, isAdmin);
     // The email is a wake-up signal, never an instruction containing a recipient
     // to parse. The phone must fetch and claim the authenticated server queue.
     if (channel === 'adminEmail' && readEvents(beforeSend.raw_payload)[eventKey]?.channels.customerSms?.status === 'queued') {
@@ -203,10 +194,11 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
         try {
           result = await enqueuePhoneRelayMessage(client, { channel, eventKey: `${eventKey}:${channel}`, to,
             ...message, orderId, event, eventRevision: getPhoneRelayOrderRevision(beforeSend) });
+          if (result.status !== 'not_configured') result = { ...result, provider: 'phone_relay' };
         } catch {
           // An insert can commit before the network fails. Never fall back to a
           // second SMS provider after an uncertain queue outcome.
-          result = { status: 'unknown', errorCode: 'PHONE_RELAY_ENQUEUE_OUTCOME_UNKNOWN' };
+          result = { status: 'unknown', provider: 'phone_relay', errorCode: 'PHONE_RELAY_ENQUEUE_OUTCOME_UNKNOWN' };
         }
       } else if (channel === 'adminSms') {
         try {

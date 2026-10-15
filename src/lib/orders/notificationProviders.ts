@@ -9,6 +9,7 @@ export type OrderNotificationResult = {
   status: 'queued' | 'claimed' | 'submitted' | 'stale' | 'sent' | 'failed' | 'not_configured' | 'skipped' | 'unknown';
   providerId?: string;
   errorCode?: string;
+  provider?: 'phone_relay';
 };
 export type OrderNotificationMessage = {
   channel: OrderNotificationChannel;

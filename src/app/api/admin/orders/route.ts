@@ -187,6 +187,10 @@ function mapOrderRow(row: OrderRow) {
   };
 }
 
+async function projectOrderRow(client: SupabaseClient, row: OrderRow) {
+  return (await projectPhoneRelayOrderNotifications(client, [mapOrderRow(row)]))[0];
+}
+
 function mergeRefundPendingRawPayload(rawPayloadValue: unknown, reason: string, actor: 'admin') {
   const rawPayload =
     rawPayloadValue && typeof rawPayloadValue === 'object' && !Array.isArray(rawPayloadValue)
@@ -366,7 +370,7 @@ export async function GET(request: Request) {
 
   const orders = await projectPhoneRelayOrderNotifications(auth.serviceClient,
     ((data || []) as OrderRow[]).map((row) => mapOrderRow(row)));
-  return NextResponse.json({ orders });
+  return NextResponse.json({ orders }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 export async function PATCH(request: Request) {
@@ -567,7 +571,7 @@ export async function PATCH(request: Request) {
     }
     return NextResponse.json({
       message: '이체확인 및 단품 재고 처리가 완료되었습니다. 배송정보는 별도로 저장해 주세요.',
-      order: mapOrderRow(await notifyAndRefresh(auth.serviceClient, confirmedOrder as OrderRow, 'payment_confirmed')),
+      order: await projectOrderRow(auth.serviceClient, await notifyAndRefresh(auth.serviceClient, confirmedOrder as OrderRow, 'payment_confirmed')),
     });
   }
 
@@ -675,7 +679,7 @@ export async function PATCH(request: Request) {
             currentPaymentStatus !== 'refund_pending'
           ? '환불 진행중 상태로 저장되었습니다.'
           : '주문 상태/배송 정보가 저장되었습니다.',
-    order: mapOrderRow(finalOrder),
+    order: await projectOrderRow(auth.serviceClient, finalOrder),
   });
 }
 
@@ -733,9 +737,10 @@ export async function POST(request: Request) {
     const event = getCurrentOrderNotificationEvent(existing as OrderRow);
     if (!event) return NextResponse.json({ message: '결제 결과 확인 중인 주문에는 알림을 재발송할 수 없습니다.' }, { status: 409 });
     try {
-      const notifications = await dispatchOrderNotifications(auth.serviceClient, id, event, { channels: payload.channels, retry: true });
+      await dispatchOrderNotifications(auth.serviceClient, id, event, { channels: payload.channels, retry: true });
       const { data } = await auth.serviceClient.from('orders').select(ORDER_SELECT).eq('id', id).maybeSingle();
-      return NextResponse.json({ message: '발송 가능한 알림을 처리했습니다. 완료·결과 확인 필요 알림은 중복 발송하지 않습니다.', notifications, order: mapOrderRow((data || existing) as OrderRow) });
+      const order = await projectOrderRow(auth.serviceClient, (data || existing) as OrderRow);
+      return NextResponse.json({ message: '발송 가능한 알림을 처리했습니다. 완료·결과 확인 필요 알림은 중복 발송하지 않습니다.', notifications: order.notifications, order });
     } catch {
       return NextResponse.json({ message: '알림 처리 결과를 확인하지 못했습니다. 주문은 유지됩니다. 발송 내역을 확인해 주세요.' }, { status: 503 });
     }
@@ -823,7 +828,7 @@ export async function POST(request: Request) {
           : paymentStatus === 'pending_transfer'
             ? '미입금 주문이 취소되었습니다.'
             : '환불 요청 상태로 변경되었습니다.',
-      order: mapOrderRow(updatedOrder),
+      order: await projectOrderRow(auth.serviceClient, updatedOrder),
     });
   } catch (error) {
     return NextResponse.json(

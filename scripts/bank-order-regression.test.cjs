@@ -95,6 +95,7 @@ function load(file) {
       dispatchOrderNotifications: async () => ({ channels: {} }),
       getOrderNotificationHistory: () => [],
       getOrderNotificationSummary: () => null,
+      projectPhoneRelayOrderNotifications: async (_client, orders) => orders,
       getCurrentOrderNotificationEvent: order => order.payment_status === 'pending_transfer' ? 'order_received' : order.payment_status === 'refund_pending' ? 'refund_pending' : order.payment_status === 'cancelled' ? 'cancelled' : 'payment_confirmed',
     };
     if (name === 'server-only') return {};
@@ -273,11 +274,13 @@ test('confirmed bank transfer must pass through refund pending before refund com
     id: 'order-1', paymentStatus: 'refund_pending',
   }));
   assert.equal(requestRefund.status, 200);
+  assert.equal((await requestRefund.json()).order.paymentStatus, 'refund_pending');
   assert.equal(rows[0].payment_status, 'refund_pending');
   const completeRefund = await adminOrders.PATCH(request('http://localhost/api/admin/orders', 'PATCH', {
     id: 'order-1', paymentStatus: 'cancelled',
   }));
   assert.equal(completeRefund.status, 200);
+  assert.equal((await completeRefund.json()).order.paymentStatus, 'cancelled');
   assert.equal(rows[0].payment_status, 'cancelled');
   assert.equal(rows[0].raw_payload.refundStatus, 'completed');
 });
@@ -294,6 +297,7 @@ test('bank confirmation uses atomic RPC, refreshes product cache, and never sepa
     shippingCompany: '우체국', trackingNumber: '', shippingNote: '',
   }));
   assert.equal(response.status, 200);
+  assert.equal((await response.json()).order.paymentStatus, 'transfer_confirmed');
   assert.equal(rows[0].payment_status, 'transfer_confirmed');
   assert.equal(bankConfirmRpcCalls, 1);
   assert.deepEqual(revalidatedTags, [['storefront-products', 'max']]);
@@ -358,6 +362,7 @@ test('admin can cancel a guest unpaid bank order, preserving admin scope', async
     id: 'order-1', action: 'cancel_payment',
   }));
   assert.equal(response.status, 200);
+  assert.equal((await response.json()).order.paymentStatus, 'cancelled');
   assert.equal(rows[0].payment_status, 'cancelled');
   assert.equal(rows[0].raw_payload.cancellation.status, 'cancelled_unpaid');
 });

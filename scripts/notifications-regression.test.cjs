@@ -295,7 +295,7 @@ test('notification history exposes only safe channel status metadata', () => {
   assert.equal(history.length, 1);
   assert.deepEqual(Object.keys(history[0].channels), ['customerSms']);
   assert.deepEqual(history[0].channels.customerSms, {
-    status: 'unknown', attemptedAt: '2026-10-15T00:00:00.000Z', providerId: 'fixture-provider', errorCode: 'UNKNOWN',
+    status: 'unknown', attemptedAt: '2026-10-15T00:00:00.000Z', providerId: 'fixture-provider', errorCode: 'UNKNOWN', deliveryConfirmed: false,
   });
   const serialized = JSON.stringify(history);
   for (const secret of ['must-not-leak', 'internal-attempt', '01012345678', 'private-message']) assert.ok(!serialized.includes(secret));
@@ -309,7 +309,7 @@ test('uppercase PayPal completion dispatches the same paid event without changin
   await subject.dispatchOrderNotifications(db.client, db.row.id, 'payment_confirmed', { channels: ['customerEmail'] });
   assert.equal(calls.length, 1);
   assert.equal(db.row.payment_status, 'COMPLETED');
-  assert.match(calls[0].text, /입금·결제 확인/);
+  assert.match(calls[0].text, /PayPal 결제 완료/);
 });
 
 test('a durable phone job precedes the owner wake-up email and never also calls the SMS provider', async () => {
@@ -418,8 +418,8 @@ test('phone delivery views batch current queue outcomes without mutating durable
   const jobIds = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
   const summary = (key, id) => ({ event: 'order_received', eventKey: key,
     createdAt: '2026-10-15T00:00:00.000Z', channels: { customerSms: { status: 'queued', providerId: id } } });
-  const first = summary('first', jobIds[0]);
-  const second = summary('second', jobIds[1]);
+  const first = summary('a'.repeat(64), jobIds[0]);
+  const second = summary('b'.repeat(64), jobIds[1]);
   const orders = [{ id: 'first', notifications: first, notificationHistory: [first] },
     { id: 'second', notifications: second, notificationHistory: [second] }];
   const original = clone(orders);
@@ -428,11 +428,17 @@ test('phone delivery views batch current queue outcomes without mutating durable
     assert.equal(table, 'phone_relay_jobs');
     queries += 1;
     const query = {
-      select(columns) { assert.equal(columns, 'id,status'); return query; },
-      in(column, values) { assert.equal(column, 'id'); assert.deepEqual(values, jobIds); return query; },
+      select(columns) { assert.equal(columns, 'id,order_id,event_key,status,created_at,claimed_at,claim_expires_at,acknowledged_at,expires_at'); return query; },
+      in(column, values) { assert.equal(column, 'event_key'); assert.deepEqual(values, [`${first.eventKey}:customerSms`, `${second.eventKey}:customerSms`]); return query; },
       eq(column, value) {
         assert.equal(column, 'kind'); assert.equal(value, 'customer_sms');
-        return Promise.resolve({ data: [{ id: jobIds[0], status: 'submitted' }, { id: jobIds[1], status: 'claimed' }], error: null });
+        const now = Date.now();
+        return Promise.resolve({ data: [first, second].map((entry, index) => ({
+          id: jobIds[index], order_id: index ? 'second' : 'first', event_key: `${entry.eventKey}:customerSms`,
+          status: index ? 'claimed' : 'submitted', created_at: new Date(now - 60_000).toISOString(),
+          claimed_at: new Date(now - 30_000).toISOString(), claim_expires_at: new Date(now + 60_000).toISOString(),
+          acknowledged_at: index ? null : new Date(now - 10_000).toISOString(), expires_at: new Date(now + 120_000).toISOString(),
+        })), error: null });
       },
     };
     return query;
@@ -441,14 +447,16 @@ test('phone delivery views batch current queue outcomes without mutating durable
   assert.equal(queries, 1);
   assert.equal(projected[0].notifications.channels.customerSms.status, 'submitted');
   assert.equal(projected[1].notificationHistory[0].channels.customerSms.status, 'claimed');
+  assert.equal(projected[0].notifications.channels.customerSms.deliveryConfirmed, false);
+  assert.ok(projected[0].notifications.channels.customerSms.submittedAt);
   assert.deepEqual(orders, original, 'the source JSON and durable queued claim must remain untouched');
 });
 
 test('unavailable phone job status is never presented as confirmed delivery or silently retried', async () => {
   const subject = load(async () => { throw new Error('Projection must never send'); });
-  const summary = { event: 'order_received', eventKey: 'key', createdAt: '2026-10-15T00:00:00.000Z',
+  const summary = { event: 'order_received', eventKey: 'a'.repeat(64), createdAt: '2026-10-15T00:00:00.000Z',
     channels: { customerSms: { status: 'queued', providerId: '11111111-1111-4111-8111-111111111111' } } };
-  const orders = [{ notifications: summary, notificationHistory: [summary] }];
+  const orders = [{ id: 'order', notifications: summary, notificationHistory: [summary] }];
   const query = { select() { return query; }, in() { return query; },
     eq() { return Promise.resolve({ data: null, error: { message: 'private database detail' } }); } };
   const result = await subject.projectPhoneRelayOrderNotifications({ from: () => query }, orders);
@@ -456,4 +464,125 @@ test('unavailable phone job status is never presented as confirmed delivery or s
   assert.equal(result[0].notifications.channels.customerSms.errorCode, 'PHONE_RELAY_STATUS_UNAVAILABLE');
   assert.equal(orders[0].notifications.channels.customerSms.status, 'queued');
   assert.ok(!JSON.stringify(result).includes('private database detail'));
+});
+
+test('bank-transfer pending guidance contains exact total, order number, bank and holder but no paid claim', async () => {
+  const db = dbFixture(fixture());
+  const calls = [];
+  const subject = load(async message => { calls.push(message); return { status: 'sent' }; });
+  await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['customerSms'] });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].subject, /입금 대기/);
+  assert.match(calls[0].text, /주문번호: ENICO-TEST-1/);
+  assert.match(calls[0].text, /입금할 금액: 123,000원/);
+  assert.match(calls[0].text, /테스트은행 fixture-account/);
+  assert.match(calls[0].text, /예금주:/);
+  assert.doesNotMatch(calls[0].text, /카드 결제가 승인|입금이 확인되었습니다/);
+});
+
+test('persisted approved card orders get payment-complete copy without a transfer request', async () => {
+  const db = dbFixture(fixture({ payment_method: 'nicepay', payment_status: 'paid' }));
+  const calls = [];
+  const subject = load(async message => { calls.push(message); return { status: 'sent' }; });
+  await subject.dispatchOrderNotifications(db.client, db.row.id, 'payment_confirmed', { channels: ['customerSms'] });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].subject, /카드 결제 완료/);
+  assert.match(calls[0].text, /카드 결제가 승인되었습니다/);
+  assert.match(calls[0].text, /추가 입금은 필요하지 않습니다/);
+  assert.doesNotMatch(calls[0].text, /fixture-account|예금주:|입금할 금액:|입금 대기/);
+});
+
+test('bank-paid copy acknowledges confirmed remittance without requesting a second payment', async () => {
+  const db = dbFixture(fixture({ payment_status: 'transfer_confirmed' }));
+  const calls = [];
+  const subject = load(async message => { calls.push(message); return { status: 'sent' }; });
+  await subject.dispatchOrderNotifications(db.client, db.row.id, 'payment_confirmed', { channels: ['customerSms'] });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].subject, /입금 확인 완료/);
+  assert.match(calls[0].text, /입금이 확인되었습니다/);
+  assert.doesNotMatch(calls[0].text, /fixture-account|예금주:|입금할 금액:/);
+});
+
+test('unapproved, ambiguous and mismatched payment states never dispatch a paid notification', async () => {
+  for (const [payment_method, payment_status] of [
+    ['nicepay', 'pending_payment'], ['nicepay', 'approval_processing'], ['nicepay', 'captured'],
+    ['bank_transfer', 'pending_transfer'], ['bank_transfer', 'paid'], ['unknown', 'paid'],
+  ]) {
+    const db = dbFixture(fixture({ payment_method, payment_status }));
+    const subject = load(async () => { throw new Error('Unverified state must not send'); });
+    await subject.dispatchOrderNotifications(db.client, db.row.id, 'payment_confirmed');
+    assert.equal(db.writes.length, 0);
+  }
+});
+
+function projectedFixture({ sourceStatus = 'queued', jobChanges = {}, messageChanges = {}, dataError = null } = {}) {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const key = 'a'.repeat(64);
+  const summary = { event: 'order_received', eventKey: key, createdAt: new Date().toISOString(),
+    channels: { customerSms: { status: sourceStatus, providerId: id, ...messageChanges } } };
+  const orders = [{ id: 'owned-order', notifications: summary, notificationHistory: [summary] }];
+  const now = Date.now();
+  const job = { id, order_id: 'owned-order', event_key: `${key}:customerSms`, status: 'queued',
+    created_at: new Date(now - 60_000).toISOString(), claimed_at: null,
+    claim_expires_at: null, acknowledged_at: null, expires_at: new Date(now + 60_000).toISOString(),
+    ...jobChanges };
+  const query = { select(columns) {
+    for (const privateColumn of ['recipient_phone', 'message_text', 'claim_token_hash']) assert.ok(!columns.includes(privateColumn));
+    return query;
+  }, in() { return query; }, eq() { return Promise.resolve({ data: [job], error: dataError }); } };
+  return { orders, job, client: { from(table) { assert.equal(table, 'phone_relay_jobs'); return query; } } };
+}
+
+for (const [name, jobChanges, status, reason] of [
+  ['expired queued job', { expires_at: new Date(Date.now() - 60_000).toISOString() }, 'stale', 'PHONE_RELAY_EXPIRED'],
+  ['expired claim', { status: 'claimed', claimed_at: new Date().toISOString(), claim_expires_at: new Date(Date.now() - 60_000).toISOString() }, 'unknown', 'PHONE_RELAY_CLAIM_EXPIRED'],
+  ['unknown result', { status: 'unknown' }, 'unknown', 'PHONE_RELAY_RESULT_UNKNOWN'],
+  ['stale before expiry', { status: 'stale' }, 'stale', 'PHONE_RELAY_STALE'],
+  ['submitted without acknowledgement', { status: 'submitted' }, 'unknown', 'PHONE_RELAY_STATUS_UNAVAILABLE'],
+]) {
+  test(`${name} is accurately projected without changing queue or order state`, async () => {
+    const f = projectedFixture({ jobChanges });
+    const before = clone(f.orders);
+    const subject = load(async () => { throw new Error('Projection cannot send'); });
+    const result = await subject.projectPhoneRelayOrderNotifications(f.client, f.orders);
+    const sms = result[0].notifications.channels.customerSms;
+    assert.equal(sms.status, status);
+    assert.equal(sms.reasonCode, reason);
+    assert.equal(sms.deliveryConfirmed, false);
+    assert.equal(sms.submittedAt, null);
+    assert.deepEqual(f.orders, before);
+  });
+}
+
+test('lost enqueue response is reconciled by exact event and order, without a resend', async () => {
+  const f = projectedFixture({ sourceStatus: 'unknown', messageChanges: {
+    providerId: undefined, errorCode: 'PHONE_RELAY_ENQUEUE_OUTCOME_UNKNOWN',
+  } });
+  const subject = load(async () => { throw new Error('Reconciliation cannot send'); });
+  const result = await subject.projectPhoneRelayOrderNotifications(f.client, f.orders);
+  assert.equal(result[0].notifications.channels.customerSms.status, 'queued');
+  assert.equal(result[0].notifications.channels.customerSms.jobId, f.job.id);
+  assert.equal(result[0].notifications.channels.customerSms.reasonCode, null);
+});
+
+test('another order or changed provider ID cannot expose a queue row by spoofed raw metadata', async () => {
+  for (const jobChanges of [{ order_id: 'other-order' }, { id: '22222222-2222-4222-8222-222222222222' }]) {
+    const f = projectedFixture({ jobChanges });
+    const subject = load(async () => { throw new Error('Projection cannot send'); });
+    const result = await subject.projectPhoneRelayOrderNotifications(f.client, f.orders);
+    const sms = result[0].notifications.channels.customerSms;
+    assert.equal(sms.status, 'unknown');
+    assert.equal(sms.reasonCode, 'PHONE_RELAY_STATUS_UNAVAILABLE');
+    assert.equal(sms.queuedAt, null);
+  }
+});
+
+test('non-relay SOLAPI acceptance and uncertain outcomes are left unchanged by queue projection', async () => {
+  const subject = load(async () => { throw new Error('Projection cannot send'); });
+  for (const [sourceStatus, errorCode] of [['sent', undefined], ['unknown', 'SOLAPI_NETWORK_OUTCOME_UNKNOWN']]) {
+    const f = projectedFixture({ sourceStatus, messageChanges: { errorCode } });
+    const result = await subject.projectPhoneRelayOrderNotifications({ from() { throw new Error('No queue lookup expected'); } }, f.orders);
+    assert.equal(result[0].notifications.channels.customerSms.status, sourceStatus);
+    assert.equal(result[0].notifications.channels.customerSms.provider, undefined);
+  }
 });

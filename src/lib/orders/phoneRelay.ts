@@ -8,6 +8,8 @@ import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { parseOrderRawPayload } from './rawPayload';
 import { sendOrderNotificationMessage } from './notificationProviders';
+import { buildOrderNotificationMessage, type NotificationMessageOrder } from './notificationMessage';
+import { getPhoneRelayDeliveryMetadata, type PhoneRelayDeliveryMetadata, type PhoneRelayDeliveryRow } from './phoneRelayDelivery';
 
 export type PhoneRelayEvent = 'order_received' | 'payment_confirmed' | 'shipping_started' | 'delivered' | 'cancelled' | 'refund_pending' | 'refunded';
 export type PhoneRelayQueueInput = {
@@ -28,6 +30,7 @@ export type PhoneRelayHealth = {
   expiresAt: string | null; lastSeenAt: string | null; selfTestSubmitted: boolean;
   counts: { queued: number; claimed: number; submitted: number; unknown: number; stale: number };
   dailyLimit: number; errorCode?: string;
+  recentSelfTests: Array<PhoneRelayDeliveryMetadata & { id: string; testType: 'bank_transfer' | 'card' | 'connection' }>;
 };
 export const PHONE_RELAY_HEADERS = { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' };
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -78,7 +81,7 @@ function eventSource(order: RelayOrder, eventKey: string, event: PhoneRelayEvent
 function emptyHealth(errorCode?: string): PhoneRelayHealth {
   return { available: !errorCode, paired: false, enabled: false, ready: false, deviceId: null, devicePhone: null,
     createdAt: null, expiresAt: null, lastSeenAt: null, selfTestSubmitted: false,
-    counts: { queued: 0, claimed: 0, submitted: 0, unknown: 0, stale: 0 }, dailyLimit: 20, ...(errorCode ? { errorCode } : {}) };
+    counts: { queued: 0, claimed: 0, submitted: 0, unknown: 0, stale: 0 }, dailyLimit: 20, recentSelfTests: [], ...(errorCode ? { errorCode } : {}) };
 }
 export async function getPhoneRelayHealth(client: SupabaseClient): Promise<PhoneRelayHealth> {
   try {
@@ -87,17 +90,24 @@ export async function getPhoneRelayHealth(client: SupabaseClient): Promise<Phone
     if (error) return emptyHealth(error.code === '42P01' || error.code === 'PGRST205' ? 'PHONE_RELAY_NOT_INSTALLED' : 'PHONE_RELAY_UNAVAILABLE');
     if (!data) return emptyHealth();
     const device = data as RelayDevice;
-    const [countsResult, testResult] = await Promise.all([
+    const [countsResult, testResult, recentTestsResult] = await Promise.all([
       client.from('phone_relay_jobs').select('status').eq('device_id', device.id).gte('created_at', new Date(Date.now() - 24 * 60 * 60_000).toISOString()).limit(1000),
       client.from('phone_relay_jobs').select('id').eq('device_id', device.id).eq('kind', 'self_test').eq('status', 'submitted').limit(1).maybeSingle(),
+      client.from('phone_relay_jobs').select('id,event_key,status,created_at,claimed_at,claim_expires_at,acknowledged_at,expires_at')
+        .eq('device_id', device.id).eq('kind', 'self_test').order('created_at', { ascending: false }).limit(5),
     ]);
     if (countsResult.error || testResult.error) return emptyHealth('PHONE_RELAY_UNAVAILABLE');
     const counts = emptyHealth().counts;
     for (const job of countsResult.data || []) if (job.status in counts) counts[job.status as keyof typeof counts]++;
     const selfTestSubmitted = Boolean(testResult.data);
+    const recentSelfTests = (recentTestsResult.error ? [] : recentTestsResult.data || []).map(job => ({
+      id: String(job.id), testType: (String(job.event_key).startsWith('selftest:bank_') ? 'bank_transfer'
+        : String(job.event_key).startsWith('selftest:card_') ? 'card' : 'connection') as 'bank_transfer' | 'card' | 'connection',
+      ...getPhoneRelayDeliveryMetadata({ ...job, order_id: '' } as PhoneRelayDeliveryRow),
+    }));
     return { available: true, paired: true, enabled: device.enabled, ready: device.enabled && selfTestSubmitted,
       deviceId: device.id, devicePhone: `${device.phone.slice(0, 3)}-****-${device.phone.slice(-4)}`,
-      createdAt: device.created_at, expiresAt: device.expires_at, lastSeenAt: device.last_seen_at, selfTestSubmitted, counts, dailyLimit: 20 };
+      createdAt: device.created_at, expiresAt: device.expires_at, lastSeenAt: device.last_seen_at, selfTestSubmitted, counts, dailyLimit: 20, recentSelfTests };
   } catch { return emptyHealth('PHONE_RELAY_UNAVAILABLE'); }
 }
 
@@ -168,7 +178,22 @@ export async function acknowledgePhoneRelayJob(client: SupabaseClient, token: st
   const { data, error } = await client.rpc('phone_relay_ack', { p_device_hash: tokenHash(token), p_job_id: body.jobId,
     p_claim_hash: tokenHash(body.claimToken), p_status: body.status });
   if (error) throw new Error('phone_relay_ack_unavailable');
-  return record(data) || { authorized: false };
+  const result = record(data) || { authorized: false };
+  if (result.authorized === true && result.ok === true) console.info('Order SMS relay result', { jobId: body.jobId, status: result.status });
+  return result;
+}
+
+/** Pure, owner-only template smoke test. Never creates a financial order. */
+export function buildPhoneRelayTemplateSelfTest(template: 'bank' | 'card') {
+  const sample: NotificationMessageOrder = { id: 'self-test', order_code: `TEST-${template.toUpperCase()}`,
+    guest_order_number: null, channel: 'guest', payment_method: template === 'bank' ? 'bank_transfer' : 'nicepay',
+    payment_status: template === 'bank' ? 'pending_transfer' : 'paid', amount_total: 123000, currency: 'KRW',
+    customer_name: '문자 템플릿 테스트', customer_email: '', customer_phone: '', bank_name: null,
+    bank_account_number: null, items: [{ name: '테스트 상품 · 실제 주문 아님', quantity: 1 }],
+    shipping_status: 'preparing', shipping_company: null, tracking_number: null, raw_payload: {} };
+  const message = buildOrderNotificationMessage(sample, template === 'bank' ? 'order_received' : 'payment_confirmed', false);
+  return { subject: `[테스트] ${message.subject}`,
+    text: `[테스트 · 실제 주문/결제 없음]\n${message.text}\n테스트 안내입니다. 실제로 입금하지 마세요.` };
 }
 
 export async function managePhoneRelay(client: SupabaseClient, action: string) {
@@ -181,12 +206,18 @@ export async function managePhoneRelay(client: SupabaseClient, action: string) {
     if (error || typeof data !== 'string') return { status: 503, body: { message: '기기 연결 정보를 저장하지 못했습니다. 다시 연결하면 이전 토큰은 폐기됩니다.' } };
     return { status: 200, body: { ...(await getPhoneRelayHealth(client)), deviceToken, deviceId: data, expiresAt } };
   }
-  if (action === 'self_test') {
+  if (['self_test', 'self_test_bank', 'self_test_card'].includes(action)) {
     const phone = normalizePhoneRelayRecipient((process.env.ADMIN_NOTIFICATION_PHONE || '').trim());
     if (!phone) return { status: 503, body: { message: '관리자 휴대폰 번호 설정이 필요합니다.' } };
     const now = new Date().toISOString();
-    const { data, error } = await client.rpc('phone_relay_enqueue', { p_kind: 'self_test', p_event_key: `selftest:${newToken()}`,
-      p_to: phone, p_title: '[ENICO VECK] 문자 연결 테스트', p_message: '[ENICO VECK] 아이폰 문자 연결 테스트입니다. 이 문자를 실제로 받은 뒤 관리자에서 고객 문자 발송을 켜 주세요. 자동화 실행 완료는 문자 수신 완료를 뜻하지 않습니다.',
+    const template = action === 'self_test_bank' ? buildPhoneRelayTemplateSelfTest('bank')
+      : action === 'self_test_card' ? buildPhoneRelayTemplateSelfTest('card') : null;
+    // Keep the SQL's exact 43-character alphabet and >200 random bits. Unlike
+    // title/message, this harmless type marker survives terminal-state scrubbing.
+    const testMarker = action === 'self_test_bank' ? 'bank_' : action === 'self_test_card' ? 'card_' : 'conn_';
+    const { data, error } = await client.rpc('phone_relay_enqueue', { p_kind: 'self_test', p_event_key: `selftest:${testMarker}${newToken().slice(5)}`,
+      p_to: phone, p_title: template?.subject || '[ENICO VECK] 문자 연결 테스트',
+      p_message: template?.text || '[ENICO VECK] 문자 연결 테스트입니다. 이 문자를 실제로 받은 뒤 관리자에서 고객 문자 발송을 켜 주세요. 자동화 실행 완료는 문자 수신 완료를 뜻하지 않습니다.',
       p_order_id: null, p_event: null, p_revision: {}, p_source_at: now });
     const result = record(data);
     if (error || result?.status !== 'queued') return { status: 409, body: { message: '기기를 먼저 연결하거나 기존 테스트 결과를 확인해 주세요.' } };

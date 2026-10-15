@@ -7,7 +7,8 @@ const crypto = require('node:crypto');
 const ts = require('typescript');
 
 function load(overrides = {}) {
-  const compiled = ts.transpileModule(fs.readFileSync('src/lib/orders/phoneRelay.ts', 'utf8'), {
+  function loadFile(file) {
+  const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const mod = { exports: {} };
@@ -22,9 +23,12 @@ function load(overrides = {}) {
     if (name === '@/lib/supabase/projectGuard') return { assertExpectedSupabaseProject: value => value || 'https://test.supabase.test' };
     if (name === './rawPayload') return { parseOrderRawPayload: raw => raw && typeof raw === 'object' ? raw : null };
     if (name === './notificationProviders') return { sendOrderNotificationMessage: overrides.send || (async () => ({ status: 'sent' })) };
+    if (['./notificationMessage', './phoneRelayDelivery', './bankAccount'].includes(name)) return loadFile(`src/lib/orders/${name.slice(2)}.ts`);
     throw new Error('Unexpected import: ' + name);
   }, mod, mod.exports, { env });
   return mod.exports;
+  }
+  return loadFile('src/lib/orders/phoneRelay.ts');
 }
 function clientFixture(order, { enabled = true, unavailable = false, rpcError = null, result = { status: 'queued', id: 'saved-job' } } = {}) {
   const calls = [];
@@ -117,4 +121,86 @@ test('self-test only targets configured owner and wakes fixed owner email withou
   assert.equal(result.status, 200); assert.equal(db.calls[0].args.p_to, '01099998888');
   assert.equal(db.calls[0].args.p_order_id, null); assert.equal(emails[0].to, 'morba9850@gmail.com');
   assert.ok(emails[0].subject.startsWith('[ENICO PHONE]')); assert.equal(result.body.wakeEmail.status, 'sent');
+});
+
+for (const template of ['bank', 'card']) {
+  test(`${template} template self-test goes through the real queue kind but never creates a financial order`, async () => {
+    const relay = load();
+    const db = clientFixture(null);
+    const result = await relay.managePhoneRelay(db.client, `self_test_${template}`);
+    assert.equal(result.status, 200);
+    const job = db.calls[0];
+    assert.equal(job.name, 'phone_relay_enqueue');
+    assert.equal(job.args.p_kind, 'self_test');
+    assert.equal(job.args.p_order_id, null);
+    assert.equal(job.args.p_event, null);
+    assert.equal(job.args.p_to, '01099998888');
+    assert.match(job.args.p_event_key, new RegExp(`^selftest:${template}_[A-Za-z0-9_-]{38}$`));
+    assert.match(job.args.p_message, /^\[테스트 · 실제 주문\/결제 없음\]/);
+    assert.match(job.args.p_message, /실제로 입금하지 마세요/);
+    assert.match(job.args.p_title, /^\[테스트\]/);
+    if (template === 'bank') {
+      assert.match(job.args.p_message, /입금할 금액: 123,000원/);
+      assert.match(job.args.p_message, /예금주:/);
+    } else {
+      assert.match(job.args.p_message, /카드 결제가 승인되었습니다/);
+      assert.doesNotMatch(job.args.p_message, /예금주:|입금할 금액:/);
+    }
+    assert.ok(!JSON.stringify(db.calls).includes('customer_email'));
+  });
+}
+
+test('self-test templates refuse an absent owner phone rather than using caller-supplied recipients', async () => {
+  const relay = load({ env: { ADMIN_NOTIFICATION_PHONE: '' } });
+  const db = clientFixture(null);
+  assert.equal((await relay.managePhoneRelay(db.client, 'self_test_card')).status, 503);
+  assert.equal(db.calls.length, 0);
+});
+
+test('recent self-tests expose only safe status/time/type metadata after message scrubbing', async () => {
+  const relay = load();
+  const now = Date.now();
+  const jobs = [{ id: '11111111-1111-4111-8111-111111111111', event_key: `selftest:card_${'a'.repeat(38)}`,
+    status: 'submitted', created_at: new Date(now - 60_000).toISOString(),
+    claimed_at: new Date(now - 30_000).toISOString(), claim_expires_at: new Date(now + 60_000).toISOString(),
+    acknowledged_at: new Date(now - 10_000).toISOString(), expires_at: new Date(now + 120_000).toISOString() }];
+  const client = { from(table) {
+    let columns;
+    const query = { select(value) { columns = value; return query; }, eq() { return query; }, is() { return query; },
+      gt() { return query; }, gte() { return query; }, order() { return query; }, limit() { return query; },
+      maybeSingle: async () => table === 'phone_relay_devices' ? { data: {
+        id: 'device', enabled: false, phone: '01099998888', created_at: new Date().toISOString(),
+        expires_at: new Date(now + 60_000).toISOString(), last_seen_at: null,
+      }, error: null } : { data: { id: 'self-test' }, error: null },
+      then(resolve, reject) {
+        const data = columns.includes('event_key') ? jobs : [{ status: 'submitted' }];
+        assert.ok(!columns.includes('message_text') && !columns.includes('recipient_phone') && !columns.includes('claim_token_hash'));
+        return Promise.resolve({ data, error: null }).then(resolve, reject);
+      },
+    };
+    return query;
+  } };
+  const health = await relay.getPhoneRelayHealth(client);
+  assert.equal(health.recentSelfTests.length, 1);
+  assert.equal(health.recentSelfTests[0].testType, 'card');
+  assert.equal(health.recentSelfTests[0].status, 'submitted');
+  assert.equal(health.recentSelfTests[0].deliveryConfirmed, false);
+  assert.equal(health.recentSelfTests[0].submittedAt, jobs[0].acknowledged_at);
+});
+
+test('acknowledgement audit logs only opaque job ID and state, never a token or recipient', async () => {
+  const relay = load();
+  const db = clientFixture(null, { result: { authorized: true, ok: true, status: 'submitted' } });
+  const logs = [];
+  const originalInfo = console.info;
+  console.info = (...args) => logs.push(args);
+  try {
+    const result = await relay.acknowledgePhoneRelayJob(db.client, 't'.repeat(43), {
+      jobId: '11111111-1111-4111-8111-111111111111', claimToken: 'c'.repeat(43), status: 'submitted',
+    });
+    assert.equal(result.ok, true);
+  } finally { console.info = originalInfo; }
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0][1].status, 'submitted');
+  assert.ok(!JSON.stringify(logs).includes('ttttt') && !JSON.stringify(logs).includes('ccccc') && !JSON.stringify(logs).includes('010'));
 });
