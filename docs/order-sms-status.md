@@ -80,3 +80,13 @@ change is required.
 Acknowledgements retain their authenticated capability checks and append only
 job ID/state to server logs. They return `deliveryConfirmed:false`. This code's
 regression tests use mocks and cannot prove physical SMS receipt.
+
+## Live validation — 2026-10-15 (KST)
+
+Both the storefront API and unified administrator were released to their production domains. Bank-transfer and card template tests targeted the owner alone; no financial orders, card approvals, inventory changes, or other customer sends were created.
+
+The bank MMS was verified against SKT's individual sent-message ID, status 00, full 338-character body and quota decrement. Its first readback raced the AJAX skeleton; the job was reconciled to submitted after manual inspection, with a manualReview audit retained in that test row. The driver now waits for quota, conversation and detailed-message readiness. The card test then passed queue claim → SKT send → detailed-history proof → authenticated acknowledgement automatically. Remaining free quota was 97. Physical receipt of the earlier connection SMS was confirmed by the owner; these two template sends still have no carrier delivery receipt.
+
+The Mac LaunchAgent polls every 30 seconds. Three consecutive empty-queue checks exited successfully before final sender configuration cleanup; a post-cleanup check also runs before handoff. Dispatch requires the Mac, dedicated browser session and remaining free allowance. Quota exhaustion or login failure pauses before claiming; ambiguous outcomes block retries. The sender and device credential are private runtime configuration.
+
+Validation passed: 97 payment regressions, 21 relay/shortcut regressions, 68 worker tests, 65 targeted administrator tests, type checks and production builds. Eight optional SQL harness cases were skipped; live queue claim/ack and private status queries were exercised above.
