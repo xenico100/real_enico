@@ -176,24 +176,32 @@ export class CdpSktDriver {
     // This recovers the observed hanging send page without another submit.
     const result = await this.#cdp.call('Page.navigate', { url: SKT_PARENT_URL }, sessionId);
     if (result.errorText) throw new SktAdapterError('HISTORY_NAVIGATION_FAILED');
+    let home;
     for (let attempt = 0; attempt < 12; attempt += 1) {
       await this.#sleep(500);
       try {
         const snapshot = await this.#action('history', job);
-        if (!snapshot.isHistory) continue;
-        const conversation = await this.#action('openConversation', job);
-        if (conversation.missing === true) return snapshot;
-        if (!conversation.opened) throw new SktAdapterError('CONVERSATION_UNAVAILABLE');
-        for (let detailAttempt = 0; detailAttempt < 10; detailAttempt += 1) {
-          await this.#sleep(400);
-          const detail = await this.#action('history', job);
-          if (detail.conversationSelected) return detail;
+        if (snapshot.isHistory && snapshot.historyReady === true) {
+          home = snapshot;
+          break;
         }
-        throw new SktAdapterError('CONVERSATION_HISTORY_UNAVAILABLE');
       } catch { /* The safe GET replaces the iframe and its execution context. */ }
     }
-    this.#submitting = false;
-    throw new SktAdapterError('HISTORY_UNAVAILABLE');
+    if (!home) throw new SktAdapterError('HISTORY_UNAVAILABLE');
+    // The home URL appears before its AJAX quotas and conversation list. An early
+    // missing recipient is not evidence of an empty history. Open only after the
+    // authenticated account's existing conversation list is known to be loaded.
+    const conversation = await this.#action('openConversation', job);
+    if (conversation.missing === true) return home;
+    if (!conversation.opened) throw new SktAdapterError('CONVERSATION_UNAVAILABLE');
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await this.#sleep(400);
+      try {
+        const detail = await this.#action('history', job);
+        if (detail.conversationSelected && detail.detailReady === true) return detail;
+      } catch { /* Wait for the selected conversation's asynchronous messages. */ }
+    }
+    throw new SktAdapterError('CONVERSATION_HISTORY_UNAVAILABLE');
   }
 
   async close() {

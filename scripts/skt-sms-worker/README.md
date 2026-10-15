@@ -112,6 +112,13 @@ or unobserved dialog returns `unknown`. A timeout after a possible click causes 
 readback, never another click. `submitted` means SKT accepted the send, not confirmed
 delivery to the handset.
 
+The home URL and conversation panel can appear before their AJAX data. Readback
+waits for numeric quotas and the verified account's existing conversation list,
+then for the selected conversation's loaded message content. An initial empty
+shell cannot be treated as an empty sent history. The verified operator account
+must retain at least one existing conversation; an entirely empty history stops
+for operator review rather than guessing whether data has loaded.
+
 When SKT's authenticated countdown is between one and five minutes, preflight may
 click the observed ordinary `연장하기` control. It does not refresh an expired login
 or bypass authentication. SMS receiver history and browser state remain private and

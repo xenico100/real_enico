@@ -108,29 +108,42 @@ export function sktDomAction({ action, job, expectedSender }) {
     return { invoked: true };
   }
   if (action === 'history') {
+    const state = common();
     const panel = document.querySelector('#chating_panel');
     const selection = globalThis.__enicoSktHistorySelection;
     const hasPanel = visible(panel) && selection?.recipient === job?.to
       && selection?.sender === expectedSender;
+    const entries = hasPanel ? [...panel.querySelectorAll('.chating_list li.me[data-message-id]')].filter(visible).map(row => {
+      const time = row.querySelector('.time[data-date]');
+      const candidates = [...row.querySelectorAll('.text span.txt, .text span.mt5')];
+      const body = candidates.length === 1 ? candidates[0].textContent : null;
+      return {
+        id: row.getAttribute('data-message-id'),
+        recipient: selection.recipient,
+        recipientConsistent: true,
+        sender: selection.sender,
+        outgoing: true,
+        statusCode: time?.querySelector('span')?.textContent?.trim() ?? null,
+        text: body,
+        date: time?.getAttribute('data-date') ?? null,
+      };
+    }) : [];
+    const knownSenderRows = all('li[data-id][idx]').filter(row =>
+      digits((row.getAttribute('data-id') ?? '').split('|')[1]) === expectedSender);
+    const historyReady = document.readyState === 'complete'
+      && Number.isSafeInteger(state.freeRemaining) && Number.isSafeInteger(state.dailySent)
+      && state.freeMode && knownSenderRows.length > 0;
+    const loadedMessageCount = hasPanel
+      ? [...panel.querySelectorAll('.chating_list li[data-message-id]')].filter(visible).length : 0;
     return {
-      ...common(),
+      ...state,
       isHistory: location.pathname === '/html/home/home_main.php',
+      historyReady,
       conversationSelected: hasPanel,
-      entries: hasPanel ? [...panel.querySelectorAll('.chating_list li.me[data-message-id]')].filter(visible).map(row => {
-        const time = row.querySelector('.time[data-date]');
-        const candidates = [...row.querySelectorAll('.text span.txt, .text span.mt5')];
-        const body = candidates.length === 1 ? candidates[0].textContent : null;
-        return {
-          id: row.getAttribute('data-message-id'),
-          recipient: selection.recipient,
-          recipientConsistent: true,
-          sender: selection.sender,
-          outgoing: true,
-          statusCode: time?.querySelector('span')?.textContent?.trim() ?? null,
-          text: body,
-          date: time?.getAttribute('data-date') ?? null,
-        };
-      }) : [],
+      detailReady: hasPanel && loadedMessageCount > 0 && entries.every(entry =>
+        typeof entry.text === 'string' && /^\d{10,30}$/.test(entry.id ?? '')
+        && /^\d{2}$/.test(entry.statusCode ?? '') && typeof entry.date === 'string'),
+      entries,
     };
   }
   if (action === 'openConversation') {
