@@ -1,13 +1,14 @@
 # ENICO VECK SKT SMS worker core
 
 Dependency-free ES modules for Node 24/26. This package supplies the queue consumer,
-local stop state, and tests. A real SKT browser adapter is deliberately absent until
-the authenticated SKT form, free allowance, and success state are observed.
+local stop state, an SKT browser adapter built from the observed authenticated UI,
+and tests.
 
-**Inactive preparation only.** No production token, phone number, customer message,
-or browser selector is included. This code has not been installed, scheduled, or
-connected to a live queue. It contains no real SKT browser adapter, and a real test
-delivery using this worker has not occurred.
+**Local implementation; live worker verification pending.** No production token or
+customer message is included. The adapter is pinned to the verified operator sender
+and uses the observed SKT selectors. Creating these files has not installed a task,
+connected a live queue, or sent a message. A real delivery using this worker still
+requires the operator's controlled test.
 
 The authenticated SKT service links its [SMS terms](https://msgmgr.tworld.co.kr/html/etc/sms_agreement.php).
 Section 18(3) requires SKT's prior written consent for profit-oriented business use.
@@ -45,7 +46,7 @@ hard-code `loggedIn`, `freeRemaining`, or a success result in the real adapter.
 
 ## State, credentials, and running
 
-Set an absolute adapter path in `ENICO_SKT_ADAPTER`. The default state directory is
+Set the absolute path to `skt-adapter.mjs` in `ENICO_SKT_ADAPTER`. The default state directory is
 `~/.local/state/enico-skt-sms`; override it using `ENICO_SKT_STATE_DIR`. It must be owned
 by the worker user with mode 0700. State and lock files use 0600.
 
@@ -83,6 +84,39 @@ Every invocation rechecks SKT login/free quota before claiming and again before
 calling `send`. The browser adapter must also check them at final UI submission.
 Free-quota exhaustion means pause; never silently continue into charged sends.
 
+For an operator-installed macOS LaunchAgent, a 30-second `StartInterval` with no
+`KeepAlive` runs this same one-job CLI. Keep the dedicated Chrome session on port
+9237 in the logged-in GUI user session. Supply only the private token-file path in
+the agent environment, not the token value or command arguments. The singleton lock
+prevents overlapping sends. An expired login, exhausted quota, or unresolved attempt
+pauses or blocks the worker; scheduling does not authenticate or clear that state.
+
+## Observed SKT adapter
+
+`skt-adapter.mjs` connects only to the dedicated loopback browser on port 9237 and
+the one T world `/web/sms-send/bpcp` tab. It re-resolves the cross-origin SMS frame
+after navigation. A self-test may target only the pinned operator sender.
+
+Each attempt reads individual sent-message IDs before preparing the form, fills one
+recipient and the complete message, and rechecks the account, free mode, allowance,
+SMS/MMS counter, and attachment absence at the click boundary. The observed composer
+converts long text to MMS with a 2000-character counter and has no title input. No
+text is truncated. An empty new composer avoids SKT's recipient-reset confirmation.
+
+The adapter accepts only the observed exact one-message success alert while a send
+is in flight. It never treats that alert alone as success. It performs a safe GET
+of the outer T world page and opens the recipient's detailed conversation to require
+a new outgoing message ID, exact recipient and full body, current timestamp, status
+`00`, one-unit free-quota decrement, and one-unit daily-count increment. Any mismatch
+or unobserved dialog returns `unknown`. A timeout after a possible click causes a
+readback, never another click. `submitted` means SKT accepted the send, not confirmed
+delivery to the handset.
+
+When SKT's authenticated countdown is between one and five minutes, preflight may
+click the observed ordinary `연장하기` control. It does not refresh an expired login
+or bypass authentication. SMS receiver history and browser state remain private and
+are never included in worker logs.
+
 ## Ambiguous outcomes stop the worker
 
 The consumer persists each phase before claim, send, and ack. Any interrupted phase,
@@ -118,6 +152,8 @@ actual available free allowance every time.
 ## Tests
 
 Run `node --test` or `npm test`. Core tests use an in-process fake fetch and fake
-adapter; transport tests use a fake WebSocket. They never contact ENICO VECK, SKT,
-or any recipient. The generic `cdp.mjs` helper connects only to loopback CDP endpoints
-and supplies no SKT selectors or send workflow.
+adapter; transport tests use a fake WebSocket; SKT adapter tests use observed-state
+fixtures, including full bank instructions and claim/ack integration. They never
+contact ENICO VECK, SKT, or any recipient. The generic `cdp.mjs` helper connects only
+to loopback CDP endpoints; SKT selectors and the single-submit workflow live in
+`skt-dom.mjs` and `skt-adapter.mjs`.
