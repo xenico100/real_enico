@@ -97,6 +97,59 @@ test('preflight exception is sanitized and no key or recipient appears in logs',
   assert.doesNotMatch(JSON.stringify(f.logs), /private customer|01012345678|ttttt/);
 });
 
+for (const code of [
+  'ADAPTER_CLOSED', 'DEDICATED_SKT_TAB_REQUIRED', 'SKT_IFRAME_UNAVAILABLE',
+  'SKT_COMPOSER_UNAVAILABLE', 'SKT_MODAL_REQUIRES_REVIEW',
+  'SESSION_CONFIRMATION_UNAVAILABLE', 'SESSION_EXTENSION_UNVERIFIED',
+]) {
+  test(`known ${code} is classified without leaking private exception text`, async t => {
+    const error = Object.assign(new Error(`${TOKEN} private customer 01012345678`), {
+      name: 'SktAdapterError', code,
+    });
+    const f = await fixture(t, { preflights: [error] });
+    assert.deepEqual(await f.run({ live: true }), {
+      status: 'paused', reason: 'PREFLIGHT_UNAVAILABLE', detail: code,
+    });
+    assert.deepEqual(f.logs, [{ event: 'paused', reason: 'PREFLIGHT_UNAVAILABLE', detail: code }]);
+    assert.equal(f.requests.length, 0);
+    assert.equal(f.sends.length, 0);
+    assert.equal((await f.state()).phase, 'idle');
+    assert.doesNotMatch(JSON.stringify(f.logs), /private customer|01012345678|ttttt/);
+  });
+}
+
+for (const [name, detail] of [
+  ['CdpError', 'BROWSER_PROTOCOL_UNAVAILABLE'],
+  ['CdpEvaluationError', 'BROWSER_UI_UNAVAILABLE'],
+]) {
+  test(`${name} logs only its fixed category, never a protocol payload`, async t => {
+    const error = Object.assign(new Error('https://private.example/?token=secret'), { name });
+    const f = await fixture(t, { preflights: [error] });
+    assert.equal((await f.run({ live: true })).detail, detail);
+    assert.doesNotMatch(JSON.stringify(f.logs), /private.example|secret|https/);
+    assert.equal(f.requests.length, 0);
+    assert.equal(f.sends.length, 0);
+  });
+}
+
+test('arbitrary error names and codes cannot enter logs or invoke getters', async t => {
+  let getterCalled = false;
+  for (const error of [
+    Object.assign(new Error('private body'), { name: 'SktAdapterError', code: 'private-secret' }),
+    Object.assign(new Error('private body'), { name: 'private-secret', code: 'SKT_IFRAME_UNAVAILABLE' }),
+    Object.defineProperty(new Error('private body'), 'name', {
+      get() { getterCalled = true; return 'SktAdapterError'; },
+    }),
+  ]) {
+    const f = await fixture(t, { preflights: [error] });
+    assert.deepEqual(await f.run({ live: true }), { status: 'paused', reason: 'PREFLIGHT_UNAVAILABLE' });
+    assert.doesNotMatch(JSON.stringify(f.logs), /private|secret|body/);
+    assert.equal(f.requests.length, 0);
+    assert.equal(f.sends.length, 0);
+  }
+  assert.equal(getterCalled, false);
+});
+
 test('successful self-test uses fixed endpoints, exact message, one claim and one ack', async t => {
   const f = await fixture(t);
   assert.deepEqual(await f.run({ live: true }), { status: 'submitted' });

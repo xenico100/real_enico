@@ -175,4 +175,14 @@ to loopback CDP endpoints; SKT selectors and the single-submit workflow live in
 
 The official session-extension control opens a second same-origin iframe with an informational confirmation. Application frame selection now permits only the observed SMS/home application paths; the confirmation cannot make frame selection ambiguous. Before claim or composer use, the driver dismisses only the exact session-extension notice using its observed Confirm button, waits for loading content, and verifies a renewed countdown. Other modals remain blocked and cannot authorize messages or payment.
 
-The failure was reproduced on the live authenticated page, then the patched driver closed that existing notice and recovered composer readiness with free quota 97 unchanged. No additional SMS was sent during recovery. The full worker suite passes 76 tests, including the actual two-frame shape and unknown-modal refusal.
+The failure was reproduced on the live authenticated page, then the patched driver closed that existing notice and recovered composer readiness with free quota 97 unchanged. No additional SMS was sent during recovery. The then-current worker suite passed 76 tests, including the actual two-frame shape and unknown-modal refusal.
+
+## Follow-up verification and safe diagnostics (2026-10-16)
+
+A later runtime check showed that unattended operation had not remained healthy: the last empty-queue success was at 11:45:25 KST, followed by repeated preflight pauses. This supersedes any assumption that two successful checks proved sustained recovery.
+
+Preflight pauses now include an optional, allowlisted constant `detail` code. Known adapter failures distinguish a missing/ambiguous dedicated tab, unavailable service frame, unrecognized modal, and unverified session extension. Protocol and evaluation failures have fixed generic categories. Exception text, URLs, stacks, arbitrary codes, credentials, recipients, and message bodies remain excluded. These diagnostics do not alter authentication, claim, send, acknowledgement, or retry behavior.
+
+The installed worker reported `DEDICATED_SKT_TAB_REQUIRED` at 12:51:25 KST. This means it could not resolve exactly one dedicated T world SMS parent tab; it does not prove whether the page was closed, logged out, or duplicated. UI inspection/recovery is still required. The current session has no connected local Browser control tool, so no alternate shell browser control was used. Automatic sending must not be reported as restored.
+
+All 86 worker tests pass, including ten new privacy-preserving error-classification cases. This follow-up sent no new test texts and did not reset pairing or unresolved delivery records.

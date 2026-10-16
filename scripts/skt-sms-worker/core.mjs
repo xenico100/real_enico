@@ -21,9 +21,28 @@ export class WorkerError extends Error {
 
 // Adapter errors and HTTP response bodies can contain phone numbers or credentials.
 // They are deliberately never forwarded to logs, state, or returned error messages.
-function emit(logger, event, reason) {
+const ADAPTER_FAILURE_CODES = new Set([
+  'ADAPTER_CLOSED', 'DEDICATED_SKT_TAB_REQUIRED', 'SKT_IFRAME_UNAVAILABLE',
+  'SKT_COMPOSER_UNAVAILABLE', 'SKT_MODAL_REQUIRES_REVIEW',
+  'SESSION_CONFIRMATION_UNAVAILABLE', 'SESSION_EXTENSION_UNVERIFIED',
+]);
+
+// Only locally authored, constant classifications may cross the privacy boundary.
+// Never log exception text, URLs, stacks, phone numbers, or arbitrary error codes.
+function safeAdapterFailure(error) {
   try {
-    logger?.({ event, ...(reason ? { reason } : {}) });
+    const name = Object.getOwnPropertyDescriptor(error, 'name')?.value;
+    const code = Object.getOwnPropertyDescriptor(error, 'code')?.value;
+    if (name === 'SktAdapterError' && ADAPTER_FAILURE_CODES.has(code)) return code;
+    if (name === 'CdpError') return 'BROWSER_PROTOCOL_UNAVAILABLE';
+    if (name === 'CdpEvaluationError') return 'BROWSER_UI_UNAVAILABLE';
+  } catch { /* Malformed errors must not bypass sanitization or the pause. */ }
+  return undefined;
+}
+
+function emit(logger, event, reason, detail) {
+  try {
+    logger?.({ event, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}) });
   } catch {
     // A logger must not make an already submitted message run a second time.
   }
@@ -221,8 +240,9 @@ async function preflight(adapter) {
   let value;
   try {
     value = await adapter.preflight();
-  } catch {
-    return { ready: false, reason: 'PREFLIGHT_UNAVAILABLE' };
+  } catch (error) {
+    const detail = safeAdapterFailure(error);
+    return { ready: false, reason: 'PREFLIGHT_UNAVAILABLE', ...(detail ? { detail } : {}) };
   }
   if (value?.loggedIn !== true) return { ready: false, reason: 'LOGIN_REQUIRED' };
   if (!Number.isSafeInteger(value.freeRemaining) || value.freeRemaining < 0) {
@@ -267,8 +287,9 @@ export async function runOnce({ stateDir, adapter, token, fetchImpl,
 
     const firstCheck = await preflight(adapter);
     if (!firstCheck.ready) {
-      emit(logger, 'paused', firstCheck.reason);
-      return { status: 'paused', reason: firstCheck.reason };
+      emit(logger, 'paused', firstCheck.reason, firstCheck.detail);
+      return { status: 'paused', reason: firstCheck.reason,
+        ...(firstCheck.detail ? { detail: firstCheck.detail } : {}) };
     }
     if (live !== true) {
       emit(logger, 'dry_run_ready');
