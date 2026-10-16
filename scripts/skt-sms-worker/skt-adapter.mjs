@@ -34,7 +34,8 @@ function ready(state, expectedSender) {
     && state.sender === expectedSender && state.freeMode === true
     && Number.isSafeInteger(state.freeRemaining) && state.freeRemaining > 0
     && Number.isSafeInteger(state.dailySent) && state.dailySent >= 0 && state.dailySent < 500
-    && state.sessionSeconds !== 0 && state.attachmentCount === 0 && state.submitCount === 1;
+    && state.sessionSeconds !== 0 && state.blockingPopup !== true
+    && state.attachmentCount === 0 && state.submitCount === 1;
 }
 
 export function formMatchesJob(state, job, expectedSender) {
@@ -120,7 +121,8 @@ export class CdpSktDriver {
       if (!node) return;
       try {
         const url = new URL(node.frame.url);
-        if (url.origin === 'https://msgmgr.tworld.co.kr') matches.push(node.frame);
+        if (url.origin === 'https://msgmgr.tworld.co.kr'
+          && ['/html/home/home_main.php', '/html/sms/sms_main.php'].includes(url.pathname)) matches.push(node.frame);
       } catch { /* Non-URL frame names cannot be the authenticated SMS frame. */ }
       for (const child of node.childFrames ?? []) visit(child);
     };
@@ -141,14 +143,33 @@ export class CdpSktDriver {
     return this.#cdp.evaluate(sessionId, `(${sktDomAction.toString()})(${JSON.stringify(argument)})`, { contextId });
   }
 
+  async #clearSessionConfirmation() {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const result = await this.#action('dismissSessionExtension');
+      if (result?.blocked) throw new SktAdapterError('SKT_MODAL_REQUIRES_REVIEW');
+      if (!result?.pending) return;
+      await this.#sleep(250);
+    }
+    throw new SktAdapterError('SESSION_CONFIRMATION_UNAVAILABLE');
+  }
+
   async inspectComposer() {
+    // The normal extension UI adds a second msgmgr iframe. Only its exact
+    // informational confirmation may be dismissed; other modals need review.
+    await this.#clearSessionConfirmation();
     let snapshot = await this.#action('composer');
     if (snapshot.isComposer) {
       if (Number.isSafeInteger(snapshot.sessionSeconds) && snapshot.sessionSeconds > 0
         && snapshot.sessionSeconds <= 300) {
         if ((await this.#action('extendSession'))?.extended) {
-          await this.#sleep(200);
-          snapshot = await this.#action('composer');
+          for (let attempt = 0; attempt < 20; attempt += 1) {
+            await this.#sleep(250);
+            await this.#clearSessionConfirmation();
+            snapshot = await this.#action('composer');
+            if (snapshot.isComposer && snapshot.blockingPopup !== true
+              && Number.isSafeInteger(snapshot.sessionSeconds) && snapshot.sessionSeconds > 300) return snapshot;
+          }
+          throw new SktAdapterError('SESSION_EXTENSION_UNVERIFIED');
         }
       }
       return snapshot;

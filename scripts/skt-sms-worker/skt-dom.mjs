@@ -41,6 +41,7 @@ export function sktDomAction({ action, job, expectedSender }) {
     return {
       ...common(),
       isComposer: !!textarea && visible(textarea) && !!sender,
+      blockingPopup: all('iframe.popupFrame').length > 0,
       sender: digits(sender?.value),
       text: textarea?.value ?? null,
       recipients: recipientRows.map(row => {
@@ -54,7 +55,7 @@ export function sktDomAction({ action, job, expectedSender }) {
       submitCount: all('[onclick*="validate_frm("]').length,
     };
   };
-  const safeToSubmit = state => state.isComposer && state.sender === expectedSender
+  const safeToSubmit = state => state.isComposer && !state.blockingPopup && state.sender === expectedSender
     && state.freeMode && Number.isSafeInteger(state.freeRemaining) && state.freeRemaining > 0
     && Number.isSafeInteger(state.dailySent) && state.dailySent < 500
     && state.recipients.length === 1 && state.recipients[0] === job.to
@@ -64,6 +65,26 @@ export function sktDomAction({ action, job, expectedSender }) {
     && Number.isSafeInteger(state.usedCharacters) && state.usedCharacters > 0
     && state.usedCharacters <= state.maxCharacters;
 
+  if (action === 'dismissSessionExtension') {
+    const popups = all('iframe.popupFrame');
+    if (!popups.length) return { dismissed: false };
+    if (popups.length !== 1) return { blocked: true };
+    const frame = popups[0];
+    const expected = '자동 로그아웃 시간이 연장되었습니다.';
+    let url;
+    try { url = new URL(frame.getAttribute('src'), location.href); }
+    catch { return { blocked: true }; }
+    if (url.origin !== 'https://msgmgr.tworld.co.kr'
+      || url.pathname !== '/html/popup/common_ok.php'
+      || url.searchParams.get('msg') !== expected) return { blocked: true };
+    let popup;
+    try { popup = frame.contentDocument; } catch { return { blocked: true }; }
+    if (!popup || popup.readyState !== 'complete' || !popup.body?.innerText?.includes(expected)) return { pending: true };
+    const buttons = [...popup.querySelectorAll('button[onclick="safeCloseModalPopup();"]')].filter(visible);
+    if (buttons.length !== 1 || buttons[0].innerText.trim() !== '확인') return { blocked: true };
+    buttons[0].click();
+    return { dismissed: true };
+  }
   if (action === 'composer') return composer();
   if (action === 'extendSession') {
     const remaining = common().sessionSeconds;

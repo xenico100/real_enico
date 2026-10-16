@@ -170,3 +170,9 @@ fixtures, including full bank instructions and claim/ack integration. They never
 contact ENICO VECK, SKT, or any recipient. The generic `cdp.mjs` helper connects only
 to loopback CDP endpoints; SKT selectors and the single-submit workflow live in
 `skt-dom.mjs` and `skt-adapter.mjs`.
+
+## Session-extension recovery (2026-10-16)
+
+The official session-extension control opens a second same-origin iframe with an informational confirmation. Application frame selection now permits only the observed SMS/home application paths; the confirmation cannot make frame selection ambiguous. Before claim or composer use, the driver dismisses only the exact session-extension notice using its observed Confirm button, waits for loading content, and verifies a renewed countdown. Other modals remain blocked and cannot authorize messages or payment.
+
+The failure was reproduced on the live authenticated page, then the patched driver closed that existing notice and recovered composer readiness with free quota 97 unchanged. No additional SMS was sent during recovery. The full worker suite passes 76 tests, including the actual two-frame shape and unknown-modal refusal.
