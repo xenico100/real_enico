@@ -248,10 +248,31 @@ test('proxy denies cross-site writes, caps request size, preserves signed paymen
   assert.equal((await proxy(new NextRequest('https://enicoveck.com/api/orders/nicepay/return', { method: 'POST', headers: { Origin: 'https://pay.nicepay.co.kr' } }))).headers.get('x-middleware-next'), '1');
 });
 
-test('proxy guards every admin page while allowing the verified owner', async () => {
+test('proxy redirects legacy admin pages to unified admin and still guards owner-only 3D review', async () => {
   const { proxy } = load('src/proxy.ts');
   const { NextRequest } = nativeRequire('next/server');
-  for (const path of ['/admin', '/admin/collections', '/admin/migrate', '/admin/sync', '/collections/test-3d']) {
+  const previousUrl = process.env.NEXT_PUBLIC_UNIFIED_ADMIN_URL;
+  process.env.NEXT_PUBLIC_UNIFIED_ADMIN_URL = 'https://enico-mongsangin-admin.vercel.app/';
+  try {
+    // Old admin pages no longer serve private content: every session enters
+    // the same unified administrator, which performs its own authentication.
+    for (const [path, view] of [['/admin', 'overview'], ['/admin?view=inventory', 'products'], ['/admin/collections', 'collections'], ['/admin/migrate', 'overview'], ['/admin/sync', 'overview']]) {
+      for (const user of [null, { ...owner, id: 'attacker' }, owner]) {
+        authUser = user;
+        const response = await proxy(new NextRequest(`https://enicoveck.com${path}`));
+        assert.equal(response.status, 307);
+        const destination = new URL(response.headers.get('location'));
+        assert.equal(destination.origin, 'https://enico-mongsangin-admin.vercel.app');
+        assert.equal(destination.searchParams.get('site'), 'enico');
+        assert.equal(destination.searchParams.get('view'), view);
+        assert.match(response.headers.get('cache-control') || '', /no-store/);
+      }
+    }
+  } finally {
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_UNIFIED_ADMIN_URL;
+    else process.env.NEXT_PUBLIC_UNIFIED_ADMIN_URL = previousUrl;
+  }
+  for (const path of ['/collections/test-3d']) {
     authUser = null;
     assert.equal((await proxy(new NextRequest(`https://enicoveck.com${path}`))).status, 307);
     authUser = { ...owner, id: 'attacker' };

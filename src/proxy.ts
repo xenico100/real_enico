@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { isPrimaryAdmin } from '@/lib/security/identity';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import { getLegacyUnifiedAdminUrl } from '@/lib/unified-admin';
 
 const PAYMENT_CALLBACKS = new Set(['/api/orders/nicepay/return', '/api/payments/nice/return']);
 const ADMIN_ONLY_3D_ASSETS = new Set(['/3d/bomber_jacket.glb', '/3d/bomber_jacket.obj']);
@@ -22,8 +23,15 @@ function decodedAssetPath(path: string) {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  const isAdminPage = path === '/admin' || path.startsWith('/admin/') ||
-    path === '/collections/test-3d' || path.startsWith('/collections/test-3d/');
+  // Old bookmarks always enter the same administrator and its own login.
+  // Storefront API/3D authorization below remains separate and unchanged.
+  if (path === '/admin' || path.startsWith('/admin/')) {
+    const destination = getLegacyUnifiedAdminUrl(path, request.nextUrl.searchParams.get('view'));
+    const response = NextResponse.redirect(destination || new URL('/', request.url));
+    response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+    return response;
+  }
+  const isAdminPage = path === '/collections/test-3d' || path.startsWith('/collections/test-3d/');
   const isAdminAsset = ADMIN_ONLY_3D_ASSETS.has(decodedAssetPath(path));
   if (isAdminPage || isAdminAsset) {
     let response = NextResponse.next({ request });

@@ -7,6 +7,7 @@ import {
   createEmptyVisitSourceBreakdown,
   parseVisitMeta,
   type VisitSource,
+  type VisitSourceDetail,
 } from '@/lib/analytics/visitSource';
 
 const KST_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -32,6 +33,7 @@ type DailyRow = {
   visitorCount: number;
   pageHitCount: number;
   sourceVisitors: ReturnType<typeof createEmptyVisitSourceBreakdown>;
+  sourceDetails: VisitSourceDetail[];
   eventCounts: ReturnType<typeof createEmptyVisitEventBreakdown>;
   createdRoomCount: number;
   messageCount: number;
@@ -93,6 +95,50 @@ function appendSourceCount(
   bucket[source] += amount;
 }
 
+function sourceDetailForVisit(meta: ReturnType<typeof parseVisitMeta>): VisitSourceDetail {
+  const attribution = meta.attribution;
+  const source = attribution?.source || (meta.source === 'other' ? '(legacy unknown)' : meta.source);
+  const channel = attribution?.channel || (meta.source === 'other' ? 'legacy_unknown' : 'organic_social');
+  const referrerHost = attribution?.referrerHost;
+  const landingPath = attribution?.landingPath;
+  const utmSource = attribution?.utm?.source;
+  const utmMedium = attribution?.utm?.medium;
+  const utmCampaign = attribution?.utm?.campaign;
+  const utmContent = attribution?.utm?.content;
+  const utmTerm = attribution?.utm?.term;
+  const key = JSON.stringify([
+    source, channel, referrerHost || '', landingPath || '',
+    utmSource || '', utmMedium || '', utmCampaign || '', utmContent || '', utmTerm || '',
+  ]);
+
+  return {
+    key,
+    source,
+    channel,
+    visitorCount: 1,
+    ...(referrerHost ? { referrerHost } : {}),
+    ...(landingPath ? { landingPath } : {}),
+    ...(utmSource ? { utmSource } : {}),
+    ...(utmMedium ? { utmMedium } : {}),
+    ...(utmCampaign ? { utmCampaign } : {}),
+    ...(utmContent ? { utmContent } : {}),
+    ...(utmTerm ? { utmTerm } : {}),
+  };
+}
+
+function addSourceDetail(bucket: Map<string, VisitSourceDetail>, detail: VisitSourceDetail) {
+  const stored = bucket.get(detail.key);
+  bucket.set(detail.key, stored
+    ? { ...stored, visitorCount: stored.visitorCount + detail.visitorCount }
+    : { ...detail });
+}
+
+function sortedSourceDetails(bucket: Map<string, VisitSourceDetail>) {
+  return Array.from(bucket.values()).sort((a, b) =>
+    b.visitorCount - a.visitorCount || a.key.localeCompare(b.key),
+  );
+}
+
 async function fetchAllRows<T>(
   fetchPage: (
     from: number,
@@ -101,7 +147,7 @@ async function fetchAllRows<T>(
 ) {
   const rows: T[] = [];
 
-  for (let from = 0; ; from += PAGE_SIZE) {
+  for (let from = 0; ;) {
     const to = from + PAGE_SIZE - 1;
     const { data, error } = await fetchPage(from, to);
 
@@ -112,9 +158,12 @@ async function fetchAllRows<T>(
     const page = data || [];
     rows.push(...page);
 
-    if (page.length < PAGE_SIZE) {
+    // Supabase may cap a response below the requested range. Advance by the
+    // rows actually received and stop only when the following page is empty.
+    if (page.length === 0) {
       return { data: rows, error: null };
     }
+    from += page.length;
   }
 }
 
@@ -178,11 +227,15 @@ export async function GET(request: Request) {
         visitorCount: 0,
         pageHitCount: 0,
         sourceVisitors: createEmptyVisitSourceBreakdown(),
+        sourceDetails: [],
         eventCounts: createEmptyVisitEventBreakdown(),
         createdRoomCount: 0,
         messageCount: 0,
       },
     ]),
+  );
+  const sourceDetailsByDate = new Map(
+    dateKstList.map((dateKst) => [dateKst, new Map<string, VisitSourceDetail>()]),
   );
 
   const [visitorResult, roomResult, messageResult] = await Promise.all([
@@ -250,6 +303,8 @@ export async function GET(request: Request) {
       : 0;
     const visitMeta = parseVisitMeta(row.last_path);
     appendSourceCount(bucket.sourceVisitors, visitMeta.source, 1);
+    const detailBucket = sourceDetailsByDate.get(dateKst);
+    if (detailBucket) addSourceDetail(detailBucket, sourceDetailForVisit(visitMeta));
     for (const evt of visitMeta.events || []) {
       if (evt.type in bucket.eventCounts) {
         bucket.eventCounts[evt.type as keyof typeof bucket.eventCounts] += 1;
@@ -271,7 +326,12 @@ export async function GET(request: Request) {
     bucket.messageCount += 1;
   }
 
-  const rows = Array.from(rowByDate.values());
+  const totalSourceDetails = new Map<string, VisitSourceDetail>();
+  const rows = Array.from(rowByDate.values()).map((row) => {
+    row.sourceDetails = sortedSourceDetails(sourceDetailsByDate.get(row.dateKst) || new Map());
+    for (const detail of row.sourceDetails) addSourceDetail(totalSourceDetails, detail);
+    return row;
+  });
 
   const orderedRows = rows.sort((a, b) => (a.dateKst > b.dateKst ? -1 : 1));
 
@@ -310,7 +370,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     rows: orderedRows,
-    summary,
+    summary: { ...summary, totalSourceDetails: sortedSourceDetails(totalSourceDetails) },
     days,
     meta: {
       timezone: 'Asia/Seoul',
@@ -325,6 +385,8 @@ export async function GET(request: Request) {
       createdRoomRule: '생성 채팅방 = chat_rooms.created_at 기준',
       messageRule: '메시지 = chat_room_messages.created_at 기준',
       visitorRule: '방문자/페이지 hit = site_daily_visitors.visit_date 기준',
+      attributionRule: '상세 유입 = 해당 날짜의 첫 식별 출처 기준. 직접·출처 없음은 이후 식별 출처로 보완될 수 있음.',
+      legacyAttributionRule: '상세 유입 기록이 없는 기존 기타 방문은 소급 분류하지 않음.',
     },
   });
 }

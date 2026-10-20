@@ -228,6 +228,8 @@ function formatDateTime(value: string | null) {
 }
 
 function getAdminComposerHref(type: AdminComposerType, embedded = false) {
+  const unified = getUnifiedAdminUrl('enico', type === 'collections' ? 'collections' : 'products');
+  if (unified) return unified;
   const embeddedParam = embedded ? 'embedded=1&' : '';
   if (type === 'collections') return embedded ? '/admin/collections?embedded=1' : '/admin/collections';
   if (type === 'inventory') return `/admin?${embeddedParam}view=inventory`;
@@ -977,21 +979,19 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     { id: 'orders', label: '주문', count: memberOrders.length },
     { id: 'cart', label: '장바구니', count: cart.length, countSuffix: '개' },
   ];
-  if (canManageMembers) {
-    tabs.push({ id: 'members', label: '회원관리', count: members.length });
-  }
-  if (canManageOrders) {
-    tabs.push({ id: 'adminOrders', label: '배송관리', count: adminOrders.length });
-  }
-  if (canManageCatalog) {
-    tabs.push({ id: 'inventory', label: '재고관리' });
-  }
-  if (canViewDailyStats) {
-    tabs.push({ id: 'dailyStats', label: '일일통계', count: dailyStatsRows.length });
-  }
   const hasAdminTools =
     canManageCatalog || canManageMembers || canManageOrders || canViewDailyStats;
   const unifiedAdminUrl = hasAdminTools ? getUnifiedAdminUrl('enico') : null;
+
+  useEffect(() => {
+    if (!unifiedAdminUrl) return;
+    const views = { members: 'members', adminOrders: 'orders', inventory: 'products', dailyStats: 'overview' } as const;
+    if (activeTab in views) {
+      const view = views[activeTab as keyof typeof views];
+      const target = getUnifiedAdminUrl('enico', view);
+      if (target) window.location.replace(target);
+    }
+  }, [activeTab, unifiedAdminUrl]);
   const renderedActiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : 'overview';
   const tabPanelId = `${tabIdPrefix}-panel`;
 
@@ -1058,13 +1058,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
   const openAdminComposer = (type: AdminComposerType) => {
     if (!canManageCatalog) return;
-
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      window.location.href = getAdminComposerHref(type);
-      return;
-    }
-
-    setAdminComposer(type);
+    window.location.assign(getAdminComposerHref(type));
   };
 
   const loadDailyStats = useCallback(async () => {
@@ -2900,76 +2894,12 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               })}
             </div>
 
-            {hasAdminTools ? (
-              <aside className={styles.quickActions} aria-label="관리자 빠른 작업">
-                <p className={`${styles.eyebrow} mb-3 text-left`}>Admin Quick Actions</p>
-                <div className={styles.quickActionGrid}>
-                  {canManageCatalog ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => openAdminComposer('products')}
-                        className={styles.quickAction}
-                      >
-                        의류 카탈로그
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openAdminComposer('inventory')}
-                        className={styles.quickAction}
-                      >
-                        재고관리
-                      </button>
-                      {canManageCatalog ? (
-                        <button
-                          type="button"
-                          onClick={() => openAdminComposer('collections')}
-                          className={styles.quickAction}
-                        >
-                          컬렉션 관리
-                        </button>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {canManageMembers ? (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('members')}
-                      className={styles.quickAction}
-                    >
-                      회원관리
-                    </button>
-                  ) : null}
-                  {canManageOrders ? (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('adminOrders')}
-                      className={styles.quickAction}
-                    >
-                      배송관리
-                    </button>
-                  ) : null}
-                  {canViewDailyStats ? (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('dailyStats')}
-                      className={styles.quickAction}
-                    >
-                      일일통계
-                    </button>
-                  ) : null}
-                  {unifiedAdminUrl ? (
-                    <a
-                      href={unifiedAdminUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.quickAction}
-                    >
-                      <ExternalLink aria-hidden="true" size={14} />
-                      통합 관리자
-                    </a>
-                  ) : null}
-                </div>
+            {hasAdminTools && unifiedAdminUrl ? (
+              <aside className={styles.quickActions} aria-label="통합 관리자">
+                <a href={unifiedAdminUrl} className={styles.quickAction}>
+                  <ExternalLink aria-hidden="true" size={14} />
+                  통합 관리자 · 주문 / 상품 / 유입 통계
+                </a>
               </aside>
             ) : null}
           </div>
