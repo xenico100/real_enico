@@ -49,6 +49,7 @@ const SOLD_OUT_PRODUCT_TITLES = [
   'Night Face',
   'Night Dee',
   'Check Shark',
+  'Check Kitty',
   'Desert Bat',
   'Desert Dee',
   'Desert Angry Shark',
