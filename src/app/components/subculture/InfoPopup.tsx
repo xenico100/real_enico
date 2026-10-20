@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, X } from 'lucide-react';
+import { ChevronLeft, MessageCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/app/context/AuthContext';
 
@@ -120,6 +120,23 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
     ),
     contact: (
       <div className="space-y-8 font-mono">
+        <section aria-labelledby="kakao-contact-heading" className="border border-[#d1d5db] bg-white p-6">
+          <h3 id="kakao-contact-heading" className="text-sm font-bold text-[#111827]">카카오톡 1:1 상담</h3>
+          <p className="mt-2 text-xs leading-relaxed text-[#4b5563]">
+            상품과 주문에 대해 궁금한 점을 에니코벡 채널로 보내주세요.
+          </p>
+          <a
+            href="https://pf.kakao.com/_xiRJmX/chat"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 bg-[#FEE500] px-5 py-3 text-sm font-bold text-[#191919] transition-colors hover:bg-[#f3da00] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#191919]"
+          >
+            <MessageCircle aria-hidden="true" className="h-5 w-5" />
+            카카오톡으로 상담하기
+            <span className="sr-only"> (새 창 열림)</span>
+          </a>
+          <p className="mt-3 text-xs leading-relaxed text-[#6b7280]">메시지를 남겨주시면 확인 후 답변드릴게요.</p>
+        </section>
         <form
           onSubmit={handleSendContact}
           className="border border-[#d1d5db] p-6 bg-white shadow-sm space-y-4"
