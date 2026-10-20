@@ -64,6 +64,20 @@ test('actual customer card renders snapshot names, option, image, each quantity 
   assert.match(markup, /hidden=""/);
 });
 
+test('a saved delivery note is visible on first render without claiming shipment', () => {
+  const markup = render(CustomerOrderCard, { order: {
+    ...fixture, paymentStatus: 'transfer_confirmed',
+    shippingNote: '우체국 방문접수 신청 완료 · 수거 대기',
+  } });
+  assert.match(markup, /aria-expanded="true"/);
+  assert.doesNotMatch(markup, /hidden=""/);
+  assert.match(markup, /우체국 방문접수 신청 완료 · 수거 대기/);
+  assert.match(markup, /배송 준비중/);
+  assert.doesNotMatch(markup, /상품이 발송되었습니다|배송 조회/);
+  const blankNote = render(CustomerOrderCard, { order: { ...fixture, shippingNote: '   ' } });
+  assert.match(blankNote, /aria-expanded="false"/);
+});
+
 test('pending payment takes precedence over stale shipping fields and confirmed payment removes remittance instructions', () => {
   const pending = render(CustomerOrderCard, { order: { ...fixture, shippingStatus: 'delivered', trackingNumber: '0000000000000' } });
   assert.match(pending, /입금 확인 후 준비/);

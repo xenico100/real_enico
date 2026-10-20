@@ -49,7 +49,7 @@ export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling 
   isCancelling?: boolean;
   onCancel?: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => Boolean(order.shippingNote.trim()));
   const [copyStatus, setCopyStatus] = useState<{ trackingNumber: string; message: string } | null>(null);
   const reducedMotion = useReducedMotion();
   const detailsId = useId();
