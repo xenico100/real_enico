@@ -136,8 +136,8 @@ export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling 
         {copyStatus?.trackingNumber === order.trackingNumber && <p className={styles.trackingHint} role="status">{copyStatus.message}</p>}
       </section>}
 
-      {isPendingTransfer && <div className={styles.bank}><BankTransferInstructions tone="dark" bankAccount={order.bankAccount || { ...BANK_ACCOUNT, bankName: order.bankName || BANK_ACCOUNT.bankName, accountNumber: order.bankAccountNumber || BANK_ACCOUNT.accountNumber }} amount={order.amountTotal} /></div>}
-      {hasCustomerNotifications && <div className={styles.notifications}><CustomerOrderNotifications tone="dark" notifications={order.notifications} /></div>}
+      {isPendingTransfer && <div className={styles.bank}><BankTransferInstructions tone="brand" bankAccount={order.bankAccount || { ...BANK_ACCOUNT, bankName: order.bankName || BANK_ACCOUNT.bankName, accountNumber: order.bankAccountNumber || BANK_ACCOUNT.accountNumber }} amount={order.amountTotal} /></div>}
+      {hasCustomerNotifications && <div className={styles.notifications}><CustomerOrderNotifications tone="brand" notifications={order.notifications} /></div>}
 
       <button type="button" className={styles.expand} aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(value => !value)}>
         배송 정보 · 주문 상세

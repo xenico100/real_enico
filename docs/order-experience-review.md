@@ -48,4 +48,12 @@ Reduced motion was verified by rendering the actual component with a mocked redu
 
 No production database requests, customer impersonation, token generation, real notification sends, migrations or permission changes were performed. Live DB validation remains unavailable under the existing access denial. Unit/integration tests use mocks and synthetic fixtures.
 
-Main push and remote deployment are on hold under the user's latest instruction. At the last fetch main remained `7f9983b`. The concurrent Kakao chat worktree currently changes `InfoPopup.tsx`, which this change does not modify. Re-fetch and compare again before any authorized future push; preserve both changes and rerun checks after integration. Do not force push.
+The initial review was held before pushing under the user's coordination instruction. Release was subsequently authorized again on 2026-10-20 at 02:48 UTC. The next fetched main was `a0a7d17`, including both Kakao contact-card commits in `InfoPopup.tsx`; this order change does not modify that file. Re-fetch before pushing, preserve those changes and rerun checks after integration. Do not force push.
+
+## Color alignment follow-up
+
+The first fixture used an independent charcoal/rose palette. That did not reuse the existing order/account palette and was corrected before release. Customer cards, bank guidance, notification text and list states now inherit MyPage tokens with global theme fallbacks. The fixture page uses the same global theme. No functional order logic or motion timing was changed by the correction.
+
+The development preview now renders an isolated reference using the existing MyPage CSS next to the real card, with the same synthetic state. Both computed surfaces are `#ffffff`, ink is `#111827`, border is `#d1d5db`, and accent is `#b8001f`. On the review Chrome instance both render dark despite those computed CSS values; its dark preference is true, there is no app dark class or root filter, and browser settings were not changed. The precise browser rendering cause was not established, so screenshots and authored/computed values are reported separately.
+
+1440px desktop and 390px mobile comparison captures show consistent existing/new treatment with no horizontal overflow. Normal, loading, error and empty surfaces all inherit the same palette. Computed text contrast on the card is 17.74:1 for body, 7.56:1 for secondary text, and 6.87:1 for the accent badge. Keyboard focus retains an opaque 2px ink outline. The unchanged reduced-motion behavior remains covered by the actual-component mocked-hook test. After this color correction, the focused order suite is 98/98 passing; TypeScript and changed-file ESLint pass.

@@ -1,6 +1,6 @@
-.state { border: 1px solid #343238; background: #151416; padding: 32px 24px; font-family: Arial, sans-serif; }
-.eyebrow { margin: 0; color: #a99ba3; font-family: ui-monospace, monospace; font-size: 9px; letter-spacing: .15em; }
-.title { margin: 20px 0 0; color: #eee8ec; font-size: 18px; line-height: 1.6; letter-spacing: -.04em; word-break: keep-all; }
-.description { margin: 10px 0 0; color: #b2a8ae; font-size: 12px; line-height: 1.8; word-break: keep-all; }
-.retry { min-height: 44px; margin-top: 24px; border: 1px solid #9a7482; background: transparent; padding: 10px 16px; color: #e7d9df; font-size: 12px; }
-.retry:focus-visible { outline: 2px solid #eee8ec; outline-offset: 3px; }
+.state { border: 1px solid var(--mypage-line, var(--border)); background: var(--mypage-surface, var(--card)); padding: 32px 24px; font-family: Arial, sans-serif; }
+.eyebrow { margin: 0; color: var(--mypage-accent, var(--primary)); font-family: ui-monospace, monospace; font-size: 9px; letter-spacing: .15em; }
+.title { margin: 20px 0 0; color: var(--mypage-ink, var(--foreground)); font-size: 18px; line-height: 1.6; letter-spacing: -.04em; word-break: keep-all; }
+.description { margin: 10px 0 0; color: var(--mypage-muted, var(--muted-foreground)); font-size: 12px; line-height: 1.8; word-break: keep-all; }
+.retry { min-height: 44px; margin-top: 24px; border: 1px solid var(--mypage-accent, var(--primary)); background: transparent; padding: 10px 16px; color: var(--mypage-accent, var(--primary)); font-size: 12px; }
+.retry:focus-visible { outline: 2px solid var(--mypage-ink, var(--foreground)); outline-offset: 3px; }

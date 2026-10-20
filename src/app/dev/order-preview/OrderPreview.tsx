@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { CustomerOrderCard, type CustomerOrderCardData } from '@/app/components/subculture/CustomerOrderCard';
 import { CustomerOrderListState } from '@/app/components/subculture/CustomerOrderListState';
+import { getCustomerOrderProgress, formatCustomerOrderMoney } from '@/lib/orders/customerOrderPresentation';
+import myPageStyles from '@/app/components/subculture/MyPagePanel.module.css';
 import styles from './OrderPreview.module.css';
 
 const fixture: CustomerOrderCardData = {
@@ -47,11 +49,18 @@ function getFixture(mode: PreviewMode): CustomerOrderCardData {
 export function OrderPreview() {
   const [mode, setMode] = useState<PreviewMode>('pending');
   const order = getFixture(mode);
+  const referenceStatus = ['loading', 'error', 'empty'].includes(mode)
+    ? MODES.find(([value]) => value === mode)?.[1] : getCustomerOrderProgress(order).label;
   return <main className={styles.page}>
     <div className={styles.wrap}>
       <header className={styles.header}><p>ENICO VECK / COMPONENT STUDY</p><h1>주문에서 도착까지.</h1><p className={styles.fixture}>개발용 FIXTURE · 가상 주문 · 실제 고객 화면이 아닙니다</p></header>
       <div className={styles.controls} role="group" aria-label="개발용 주문 상태 선택">{MODES.map(([value, label]) => <button type="button" key={value} aria-pressed={mode === value} onClick={() => setMode(value)}>{label}</button>)}</div>
-      <div className={styles.preview}>
+      <div className={`${myPageStyles.shell} ${styles.preview}`}>
+        <section data-color-reference className={`${myPageStyles.contentShell} ${styles.reference}`} aria-label="기존 마이페이지 색상 비교 기준">
+          <p className={myPageStyles.eyebrow}>기존 MyPagePanel CSS · 동일 fixture 상태</p>
+          <h2 className={myPageStyles.contentHeading}>{referenceStatus}</h2>
+          <p className={myPageStyles.meta}>{order.orderCode} · {formatCustomerOrderMoney(order.amountTotal, order.currency)} · 개인정보 없는 비교 기준</p>
+        </section>
         {mode === 'loading' || mode === 'error' || mode === 'empty' ? <CustomerOrderListState state={mode} onRetry={() => setMode('pending')} /> : <CustomerOrderCard order={order} cancelState={{ visible: true, enabled: false, title: '개발용 예시', label: 'fixture · 변경 불가', description: '개발용 예시입니다. 실제 취소나 고객 알림을 실행하지 않습니다.' }} />}
       </div>
       <p className={styles.footnote}>실제 고객용 컴포넌트를 사용합니다. 상태 선택은 브라우저 안에서만 바뀌며 주문 API를 호출하지 않습니다.</p>

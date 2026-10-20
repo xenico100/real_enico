@@ -7,13 +7,13 @@ import styles from './BankTransferInstructions.module.css';
 import type { BankAccountDetails, OrderNotificationSummary } from '@/lib/orders/bankReceipt';
 export type { BankAccountDetails, OrderNotificationSummary } from '@/lib/orders/bankReceipt';
 
-export function CustomerOrderNotifications({ notifications, tone = 'light' }: { notifications?: OrderNotificationSummary | null; tone?: 'light' | 'dark' }) {
+export function CustomerOrderNotifications({ notifications, tone = 'light' }: { notifications?: OrderNotificationSummary | null; tone?: 'light' | 'brand' }) {
   if (!notifications) return null;
   const channels = [['customerSms', '문자'], ['customerEmail', '이메일']] as const;
   const available = channels.filter(([key]) => notifications[key]);
   if (!available.length) return null;
   return (
-    <div className={tone === 'dark' ? styles.notificationDark : 'space-y-1 text-xs leading-relaxed text-[#4b5563]'} aria-live="polite" aria-atomic="true">
+    <div className={tone === 'brand' ? styles.notificationBrand : 'space-y-1 text-xs leading-relaxed text-[#4b5563]'} aria-live="polite" aria-atomic="true">
       {available.map(([key, label]) => {
         const record = notifications[key];
         return <p key={key}>{getCustomerNotificationEventLabel(record?.event)} {label}: {getCustomerNotificationLabel(record?.status)}</p>;
@@ -29,7 +29,7 @@ export function BankTransferInstructions({
 }: {
   bankAccount?: BankAccountDetails;
   amount: number;
-  tone?: 'light' | 'dark';
+  tone?: 'light' | 'brand';
 }) {
   const [copyStatus, setCopyStatus] = useState('');
 
@@ -43,7 +43,7 @@ export function BankTransferInstructions({
   };
 
   return (
-    <section className={tone === 'dark' ? styles.dark : "rounded-xl border border-[#d1d5db] bg-white p-4 text-[#111827]"}>
+    <section className={tone === 'brand' ? styles.brand : "rounded-xl border border-[#d1d5db] bg-white p-4 text-[#111827]"}>
       <h3 className="text-sm font-bold">무통장입금 안내</h3>
       <p className="mt-2 text-sm leading-relaxed">주문이 접수되었으며 아직 입금 대기 상태입니다. 아래 계좌로 직접 송금해 주세요.</p>
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">

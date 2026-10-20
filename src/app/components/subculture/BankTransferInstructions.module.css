@@ -1,10 +1,10 @@
-.dark { border: 1px solid #514149; background: #201b20; padding: 16px; color: #e6dce1; }
-.dark h3 { margin: 0; color: #ead9e0; font-size: 12px; font-weight: 600; }
-.dark p { margin: 10px 0 0; color: #bdb0b6; font-size: 11px; line-height: 1.8; }
-.dark dl { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 10px 12px; margin: 16px 0 0; font-size: 12px; }
-.dark dt { color: #a99ba3; }
-.dark dd { margin: 0; text-align: right; color: #eee4e9; overflow-wrap: anywhere; user-select: all; }
-.dark button { width: 100%; min-height: 44px; margin-top: 16px; border: 1px solid #85727d; background: transparent; padding: 10px; color: #eee4e9; font-size: 11px; cursor: pointer; }
-.dark button:hover { border-color: #d4c5cb; background: #31272d; }
-.notificationDark { display: grid; gap: 6px; color: #b7aab2; font-size: 10px; line-height: 1.8; }
-.notificationDark p { margin: 0; color: inherit; }
+.brand { border: 1px solid var(--mypage-line, var(--border)); background: var(--mypage-surface, var(--card)); padding: 16px; color: var(--mypage-ink, var(--foreground)); }
+.brand h3 { margin: 0; color: var(--mypage-ink, var(--foreground)); font-size: 12px; font-weight: 600; }
+.brand p { margin: 10px 0 0; color: var(--mypage-muted, var(--muted-foreground)); font-size: 11px; line-height: 1.8; }
+.brand dl { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 10px 12px; margin: 16px 0 0; font-size: 12px; }
+.brand dt { color: var(--mypage-muted, var(--muted-foreground)); }
+.brand dd { margin: 0; text-align: right; color: var(--mypage-ink, var(--foreground)); overflow-wrap: anywhere; user-select: all; }
+.brand button { width: 100%; min-height: 44px; margin-top: 16px; border: 1px solid var(--mypage-line, var(--border)); background: transparent; padding: 10px; color: var(--mypage-ink, var(--foreground)); font-size: 11px; cursor: pointer; }
+.brand button:hover { border-color: var(--mypage-accent, var(--primary)); background: var(--muted); }
+.notificationBrand { display: grid; gap: 6px; color: var(--mypage-muted, var(--muted-foreground)); font-size: 10px; line-height: 1.8; }
+.notificationBrand p { margin: 0; color: inherit; }

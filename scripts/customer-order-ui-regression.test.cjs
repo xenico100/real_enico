@@ -173,3 +173,26 @@ test('actual reduced-motion branch disables initial movement, duration and stagg
   const css = fs.readFileSync(path.join(root, 'src/app/components/subculture/CustomerOrderCard.module.css'), 'utf8');
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
+
+test('order surfaces inherit existing palette and its text pairs meet WCAG AA contrast', () => {
+  const theme = fs.readFileSync(path.join(root, 'src/styles/theme.css'), 'utf8');
+  const tokens = Object.fromEntries([...theme.matchAll(/(--[\w-]+):\s*(#[a-f\d]{6});/gi)].map(match => [match[1], match[2]]));
+  const luminance = hex => {
+    const rgb = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+  };
+  const contrast = (first, second) => {
+    const values = [luminance(tokens[first]), luminance(tokens[second])].sort((a, b) => b - a);
+    return (values[0] + 0.05) / (values[1] + 0.05);
+  };
+  for (const [foreground, background] of [['--foreground', '--card'], ['--muted-foreground', '--card'], ['--muted-foreground', '--muted'], ['--primary', '--card'], ['--primary-foreground', '--primary']]) {
+    assert.ok(contrast(foreground, background) >= 4.5, `${foreground} on ${background} must retain AA text contrast`);
+  }
+  for (const file of ['CustomerOrderCard.module.css', 'BankTransferInstructions.module.css', 'CustomerOrderListState.module.css']) {
+    const css = fs.readFileSync(path.join(root, 'src/app/components/subculture', file), 'utf8');
+    assert.doesNotMatch(css, /#[a-f\d]{3,8}\b/i, `${file} must not introduce an independent palette`);
+    assert.match(css, /var\(--mypage-/);
+  }
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'src/app/dev/order-preview/OrderPreview.module.css'), 'utf8'), /#[a-f\d]{3,8}\b/i);
+});
