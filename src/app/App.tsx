@@ -62,6 +62,7 @@ export default function App({
   const pathname = usePathname();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activePopup, setActivePopup] = useState<'about' | 'contact' | 'mypage' | null>(null);
+  const [activeMyPageTab, setActiveMyPageTab] = useState<AppProps['initialMyPageTab']>(undefined);
   const [isRandomChatOpen, setIsRandomChatOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
@@ -126,15 +127,24 @@ export default function App({
         <SubcultureFooter />
         
         {isCartOpen ? (
-          <CartOverlay isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+          <CartOverlay
+            isOpen={isCartOpen}
+            onClose={() => setIsCartOpen(false)}
+            onOpenMyPageOrders={() => {
+              setIsCartOpen(false);
+              setActiveMyPageTab('orders');
+              setActivePopup('mypage');
+            }}
+          />
         ) : null}
         
         {shownPopup && (
           <InfoPopup 
             type={shownPopup}
-            initialMyPageTab={initialMyPageTab}
+            initialMyPageTab={activeMyPageTab || initialMyPageTab}
             onClose={() => {
               setActivePopup(null);
+              setActiveMyPageTab(undefined);
               if (deepLinkPopup) {
                 setIgnoreInitialPopup(true);
                 router.replace(pathname || '/', { scroll: false });

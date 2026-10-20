@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  appendVisitEvents,
   mergeVisitSource,
+  normalizeVisitEventItem,
   normalizeVisitSource,
   parseVisitMeta,
   serializeVisitMeta,
+  type VisitEventItem,
 } from '@/lib/analytics/visitSource';
 import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { requestBudget } from '@/lib/security/requestBudget';
@@ -34,8 +37,10 @@ function normalizeVisitorId(value: string | undefined) {
 export async function POST(request: NextRequest) {
   const blocked = await requestBudget(request, 'analytics-visit', 120, 60);
   if (blocked) return blocked;
+  const now = new Date();
   let path = '/';
   let source = 'other';
+  let incomingEvent: VisitEventItem | null = null;
 
   try {
     const payload = await readJsonObject(request, 4096);
@@ -45,11 +50,13 @@ export async function POST(request: NextRequest) {
     if (typeof payload?.source === 'string') {
       source = normalizeVisitSource(payload.source);
     }
+    if (payload?.event) {
+      incomingEvent = normalizeVisitEventItem(payload.event, now.toISOString());
+    }
   } catch {
     // ignore body parse errors
   }
 
-  const now = new Date();
   const visitDate = toSeoulDateKey(now);
 
   const cookieVisitorId = normalizeVisitorId(request.cookies.get(VISITOR_COOKIE_NAME)?.value);
@@ -70,27 +77,34 @@ export async function POST(request: NextRequest) {
     }
 
     if (!existingRow) {
+      const initialEvents = appendVisitEvents(undefined, incomingEvent);
       const { error: insertError } = await supabase.from('site_daily_visitors').insert({
         visit_date: visitDate,
         visitor_id: visitorId,
         first_seen_at: now.toISOString(),
         last_seen_at: now.toISOString(),
         hit_count: 1,
-        last_path: serializeVisitMeta(path, source),
+        last_path: serializeVisitMeta(path, source, initialEvents),
       });
 
       if (insertError) {
         throw insertError;
       }
     } else {
-      const nextHitCount = Math.max(1, Number(existingRow.hit_count || 0) + 1);
-      const nextSource = mergeVisitSource(parseVisitMeta(existingRow.last_path).source, source);
+      const existingMeta = parseVisitMeta(existingRow.last_path);
+      const shouldIncrementHit = !incomingEvent || incomingEvent.type === 'page_view';
+      const nextHitCount = Math.max(
+        1,
+        Number(existingRow.hit_count || 0) + (shouldIncrementHit ? 1 : 0),
+      );
+      const nextSource = mergeVisitSource(existingMeta.source, source);
+      const nextEvents = appendVisitEvents(existingMeta.events, incomingEvent);
       const { error: updateError } = await supabase
         .from('site_daily_visitors')
         .update({
           hit_count: nextHitCount,
           last_seen_at: now.toISOString(),
-          last_path: serializeVisitMeta(path, nextSource),
+          last_path: serializeVisitMeta(path || existingMeta.path, nextSource, nextEvents),
         })
         .eq('visit_date', visitDate)
         .eq('visitor_id', visitorId);

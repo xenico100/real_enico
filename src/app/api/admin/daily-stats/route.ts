@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import {
+  createEmptyVisitEventBreakdown,
   createEmptyVisitSourceBreakdown,
   parseVisitMeta,
   type VisitSource,
@@ -31,6 +32,7 @@ type DailyRow = {
   visitorCount: number;
   pageHitCount: number;
   sourceVisitors: ReturnType<typeof createEmptyVisitSourceBreakdown>;
+  eventCounts: ReturnType<typeof createEmptyVisitEventBreakdown>;
   createdRoomCount: number;
   messageCount: number;
 };
@@ -176,6 +178,7 @@ export async function GET(request: Request) {
         visitorCount: 0,
         pageHitCount: 0,
         sourceVisitors: createEmptyVisitSourceBreakdown(),
+        eventCounts: createEmptyVisitEventBreakdown(),
         createdRoomCount: 0,
         messageCount: 0,
       },
@@ -245,7 +248,13 @@ export async function GET(request: Request) {
     bucket.pageHitCount += Number.isFinite(Number(row.hit_count || 0))
       ? Number(row.hit_count || 0)
       : 0;
-    appendSourceCount(bucket.sourceVisitors, parseVisitMeta(row.last_path).source, 1);
+    const visitMeta = parseVisitMeta(row.last_path);
+    appendSourceCount(bucket.sourceVisitors, visitMeta.source, 1);
+    for (const evt of visitMeta.events || []) {
+      if (evt.type in bucket.eventCounts) {
+        bucket.eventCounts[evt.type as keyof typeof bucket.eventCounts] += 1;
+      }
+    }
   }
 
   for (const row of roomResult.data || []) {
@@ -277,6 +286,15 @@ export async function GET(request: Request) {
         twitter: acc.totalSourceVisitors.twitter + row.sourceVisitors.twitter,
         other: acc.totalSourceVisitors.other + row.sourceVisitors.other,
       },
+      totalEventCounts: {
+        tab_click: acc.totalEventCounts.tab_click + row.eventCounts.tab_click,
+        category_filter: acc.totalEventCounts.category_filter + row.eventCounts.category_filter,
+        product_click: acc.totalEventCounts.product_click + row.eventCounts.product_click,
+        add_to_cart: acc.totalEventCounts.add_to_cart + row.eventCounts.add_to_cart,
+        cart_open: acc.totalEventCounts.cart_open + row.eventCounts.cart_open,
+        checkout_open: acc.totalEventCounts.checkout_open + row.eventCounts.checkout_open,
+        order_submit: acc.totalEventCounts.order_submit + row.eventCounts.order_submit,
+      },
       totalCreatedRooms: acc.totalCreatedRooms + row.createdRoomCount,
       totalMessages: acc.totalMessages + row.messageCount,
     }),
@@ -284,6 +302,7 @@ export async function GET(request: Request) {
       totalVisitors: 0,
       totalPageHits: 0,
       totalSourceVisitors: createEmptyVisitSourceBreakdown(),
+      totalEventCounts: createEmptyVisitEventBreakdown(),
       totalCreatedRooms: 0,
       totalMessages: 0,
     },

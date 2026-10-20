@@ -27,6 +27,7 @@ import {
   type StorefrontProductRow,
 } from '@/lib/storefront/shared';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { trackStorefrontEvent } from '@/app/components/system/VisitTracker';
 
 interface ProductShowcaseProps {
   initialProducts?: Product[];
@@ -388,7 +389,14 @@ export function ProductShowcase({
         isInCart={isInCart}
         isSoldOut={isSoldOut}
         cartFeedback={lastAddedItem}
-        onProductClick={onProductClick}
+        onProductClick={(clickedProduct) => {
+          trackStorefrontEvent({
+            type: 'product_click',
+            target: clickedProduct.id,
+            detail: clickedProduct.name,
+          });
+          onProductClick(clickedProduct);
+        }}
         onAddToCart={(nextProduct) =>
           addToCart({
             id: nextProduct.id,
@@ -446,6 +454,11 @@ export function ProductShowcase({
                         key={category}
                         type="button"
                         onClick={() => {
+                          trackStorefrontEvent({
+                            type: 'category_filter',
+                            target: category,
+                            detail: getCategoryLabel(category),
+                          });
                           startTransition(() => {
                             setActiveCategory(category);
                           });

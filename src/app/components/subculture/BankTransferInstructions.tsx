@@ -32,12 +32,41 @@ export function BankTransferInstructions({
   tone?: 'light' | 'brand';
 }) {
   const [copyStatus, setCopyStatus] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
 
   const copyAccount = async () => {
+    const rawAccountNumber = bankAccount.accountNumber;
+    let copiedOk = false;
     try {
-      await navigator.clipboard.writeText(bankAccount.accountNumber);
-      setCopyStatus('계좌번호를 복사했습니다.');
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(rawAccountNumber);
+        copiedOk = true;
+      }
     } catch {
+      copiedOk = false;
+    }
+
+    if (!copiedOk && typeof document !== 'undefined') {
+      try {
+        const tempInput = document.createElement('textarea');
+        tempInput.value = rawAccountNumber;
+        tempInput.setAttribute('readonly', '');
+        tempInput.style.position = 'fixed';
+        tempInput.style.opacity = '0';
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        copiedOk = document.execCommand('copy');
+        document.body.removeChild(tempInput);
+      } catch {
+        copiedOk = false;
+      }
+    }
+
+    if (copiedOk) {
+      setIsCopied(true);
+      setCopyStatus(`계좌번호(${rawAccountNumber})를 복사했습니다. 은행 앱에 붙여넣기 하세요.`);
+    } else {
+      setIsCopied(false);
       setCopyStatus('복사하지 못했습니다. 계좌번호를 길게 눌러 복사해 주세요.');
     }
   };
@@ -49,11 +78,32 @@ export function BankTransferInstructions({
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
         <dt className="text-[#6b7280]">입금액</dt><dd className="text-right font-bold">{Math.round(amount).toLocaleString('ko-KR')}원</dd>
         <dt className="text-[#6b7280]">은행</dt><dd className="text-right">{bankAccount.bankName}</dd>
-        <dt className="text-[#6b7280]">계좌번호</dt><dd className="select-all break-all text-right font-bold">{bankAccount.accountNumber}</dd>
+        <dt className="text-[#6b7280]">계좌번호</dt>
+        <dd
+          onClick={() => void copyAccount()}
+          title="클릭하여 계좌번호 복사"
+          className="cursor-pointer select-all break-all text-right font-bold underline decoration-dotted underline-offset-4"
+        >
+          {bankAccount.accountNumber}
+        </dd>
         <dt className="text-[#6b7280]">예금주</dt><dd className="text-right">{bankAccount.accountHolder}</dd>
       </dl>
-      <button type="button" onClick={() => void copyAccount()} className="mt-4 w-full rounded-lg border border-[#d1d5db] px-3 py-2.5 text-sm font-bold hover:border-[#b8001f] hover:text-[#b8001f]">계좌번호 복사</button>
-      {copyStatus && <p role="status" className="mt-2 text-xs text-[#4b5563]">{copyStatus}</p>}
+      <button
+        type="button"
+        onClick={() => void copyAccount()}
+        className={
+          tone === 'brand'
+            ? undefined
+            : `mt-4 w-full rounded-lg border px-3 py-2.5 text-sm font-bold transition-colors ${
+                isCopied
+                  ? 'border-[#b8001f] bg-[#fff1f2] text-[#b8001f]'
+                  : 'border-[#111827] bg-[#111827] text-white hover:border-[#b8001f] hover:bg-[#b8001f]'
+              }`
+        }
+      >
+        {isCopied ? '✓ 계좌번호 복사 완료 (다시 복사)' : '계좌번호 복사'}
+      </button>
+      {copyStatus && <p role="status" className="mt-2 text-xs font-semibold text-[#b8001f]">{copyStatus}</p>}
       <p className="mt-3 text-xs leading-relaxed text-[#4b5563]">입금자명은 주문 시 입력한 수령인 이름과 같게 입력해 주세요. 운영자가 입금을 확인한 뒤 주문 상태가 변경됩니다.</p>
     </section>
   );

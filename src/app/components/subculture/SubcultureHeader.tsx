@@ -5,6 +5,7 @@ import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/app/context/AuthContext';
+import { trackStorefrontEvent } from '@/app/components/system/VisitTracker';
 
 interface SubcultureHeaderProps {
   onCartClick: () => void;
@@ -78,6 +79,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
               <button 
                 key={item.key}
                 onClick={() => {
+                  trackStorefrontEvent({
+                    type: 'tab_click',
+                    target: `header:${item.key}`,
+                    detail: item.label,
+                  });
                   if (item.action === 'randomChat') {
                     onRandomChatClick();
                     return;
@@ -107,7 +113,14 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
             ))}
             
             <button
-              onClick={onCartClick}
+              onClick={() => {
+                trackStorefrontEvent({
+                  type: 'cart_open',
+                  target: 'header:desktop_cart',
+                  detail: `count:${cartCount}`,
+                });
+                onCartClick();
+              }}
               className={`mt-4 group relative w-full min-w-[220px] overflow-visible border bg-white/80 shadow-sm px-3 py-3 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-x-0.5 hover:border-[#b8001f] hover:shadow-[0_0_30px_rgba(184,0,31,0.24)] ${
                 isCartCelebrating
                   ? 'border-[#d93853] shadow-[0_0_34px_rgba(184,0,31,0.28)]'
@@ -226,6 +239,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
                 <button 
                   key={item.key}
                   onClick={() => {
+                    trackStorefrontEvent({
+                      type: 'tab_click',
+                      target: `mobile_menu:${item.key}`,
+                      detail: item.label,
+                    });
                     if (item.action === 'randomChat') {
                       onRandomChatClick();
                     } else if (item.action === 'collection') {
@@ -245,6 +263,11 @@ export function SubcultureHeader({ onCartClick, onInfoClick, onRandomChatClick }
               ))}
               <button 
                 onClick={() => {
+                  trackStorefrontEvent({
+                    type: 'cart_open',
+                    target: 'mobile_menu:cart',
+                    detail: `count:${cartCount}`,
+                  });
                   onCartClick();
                   setMenuOpen(false);
                 }}

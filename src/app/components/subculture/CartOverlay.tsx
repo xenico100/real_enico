@@ -16,11 +16,13 @@ import {
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { BankTransferInstructions, CustomerOrderNotifications, type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
 import { BANK_RECEIPT_STORAGE_KEY, readBankOrderReceipt, type BankOrderReceipt } from '@/lib/orders/bankReceipt';
+import { trackStorefrontEvent } from '@/app/components/system/VisitTracker';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface CartOverlayProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenMyPageOrders?: () => void;
 }
 
 type CheckoutMode = 'cart' | 'checkout' | 'confirmation';
@@ -292,7 +294,7 @@ function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
-export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
+export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders }: CartOverlayProps) {
   const { cart, removeFromCart, clearCart } = useFashionCart();
   const { session, isAuthenticated, user, profile, updateAccountProfile } = useAuth();
   const checkoutScrollRef = useRef<HTMLDivElement | null>(null);
@@ -612,6 +614,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     }
 
     setIsSubmittingOrder(true);
+    trackStorefrontEvent({
+      type: 'order_submit',
+      target: `bank_transfer:${channel}`,
+      detail: `items:${cart.length},total:${total}`,
+    });
     try {
       const response = await fetch('/api/orders/bank-transfer', {
         method: 'POST',
@@ -774,6 +781,11 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
     }
 
     setIsStartingNicepay(true);
+    trackStorefrontEvent({
+      type: 'order_submit',
+      target: `nicepay:${channel}`,
+      detail: `items:${cart.length},total:${total}`,
+    });
 
     try {
       const prepareResponse = await fetch('/api/orders/nicepay/prepare', {
@@ -1224,21 +1236,85 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                       </ul>
                       <p className="mt-4 text-sm font-bold">배송비 포함 {isRestoredBankReceipt ? '접수 당시 주문금액' : '입금액'}: {formatKrw(bankOrderReceipt.total)}</p>
                     </section>
-                    {isRestoredBankReceipt ? <p className="rounded-xl border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">저장된 접수 내역입니다. 이후 취소되거나 입금 확인되었을 수 있으니, 주문조회에서 현재 상태와 입금 안내를 확인해 주세요.</p> : <>
-                      <BankTransferInstructions bankAccount={bankOrderReceipt.bankAccount} amount={bankOrderReceipt.total} />
-                      <CustomerOrderNotifications notifications={bankOrderReceipt.notifications} />
-                    </>}
+                    {isRestoredBankReceipt ? (
+                      <>
+                        <p className="rounded-xl border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">저장된 접수 내역입니다. 이후 취소되거나 입금 확인되었을 수 있으니, 주문조회에서 현재 상태와 입금 안내를 확인해 주세요.</p>
+                        <BankTransferInstructions bankAccount={bankOrderReceipt.bankAccount} amount={bankOrderReceipt.total} />
+                      </>
+                    ) : (
+                      <>
+                        <BankTransferInstructions bankAccount={bankOrderReceipt.bankAccount} amount={bankOrderReceipt.total} />
+                        <CustomerOrderNotifications notifications={bankOrderReceipt.notifications} />
+                      </>
+                    )}
                     <p className="text-xs leading-relaxed text-[#4b5563]">접수 시점의 안내입니다. 이후 입금 확인·취소·배송 상태는 주문조회에서 확인해 주세요.{bankOrderReceipt.channel === 'guest' ? ' 비회원은 주문한 핸드폰 번호와 설정한 주문조회 비밀번호가 필요합니다.' : ''}</p>
                   </>}
-                  <Link href="/orders" className="block rounded-xl bg-[#b8001f] px-4 py-3 text-center text-sm font-bold text-white">주문·입금·배송 조회</Link>
+                  {onOpenMyPageOrders ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        trackStorefrontEvent({
+                          type: 'tab_click',
+                          target: 'cart_confirmation:open_mypage_orders',
+                          detail: '내 주문내역(마이페이지) 바로가기',
+                        });
+                        onOpenMyPageOrders();
+                      }}
+                      className="block w-full rounded-xl bg-[#b8001f] px-4 py-3 text-center text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9a0019]"
+                    >
+                      내 주문내역(마이페이지) 바로가기
+                    </button>
+                  ) : null}
+                  <Link
+                    href="/orders"
+                    className={`block rounded-xl px-4 py-3 text-center text-sm font-bold ${
+                      onOpenMyPageOrders
+                        ? 'border border-[#111827] bg-white text-[#111827] hover:border-[#b8001f] hover:text-[#b8001f]'
+                        : 'bg-[#b8001f] text-white'
+                    }`}
+                  >
+                    주문·입금·배송 조회 페이지 열기
+                  </Link>
                   <button type="button" onClick={onClose} className="w-full rounded-xl border border-[#d1d5db] px-4 py-3 text-sm font-bold">쇼핑 계속하기</button>
                 </div>
               ) : mode === 'cart' ? (
                 <>
+                  {bankOrderReceipt && (
+                    <div className="rounded-xl border border-[#b8001f]/35 bg-[#fff1f2] p-3.5 text-xs text-[#8f0018]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-bold">최근 접수한 무통장입금 주문({bankOrderReceipt.orderCode})이 있습니다.</span>
+                        <button
+                          type="button"
+                          onClick={() => setMode('confirmation')}
+                          className="rounded-lg bg-[#b8001f] px-3 py-1.5 text-xs font-bold text-white"
+                        >
+                          계좌번호 · 접수내역 보기
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {!canCheckout ? (
-                    <div className="border border-dashed border-[#d1d5db] bg-[#f8f9fa] p-8 text-center rounded-2xl">
-                      <p className="font-heading text-2xl uppercase mb-2 text-[#111827] font-black">비어 있음</p>
-                      <p className="text-xs text-[#6b7280] font-medium">선택된 항목이 없습니다. 의류 섹션에서 담아주세요.</p>
+                    <div className="border border-dashed border-[#d1d5db] bg-[#f8f9fa] p-8 text-center rounded-2xl space-y-4">
+                      <div>
+                        <p className="font-heading text-2xl uppercase mb-2 text-[#111827] font-black">비어 있음</p>
+                        <p className="text-xs text-[#6b7280] font-medium">선택된 항목이 없습니다. 의류 섹션에서 담아주세요.</p>
+                      </div>
+                      {onOpenMyPageOrders ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            trackStorefrontEvent({
+                              type: 'tab_click',
+                              target: 'empty_cart:open_mypage_orders',
+                              detail: '내 주문내역(마이페이지) 바로가기',
+                            });
+                            onOpenMyPageOrders();
+                          }}
+                          className="inline-flex items-center justify-center rounded-xl border border-[#111827] bg-white px-4 py-2.5 text-xs font-bold text-[#111827] transition-colors hover:border-[#b8001f] hover:text-[#b8001f]"
+                        >
+                          내 주문내역(마이페이지) 바로가기
+                        </button>
+                      ) : null}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -1471,7 +1547,14 @@ export function CartOverlay({ isOpen, onClose }: CartOverlayProps) {
                 {mode === 'cart' && !pendingPayPalApproval ? (
                   <button
                     type="button"
-                    onClick={() => setMode('checkout')}
+                    onClick={() => {
+                      trackStorefrontEvent({
+                        type: 'checkout_open',
+                        target: 'cart:proceed_to_checkout',
+                        detail: `items:${cart.length},total:${total}`,
+                      });
+                      setMode('checkout');
+                    }}
                     className="w-full rounded-[12px] bg-[#b8001f] px-4 py-3 text-center font-heading text-base font-black uppercase tracking-[0.08em] leading-[1.1] text-white transition-all hover:bg-[#9a0019] md:text-lg shadow-md"
                   >
                     결제로 이동

@@ -2,7 +2,11 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { inferVisitSource, normalizeVisitSource } from '@/lib/analytics/visitSource';
+import {
+  inferVisitSource,
+  normalizeVisitSource,
+  type VisitEventType,
+} from '@/lib/analytics/visitSource';
 
 const TRACK_STORAGE_PREFIX = 'visit_track';
 const SOURCE_STORAGE_PREFIX = 'visit_source';
@@ -14,6 +18,42 @@ function toSeoulDateKey(date: Date) {
     month: '2-digit',
     day: '2-digit',
   }).format(date);
+}
+
+export function trackStorefrontEvent(params: {
+  type: VisitEventType;
+  target: string;
+  detail?: string;
+}) {
+  if (typeof window === 'undefined') return;
+  const pathname = window.location.pathname || '/';
+  if (pathname === '/dev/order-preview') return;
+
+  const now = new Date();
+  const dateKey = toSeoulDateKey(now);
+  const sourceStorageKey = `${SOURCE_STORAGE_PREFIX}:${dateKey}`;
+  let source = 'other';
+  try {
+    source = normalizeVisitSource(window.localStorage.getItem(sourceStorageKey));
+  } catch {
+    source = 'other';
+  }
+
+  void fetch('/api/analytics/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: pathname,
+      source,
+      event: {
+        type: params.type,
+        target: params.target,
+        ...(params.detail ? { detail: params.detail } : {}),
+        at: now.toISOString(),
+      },
+    }),
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 function requestWhenIdle(callback: () => void) {

@@ -10,6 +10,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
+import { trackStorefrontEvent } from '@/app/components/system/VisitTracker';
 
 export interface FashionCartItem {
   id: string;
@@ -167,6 +168,11 @@ export function FashionCartProvider({ children }: { children: ReactNode }) {
   );
 
   const addToCart = useCallback((item: FashionCartItem) => {
+    trackStorefrontEvent({
+      type: 'add_to_cart',
+      target: item.id,
+      detail: `${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ''}`,
+    });
     dispatch({ type: 'add', item });
     if (feedbackTimeoutRef.current) {
       clearTimeout(feedbackTimeoutRef.current);

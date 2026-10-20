@@ -23,6 +23,7 @@ import { type BankAccountDetails, type OrderNotificationSummary } from './BankTr
 import { CustomerOrderCard } from './CustomerOrderCard';
 import { CustomerOrderListState } from './CustomerOrderListState';
 import { getCustomerOrderProgress } from '@/lib/orders/customerOrderPresentation';
+import { trackStorefrontEvent } from '@/app/components/system/VisitTracker';
 import styles from './MyPagePanel.module.css';
 
 type MyPageTab =
@@ -78,11 +79,22 @@ type VisitSourceBreakdown = {
   other: number;
 };
 
+type VisitEventBreakdown = {
+  tab_click: number;
+  category_filter: number;
+  product_click: number;
+  add_to_cart: number;
+  cart_open: number;
+  checkout_open: number;
+  order_submit: number;
+};
+
 type DailyStatsRow = {
   dateKst: string;
   visitorCount: number;
   pageHitCount: number;
   sourceVisitors: VisitSourceBreakdown;
+  eventCounts?: VisitEventBreakdown;
   createdRoomCount: number;
   messageCount: number;
 };
@@ -91,6 +103,7 @@ type DailyStatsSummary = {
   totalVisitors: number;
   totalPageHits: number;
   totalSourceVisitors: VisitSourceBreakdown;
+  totalEventCounts?: VisitEventBreakdown;
   totalCreatedRooms: number;
   totalMessages: number;
 };
@@ -714,6 +727,10 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const memberOrdersAbortControllerRef = useRef<AbortController | null>(null);
   const memberOrderMutationIdRef = useRef(0);
   const [activeTab, setActiveTab] = useState<MyPageTab>(() => normalizeInitialTab(initialTab));
+  useEffect(() => {
+    if (!initialTab) return;
+    setActiveTab(normalizeInitialTab(initialTab));
+  }, [initialTab]);
   const [adminAccess, setAdminAccess] = useState<AdminAccessState>({
     userId: '',
     status: 'idle',
@@ -2038,6 +2055,63 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     breakdown={dailyStatsSummary?.totalSourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
                   />
                 </div>
+
+                {dailyStatsSummary?.totalEventCounts && (
+                  <div className="border border-[#333] bg-[#101010] p-4 space-y-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                        스토어 퍼널 이벤트 (오늘 / 최근 {dailyStatsRangeLabel})
+                      </p>
+                      <p className="text-xs text-[#9a9a9a] mt-1">
+                        탭 이동 · 카테고리 필터 · 상품 상세 클릭 · 장바구니 담기 · 결제창 진입 · 주문 접수 집계
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                        <p className="text-[#9b9b9b]">탭 이동 클릭</p>
+                        <p className="mt-1 text-[#00ffd1] font-semibold">
+                          {(latestDailyStats?.eventCounts?.tab_click || 0).toLocaleString('ko-KR')} /{' '}
+                          {dailyStatsSummary.totalEventCounts.tab_click.toLocaleString('ko-KR')}회
+                        </p>
+                      </div>
+                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                        <p className="text-[#9b9b9b]">카테고리 필터</p>
+                        <p className="mt-1 text-[#00ffd1] font-semibold">
+                          {(latestDailyStats?.eventCounts?.category_filter || 0).toLocaleString('ko-KR')} /{' '}
+                          {dailyStatsSummary.totalEventCounts.category_filter.toLocaleString('ko-KR')}회
+                        </p>
+                      </div>
+                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                        <p className="text-[#9b9b9b]">상품 상세 클릭</p>
+                        <p className="mt-1 text-[#00ffd1] font-semibold">
+                          {(latestDailyStats?.eventCounts?.product_click || 0).toLocaleString('ko-KR')} /{' '}
+                          {dailyStatsSummary.totalEventCounts.product_click.toLocaleString('ko-KR')}회
+                        </p>
+                      </div>
+                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                        <p className="text-[#9b9b9b]">장바구니 담기</p>
+                        <p className="mt-1 text-[#00ffd1] font-semibold">
+                          {(latestDailyStats?.eventCounts?.add_to_cart || 0).toLocaleString('ko-KR')} /{' '}
+                          {dailyStatsSummary.totalEventCounts.add_to_cart.toLocaleString('ko-KR')}회
+                        </p>
+                      </div>
+                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                        <p className="text-[#9b9b9b]">결제창 진입</p>
+                        <p className="mt-1 text-[#00ffd1] font-semibold">
+                          {(latestDailyStats?.eventCounts?.checkout_open || 0).toLocaleString('ko-KR')} /{' '}
+                          {dailyStatsSummary.totalEventCounts.checkout_open.toLocaleString('ko-KR')}회
+                        </p>
+                      </div>
+                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                        <p className="text-[#9b9b9b]">주문 접수 시도</p>
+                        <p className="mt-1 text-[#00ffd1] font-semibold">
+                          {(latestDailyStats?.eventCounts?.order_submit || 0).toLocaleString('ko-KR')} /{' '}
+                          {dailyStatsSummary.totalEventCounts.order_submit.toLocaleString('ko-KR')}회
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -2808,7 +2882,14 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                     aria-selected={active}
                     aria-label={`${MY_PAGE_TAB_LABELS[tab.id]} ${countLabel}`}
                     tabIndex={active ? 0 : -1}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => {
+                      trackStorefrontEvent({
+                        type: 'tab_click',
+                        target: `mypage:${tab.id}`,
+                        detail: tab.label,
+                      });
+                      setActiveTab(tab.id);
+                    }}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                     className={`${styles.tab} ${active ? styles.tabActive : ''}`}
                   >
