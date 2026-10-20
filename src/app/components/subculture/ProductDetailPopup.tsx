@@ -43,6 +43,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   const isCartBurstVisible = feedbackSequence !== null;
   const [viewMode, setViewMode] = useState<'photo' | '3d'>('photo');
   const touchStartX = useRef<number | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const isInCart = cart.some(
@@ -106,7 +107,13 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = 0;
+    }
+    if (dialogRef.current) {
+      dialogRef.current.scrollTop = 0;
+      dialogRef.current.focus({ preventScroll: true });
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -118,7 +125,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
+      previousFocusRef.current?.focus({ preventScroll: true });
     };
   }, [onClose]);
 
@@ -174,6 +181,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   return (
     <AnimatePresence>
       <motion.div
+        ref={overlayRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -212,7 +220,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
           style={{ willChange: 'transform, opacity' }}
-          className="relative w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] bg-white border border-[#d1d5db] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#b8001f]/10"
+          className="relative w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] bg-white border border-[#d1d5db] overflow-visible md:overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#b8001f]/10"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 데스크톱 닫기 버튼 */}
@@ -226,9 +234,9 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
           </button>
 
           {/* Left: Images (Shopping Gallery) + 3D Viewer */}
-          <div className="w-full md:w-1/2 shrink-0 md:min-h-0 relative bg-[#f8f9fa] border-b md:border-b-0 md:border-r border-[#d1d5db] flex flex-col">
+          <div className="w-full md:w-1/2 shrink-0 md:h-full md:min-h-0 relative bg-[#f8f9fa] border-b md:border-b-0 md:border-r border-[#d1d5db] flex flex-col md:overflow-y-auto md:overscroll-contain">
             {/* Photo / 3D Toggle Tab */}
-            <div className="flex border-b border-[#d1d5db] bg-white" role="tablist" aria-label="상품 미디어 보기">
+            <div className="shrink-0 flex border-b border-[#d1d5db] bg-white" role="tablist" aria-label="상품 미디어 보기">
               <button
                 type="button"
                 role="tab"
@@ -286,7 +294,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
               /* Photo Gallery Mode */
               <>
             <div
-              className="relative w-full aspect-[1080/1350] md:aspect-[4/5] group"
+              className="relative w-full shrink-0 aspect-[1080/1350] md:aspect-[4/5] group"
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
@@ -330,7 +338,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
               )}
             </div>
 
-            <div className="p-4 border-t border-[#d1d5db] bg-white">
+            <div className="shrink-0 p-4 border-t border-[#d1d5db] bg-white">
               <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-[#4b5563] mb-3 font-bold">
                 상세 사진 {Math.max(productImages.length, 1)}장
               </p>

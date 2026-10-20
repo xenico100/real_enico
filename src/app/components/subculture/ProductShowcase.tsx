@@ -418,8 +418,8 @@ export function ProductShowcase({
     >
       <div className="px-4 md:px-10">
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-[#d1d5db] pb-4">
-          <div>
-            <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-heading font-black text-[#111827] uppercase tracking-tighter leading-[0.86]">
+          <div className="w-full md:w-auto overflow-hidden">
+            <h2 className="text-[5.25rem] sm:text-[8rem] md:text-[12rem] lg:text-[14rem] font-heading font-black text-[#111827] uppercase tracking-tighter leading-[0.88] whitespace-nowrap">
               Apparel
             </h2>
           </div>

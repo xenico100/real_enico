@@ -57,7 +57,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
+    dialogRef.current?.focus({ preventScroll: true });
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -83,7 +83,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
+      previousFocusRef.current?.focus({ preventScroll: true });
     };
   }, [hasMultipleImages, onClose]);
 
@@ -130,40 +130,40 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
         >
           <div className="absolute left-0 top-0 h-[2px] w-full bg-gradient-to-r from-[#b8001f]/60 via-[#b8001f]/20 to-transparent" />
 
-          <header className="relative z-10 border-b border-[#d1d5db] bg-[#f8f9fa]/95 px-4 py-4 md:px-7 md:py-5">
-            <div className="pr-14">
-              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.32em] text-[#4b5563]">
-                <span className="rounded-full border border-[#d1d5db] bg-white px-3 py-1 text-[#111827] font-bold shadow-sm">
+          <header className="relative z-10 shrink-0 border-b border-[#d1d5db] bg-[#f8f9fa]/95 px-4 py-3 md:px-7 md:py-5">
+            <div className="pr-12 md:pr-14">
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-[#4b5563] md:tracking-[0.32em]">
+                <span className="rounded-full border border-[#d1d5db] bg-white px-2.5 py-0.5 text-[#111827] font-bold shadow-sm md:px-3 md:py-1">
                   Collection Lookbook
                 </span>
                 {showSeason ? <span className="font-semibold">{season}</span> : null}
                 <span className="font-semibold">{hasImages ? `${imageList.length} pages` : '0 pages'}</span>
               </div>
-              <div className="mt-3 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-                <div className="max-w-5xl">
+              <div className="mt-2 flex flex-wrap items-end justify-between gap-2 md:mt-3 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0 flex-1 max-w-5xl">
                   <h2
                     id="collection-detail-title"
-                    className="font-heading text-[2rem] uppercase leading-[0.88] tracking-[-0.04em] text-[#111827] md:text-[3.3rem] font-black"
+                    className="font-heading text-[1.75rem] uppercase leading-[0.9] tracking-[-0.04em] text-[#111827] md:text-[3.3rem] font-black break-words"
                   >
                     {collection.title}
                   </h2>
                   {showDescription ? (
-                    <p className="mt-2 max-w-3xl font-mono text-[12px] leading-relaxed text-[#4b5563] md:text-[13px] font-medium">
+                    <p className="mt-1 max-w-3xl font-mono text-[11px] leading-snug text-[#4b5563] line-clamp-2 md:mt-2 md:text-[13px] md:leading-relaxed md:line-clamp-none font-medium">
                       {fullDescription}
                     </p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.25em] text-[#4b5563] font-bold">
+                <div className="shrink-0 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#4b5563] font-bold md:gap-3 md:tracking-[0.25em]">
                   <button
                     type="button"
                     onClick={prevImage}
                     disabled={!hasMultipleImages}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-30 md:h-10 md:w-10"
                     aria-label="이전 페이지"
                   >
                     <ChevronLeft size={18} />
                   </button>
-                  <span className="min-w-[80px] text-center text-[#111827] font-bold">
+                  <span className="min-w-[68px] text-center text-[#111827] font-bold md:min-w-[80px]">
                     {hasImages
                       ? `${String(safeImageIndex + 1).padStart(2, '0')} / ${String(imageList.length).padStart(2, '0')}`
                       : '00 / 00'}
@@ -172,7 +172,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                     type="button"
                     onClick={nextImage}
                     disabled={!hasMultipleImages}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-30 md:h-10 md:w-10"
                     aria-label="다음 페이지"
                   >
                     <ChevronRight size={18} />
@@ -184,17 +184,17 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white md:right-6 md:top-5"
+              className="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white md:right-6 md:top-5"
               aria-label="컬렉션 닫기"
             >
               <X size={18} />
             </button>
           </header>
 
-          <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-h-0 p-3 md:p-5 flex items-center justify-center">
+          <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="h-full min-h-0 p-2.5 md:p-5 flex flex-col items-center justify-center">
               <div
-                className="relative flex h-full w-full min-h-[46vh] items-center justify-center overflow-hidden rounded-[20px] border border-[#d1d5db] bg-[#f8f9fa] p-4 md:p-8 shadow-inner"
+                className="relative flex flex-1 h-full w-full min-h-[36vh] md:min-h-[46vh] items-center justify-center overflow-hidden rounded-[20px] border border-[#d1d5db] bg-[#f8f9fa] p-3 md:p-8 shadow-inner"
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               >
@@ -204,39 +204,61 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                       type="button"
                       onClick={prevImage}
                       disabled={!hasMultipleImages}
-                      className="absolute left-3 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/15 bg-white/90 text-[#111827] shadow-md backdrop-blur transition-all hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-25 md:left-6"
+                      className="absolute left-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/15 bg-white/90 text-[#111827] shadow-md backdrop-blur transition-all hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-25 md:left-6 md:h-12 md:w-12"
                       aria-label="이전 페이지 보기"
                     >
                       <ChevronLeft size={22} />
                     </button>
 
-                    <AnimatePresence custom={direction} mode="wait">
-                      <motion.div
-                        key={imageList[safeImageIndex]}
-                        custom={direction}
-                        initial={{ opacity: 0, scale: 0.98 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className="relative h-full w-full max-w-4xl max-h-[75vh] flex items-center justify-center"
+                    <motion.div
+                      key={imageList[safeImageIndex]}
+                      custom={direction}
+                      initial={{ opacity: 0.85, scale: 0.99 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.16, ease: 'easeOut' }}
+                      className="relative h-full w-full max-w-4xl flex items-center justify-center"
+                    >
+                      <Image
+                        src={imageList[safeImageIndex]}
+                        alt={`${collection.title} 컬렉션 이미지 ${safeImageIndex + 1}`}
+                        fill
+                        priority
+                        unoptimized={shouldBypassImageOptimization(imageList[safeImageIndex] || '')}
+                        sizes="(max-width: 1280px) 100vw, 75vw"
+                        className="object-contain"
+                      />
+                    </motion.div>
+
+                    {hasMultipleImages ? (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0"
                       >
-                        <Image
-                          src={imageList[safeImageIndex]}
-                          alt={`${collection.title} 컬렉션 이미지 ${safeImageIndex + 1}`}
-                          fill
-                          priority
-                          unoptimized={shouldBypassImageOptimization(imageList[safeImageIndex] || '')}
-                          sizes="(max-width: 1280px) 100vw, 75vw"
-                          className="object-contain"
-                        />
-                      </motion.div>
-                    </AnimatePresence>
+                        {[
+                          imageList[(safeImageIndex + 1) % imageList.length],
+                          imageList[(safeImageIndex - 1 + imageList.length) % imageList.length],
+                        ]
+                          .filter((url): url is string => Boolean(url && url !== imageList[safeImageIndex]))
+                          .map((url) => (
+                            <Image
+                              key={`preload-${url}`}
+                              src={url}
+                              alt=""
+                              width={640}
+                              height={800}
+                              priority
+                              unoptimized={shouldBypassImageOptimization(url)}
+                              sizes="(max-width: 1280px) 100vw, 75vw"
+                            />
+                          ))}
+                      </div>
+                    ) : null}
 
                     <button
                       type="button"
                       onClick={nextImage}
                       disabled={!hasMultipleImages}
-                      className="absolute right-3 top-1/2 z-20 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-black/15 bg-white/90 text-[#111827] shadow-md backdrop-blur transition-all hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-25 md:right-6"
+                      className="absolute right-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/15 bg-white/90 text-[#111827] shadow-md backdrop-blur transition-all hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-25 md:right-6 md:h-12 md:w-12"
                       aria-label="다음 페이지 보기"
                     >
                       <ChevronRight size={22} />
@@ -248,7 +270,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                   </div>
                 )}
 
-                <div className="pointer-events-none absolute bottom-4 left-4 rounded-full border border-black/15 bg-white/90 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.25em] text-[#111827] font-bold shadow-sm backdrop-blur md:bottom-6 md:left-6">
+                <div className="pointer-events-none absolute bottom-3 left-3 rounded-full border border-black/15 bg-white/90 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-[#111827] font-bold shadow-sm backdrop-blur md:bottom-6 md:left-6 md:px-3.5 md:py-1.5 md:text-[11px] md:tracking-[0.25em]">
                   Page {hasImages ? String(safeImageIndex + 1).padStart(2, '0') : '00'}
                 </div>
               </div>
@@ -300,8 +322,8 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
           </div>
 
           {hasImages ? (
-            <footer className="relative z-10 border-t border-[#d1d5db] bg-[#f8f9fa] px-3 py-3 md:px-5 md:py-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
+            <footer className="relative z-10 shrink-0 border-t border-[#d1d5db] bg-[#f8f9fa] px-3 py-2.5 md:px-5 md:py-4">
+              <div className="mb-1.5 flex items-center justify-between gap-3 md:mb-2">
                 <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#b8001f] font-bold">
                   Thumbnail Strip
                 </p>
@@ -310,7 +332,7 @@ export function CollectionDetailPopup({ collection, onClose }: CollectionDetailP
                 </p>
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-1 md:gap-3">
+              <div className="flex gap-2 overflow-x-auto px-1 py-1 md:gap-3">
                 {imageList.map((image, index) => (
                   <button
                     key={`${image}-${index}`}

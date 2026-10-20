@@ -132,9 +132,9 @@ export function CollectionSection({
       <div className="absolute inset-0 opacity-20 bg-[linear-gradient(rgba(0,0,0,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[size:18px_18px]" />
 
       <div className="px-6 md:px-12 relative z-10">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-20 border-b-4 border-black pb-4">
-          <div>
-            <h2 className="text-[10.5rem] md:text-[12rem] lg:text-[14rem] font-black font-heading uppercase tracking-tighter leading-[0.86]">
+        <div className="flex flex-col md:flex-row justify-between items-end mb-14 md:mb-20 border-b-4 border-black pb-4">
+          <div className="w-full overflow-hidden">
+            <h2 className="text-[5.5rem] sm:text-[8rem] md:text-[12rem] lg:text-[14rem] font-black font-heading uppercase tracking-tighter leading-[0.88] whitespace-nowrap">
               컬렉션
             </h2>
           </div>
@@ -172,8 +172,8 @@ export function CollectionSection({
                 }}
                 className="group cursor-pointer relative focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#b8001f]"
               >
-                <div className="absolute top-2 left-2 w-full h-full bg-black/10 -z-10 rotate-2 group-hover:rotate-4 transition-transform duration-300" />
-                <div className="absolute top-4 left-4 w-full h-full bg-black/5 -z-20 rotate-4 group-hover:rotate-6 transition-transform duration-300" />
+                <div className="absolute top-1.5 left-1.5 md:top-2 md:left-2 w-full h-full bg-black/10 -z-10 rotate-1 md:rotate-2 group-hover:rotate-3 transition-transform duration-300" />
+                <div className="absolute top-3 left-3 md:top-4 md:left-4 w-full h-full bg-black/5 -z-20 rotate-2 md:rotate-4 group-hover:rotate-5 transition-transform duration-300" />
 
                 <div className="bg-white p-4 border-2 border-black h-full flex flex-col justify-between relative shadow-xl">
                   <div className="relative aspect-[4/5] overflow-hidden border border-black mb-6">

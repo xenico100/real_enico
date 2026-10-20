@@ -398,10 +398,26 @@ function inferCategory(text: string): ProductCategory {
   }
 
   if (
+    normalized.includes('아우터') ||
+    normalized.includes('자켓') ||
+    normalized.includes('점퍼') ||
+    normalized.includes('코트') ||
+    normalized.includes('베스트') ||
+    normalized.includes('outer') ||
+    normalized.includes('jacket') ||
+    normalized.includes('coat') ||
+    normalized.includes('vest')
+  ) {
+    return '아우터';
+  }
+
+  if (
     normalized.includes('팬츠') ||
     normalized.includes('바지') ||
     normalized.includes('슬랙스') ||
     normalized.includes('데님') ||
+    normalized.includes('쇼츠') ||
+    normalized.includes('shorts') ||
     normalized.includes('pants') ||
     normalized.includes('jean')
   ) {
