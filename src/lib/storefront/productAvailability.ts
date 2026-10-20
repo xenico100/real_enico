@@ -55,6 +55,7 @@ const SOLD_OUT_PRODUCT_TITLES = [
   'Desert Angry Shark',
   '2Face Shark',
   'Enico Dee',
+  'Where GA-O-RI',
   'Enico Veck 1st Linen Jacket',
 ] as const;
 
