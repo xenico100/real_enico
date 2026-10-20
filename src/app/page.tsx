@@ -9,6 +9,10 @@ import {
   NICEPAY_TEST_PRODUCT_ID,
   resolveInitialProductCatalog,
 } from '@/lib/storefront/productCatalog';
+import {
+  isSoldOutDisplayProductId,
+  isStorefrontProductVisible,
+} from '@/lib/storefront/productDisplay';
 
 export const metadata: Metadata = {
   alternates: {
@@ -36,17 +40,17 @@ export default async function Home({ searchParams }: HomePageProps) {
     params.popup === 'about' || params.popup === 'contact' || params.popup === 'mypage'
       ? params.popup
       : null;
-  const publishedProductIds = new Set(
-    initialProductRows.filter((row) => row.is_published === true).map((row) => row.id),
+  const visibleProductIds = new Set(
+    initialProductRows.filter(isStorefrontProductVisible).map((row) => row.id),
   );
   const initialProductId =
     !initialPopup && typeof params.product === 'string' && !productCatalog.usingFallbackCatalog
       ? productCatalog.products.find(
           (product) =>
             product.id === params.product &&
-            publishedProductIds.has(product.id) &&
+            visibleProductIds.has(product.id) &&
             product.id !== NICEPAY_TEST_PRODUCT_ID &&
-            !product.isSoldOut &&
+            (!product.isSoldOut || isSoldOutDisplayProductId(product.id)) &&
             Number.isSafeInteger(product.price) &&
             product.price > 0,
         )?.id

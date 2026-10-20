@@ -11,6 +11,10 @@ import {
   type StorefrontProductRow,
 } from '@/lib/storefront/shared';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
+import {
+  isStorefrontProductVisible,
+  SOLD_OUT_DISPLAY_PRODUCT_IDS,
+} from '@/lib/storefront/productDisplay';
 
 function getStorefrontServerConfig() {
   const url = assertExpectedSupabaseProject(
@@ -56,11 +60,13 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
   table,
   baseFields,
   throwOnError = false,
+  includeSoldOutDisplay = false,
 }: {
   client: NonNullable<ReturnType<typeof getStorefrontServerClient>>;
   table: 'products' | 'collections';
   baseFields: readonly string[];
   throwOnError?: boolean;
+  includeSoldOutDisplay?: boolean;
 }) {
   let fields: string[] = [...baseFields];
   let orderColumn: 'created_at' | 'updated_at' | null = 'created_at';
@@ -68,7 +74,11 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
   for (let attempt = 0; attempt < baseFields.length + 5; attempt += 1) {
     let query = client.from(table).select(buildStorefrontSelect(fields));
 
-    query = query.eq('is_published', true);
+    query = table === 'products' && includeSoldOutDisplay
+      ? query.or(
+          `is_published.eq.true,and(is_published.eq.false,id.in.(${SOLD_OUT_DISPLAY_PRODUCT_IDS.join(',')}))`,
+        )
+      : query.eq('is_published', true);
 
     if (orderColumn) {
       query = query.order(orderColumn, { ascending: false });
@@ -80,7 +90,10 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
       if (throwOnError && !Array.isArray(data)) {
         throw new Error('Storefront products are unavailable.');
       }
-      return (data || []) as Row[];
+      const rows = (data || []) as Row[];
+      return table === 'products' && includeSoldOutDisplay
+        ? rows.filter(isStorefrontProductVisible)
+        : rows;
     }
 
     const message = getStorefrontErrorMessage(error).toLowerCase();
@@ -109,7 +122,7 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
   return [] as Row[];
 }
 
-async function fetchProductsUncached(throwOnError = false) {
+async function fetchProductsUncached(throwOnError = false, includeSoldOutDisplay = false) {
   const client = getStorefrontServerClient();
   if (!client) {
     if (throwOnError) throw new Error('Storefront products are unavailable.');
@@ -121,6 +134,7 @@ async function fetchProductsUncached(throwOnError = false) {
     table: 'products',
     baseFields: STOREFRONT_PRODUCT_FIELDS,
     throwOnError,
+    includeSoldOutDisplay,
   });
 }
 
@@ -137,10 +151,11 @@ async function fetchCollectionsUncached() {
   });
 }
 
-export const getCachedStorefrontProducts = unstable_cache(fetchProductsUncached, ['storefront-products'], {
-  revalidate: 300,
-  tags: ['storefront-products'],
-});
+export const getCachedStorefrontProducts = unstable_cache(
+  () => fetchProductsUncached(false, true),
+  ['storefront-products-soldout-display'],
+  { revalidate: 300, tags: ['storefront-products'] },
+);
 
 // The public feed must distinguish a valid empty catalog from an upstream failure.
 // Keep the home page's existing fallback behavior on the original reader.

@@ -167,7 +167,7 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
   };
 
   const handleSmartstorePurchase = () => {
-    if (!smartstoreUrl) return;
+    if (isSoldOut || !smartstoreUrl) return;
     window.open(smartstoreUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -490,7 +490,13 @@ export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps
                   <button
                     type="button"
                     onClick={handleSmartstorePurchase}
-                    className="min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-colors text-left border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a] hover:text-white shadow-sm"
+                    disabled={isSoldOut}
+                    aria-label={isSoldOut ? '네이버 구매 불가: 품절' : undefined}
+                    className={`min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-colors text-left shadow-sm ${
+                      isSoldOut
+                        ? 'cursor-not-allowed border-[#f87171] bg-[#fef2f2] text-[#991b1b]'
+                        : 'border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a] hover:text-white'
+                    }`}
                   >
                     <span className="flex h-full items-center justify-between gap-3">
                       <span className="inline-flex items-center gap-2 leading-tight">

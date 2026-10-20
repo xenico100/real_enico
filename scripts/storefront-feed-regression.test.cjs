@@ -21,8 +21,13 @@ const fixture = {
       const query = {
         select(fields) { call.select = fields; return query; },
         eq(key, value) { call.filters.push([key, value]); return query; },
+        or(filter) { call.filters.push(['or', filter]); return query; },
+        in(key, values) { call.filters.push(['in', key, values]); return query; },
         order() { return query; },
         async returns() { return fixture.responses.shift() || fixture.result; },
+        then(resolve, reject) {
+          return Promise.resolve(fixture.responses.shift() || fixture.result).then(resolve, reject);
+        },
       };
       return query;
     },
@@ -59,7 +64,7 @@ const hooks = registerHooks({
     if (url.startsWith(sourceRoot) && url.endsWith('.ts')) {
       return {
         format: 'module',
-        source: stripTypeScriptTypes(fs.readFileSync(fileURLToPath(url), 'utf8')),
+        source: stripTypeScriptTypes(fs.readFileSync(fileURLToPath(url), 'utf8'), { mode: 'transform' }),
         shortCircuit: true,
       };
     }
@@ -82,7 +87,10 @@ function reset() {
 reset();
 const server = require(path.resolve('src/lib/storefront/server.ts'));
 const route = require(path.resolve('src/app/api/storefront/products/route.ts'));
-const { NICEPAY_TEST_PRODUCT_ID } = require(path.resolve('src/lib/storefront/productCatalog.ts'));
+const { NICEPAY_TEST_PRODUCT_ID, resolveInitialProductCatalog } = require(path.resolve('src/lib/storefront/productCatalog.ts'));
+const { buildCanonicalOrder } = require(path.resolve('src/lib/orders/serverOrderValidation.ts'));
+const JACKET_ID = '7cd29c56-20a4-4677-813e-adbf1043b256';
+const KITTY_ID = 'a75022d3-acae-4321-8b8c-4f896237193a';
 test.beforeEach(reset);
 test.after(() => {
   hooks.deregister();
@@ -208,4 +216,74 @@ test('strict and home readers share the existing revalidation tag and duration',
     assert.equal(options.revalidate, 300);
     assert.deepEqual(options.tags, ['storefront-products']);
   }
+});
+
+test('home retains only the explicitly approved sold jacket, while Night Kitty stays available', async () => {
+  fixture.result.data = [
+    product({ id: JACKET_ID, title: 'Re: flower of evil jacket', price: 220000, is_published: false, raw: undefined }),
+    product({ id: KITTY_ID, title: 'Night Kitty', price: 28000, category: '인형', raw: undefined }),
+    product({ id: 'private-draft', title: 'Re: flower of evil jacket', is_published: false }),
+    product({ id: 'unknown-publication', is_published: null }),
+  ];
+  const rows = await server.getCachedStorefrontProducts();
+  assert.deepEqual(rows.map((row) => row.id).sort(), [JACKET_ID, KITTY_ID].sort());
+  const { products, usingFallbackCatalog } = resolveInitialProductCatalog(rows);
+  assert.equal(usingFallbackCatalog, false);
+  const jacket = products.find((item) => item.id === JACKET_ID);
+  const kitty = products.find((item) => item.id === KITTY_ID);
+  assert.equal(jacket.isSoldOut, true);
+  assert.equal(jacket.price, 220000);
+  assert.equal(kitty.isSoldOut, false);
+  assert.equal(kitty.price, 28000);
+  assert.ok(!products.some((item) => item.id === 'private-draft'));
+  assert.deepEqual(fixture.queries[0].filters, [
+    ['or', `is_published.eq.true,and(is_published.eq.false,id.in.(${JACKET_ID}))`],
+  ]);
+});
+
+test('archive visibility does not expose the sold jacket through the purchase feed', async () => {
+  fixture.result.data = [
+    product({ id: JACKET_ID, title: 'Re: flower of evil jacket', price: 220000, is_published: false, raw: undefined }),
+    product({ id: KITTY_ID, title: 'Night Kitty', price: 28000, raw: undefined }),
+  ];
+  const body = await (await route.GET()).json();
+  assert.deepEqual(body.products.map((item) => item.id), [KITTY_ID]);
+  assert.deepEqual(fixture.queries[0].filters, [['is_published', true]]);
+});
+
+test('archive queries retain their exact publication scope across optional schema fallback', async () => {
+  fixture.responses = [{ data: null, error: { message: 'column products.raw does not exist' } }];
+  fixture.result.data = [product({ id: JACKET_ID, is_published: false, raw: undefined })];
+  const rows = await server.getCachedStorefrontProducts();
+  assert.equal(rows.length, 1);
+  assert.equal(fixture.queries.length, 2);
+  for (const call of fixture.queries) {
+    assert.deepEqual(call.filters, [
+      ['or', `is_published.eq.true,and(is_published.eq.false,id.in.(${JACKET_ID}))`],
+    ]);
+  }
+  assert.ok(!fixture.queries[1].select.split(', ').includes('raw'));
+});
+
+test('an approved archive id with unknown publication state is not exposed', async () => {
+  fixture.result.data = [product({ id: JACKET_ID, is_published: null })];
+  assert.deepEqual(await server.getCachedStorefrontProducts(), []);
+  const { products } = resolveInitialProductCatalog(fixture.result.data);
+  assert.ok(!products.some((item) => item.id === JACKET_ID));
+});
+
+test('the actual order validator rejects the displayed jacket and permits available Night Kitty', async () => {
+  fixture.result.data = [product({ id: JACKET_ID, title: 'Re: flower of evil jacket', price: 220000, is_published: false, raw: undefined })];
+  await assert.rejects(
+    buildCanonicalOrder(fixture.client, {
+      items: [{ id: JACKET_ID, quantity: 1 }], customerCountry: '대한민국', user: null,
+    }),
+    (error) => error.status === 409 && /품절/.test(error.message),
+  );
+  fixture.result.data = [product({ id: KITTY_ID, title: 'Night Kitty', price: 28000, raw: undefined })];
+  const order = await buildCanonicalOrder(fixture.client, {
+    items: [{ id: KITTY_ID, quantity: 1 }], customerCountry: '대한민국', user: null,
+  });
+  assert.equal(order.items[0].id, KITTY_ID);
+  assert.equal(order.pricing.total, 31000);
 });

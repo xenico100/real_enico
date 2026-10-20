@@ -19,6 +19,7 @@ import {
   NICEPAY_TEST_PRODUCT_ID,
   type Product,
 } from '@/lib/storefront/productCatalog';
+import { isSoldOutDisplayProductId } from '@/lib/storefront/productDisplay';
 import {
   buildStorefrontSelect,
   extractMissingStorefrontColumn,
@@ -137,6 +138,13 @@ function ProductCard({
           sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
           className="object-contain object-center bg-[#f8f9fa]"
         />
+
+        {isSoldOut ? (
+          <span className="pointer-events-none absolute right-3 top-3 z-20 rotate-[7deg] border-2 border-[#b8001f] bg-[#fff7f7]/95 px-2 py-1 font-mono text-[10px] font-black tracking-[0.12em] text-[#b8001f] shadow-[2px_2px_0_rgba(184,0,31,0.16)] md:right-4 md:top-4 md:px-3 md:text-xs">
+            <span aria-hidden="true">SOLD OUT</span>
+            <span className="sr-only">품절 상품</span>
+          </span>
+        ) : null}
 
         <div className="pointer-events-none absolute inset-0 z-20 opacity-0 transition-opacity duration-100 mix-blend-exclusion group-hover:opacity-100">
           <div className="h-full w-full bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,#fff_3px)] opacity-20" />
@@ -270,7 +278,7 @@ export function ProductShowcase({
     shouldShowNicepayTestProduct
       ? catalogProducts
       : catalogProducts.filter((product) => product.id !== NICEPAY_TEST_PRODUCT_ID)
-  ).filter((product) => !product.isSoldOut);
+  ).filter((product) => !product.isSoldOut || isSoldOutDisplayProductId(product.id));
   const categories = [ALL_CATEGORY, ...PRODUCT_CATEGORIES] as const;
   const deferredActiveCategory = useDeferredValue(activeCategory);
   const filteredProducts =

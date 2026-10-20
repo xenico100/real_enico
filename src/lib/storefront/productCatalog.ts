@@ -10,6 +10,11 @@ import {
   isProductMarkedAvailable,
 } from '@/lib/storefront/productAvailability';
 import type { StorefrontProductRow } from '@/lib/storefront/shared';
+import {
+  isArchivedSoldOutProduct,
+  isSoldOutDisplayProductId,
+  isStorefrontProductVisible,
+} from '@/lib/storefront/productDisplay';
 
 export type ProductModelVariantKey = 'm_168' | 'm_182' | 'f_std' | 'f_tall' | 'garment';
 export type ProductModelVariants = Partial<Record<ProductModelVariantKey, string>>;
@@ -548,11 +553,12 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
 
   const title = row.title?.trim() || `상품 ${row.id}`;
   const isSoldOut =
+    isArchivedSoldOutProduct(row) ||
     isProductMarkedSoldOut(row.raw) ||
     (isProductTitleMarkedSoldOut(title) && !isProductMarkedAvailable(row.raw));
   const numericPrice = Number(row.price);
   const basePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const price = isSoldOut ? 0 : basePrice;
+  const price = isSoldOut && !isSoldOutDisplayProductId(row.id) ? 0 : basePrice;
   const rawSpecsString = typeof row.specs === 'string' ? row.specs.trim() : '';
   const isSpecsUrl = rawSpecsString.startsWith('https://');
   const storedSpecs = !isSpecsUrl ? rawSpecsString : '';
@@ -624,10 +630,11 @@ function buildDbBackedProductCatalog(rows: StorefrontProductRow[]) {
 
   return sortProductsByLatest(
     rows
+      .filter(isStorefrontProductVisible)
       .map(mapDbRowToProduct)
       .filter((item): item is Product => Boolean(item)),
   ).filter((product) => {
-    if (product.isSoldOut) {
+    if (product.isSoldOut && !isSoldOutDisplayProductId(product.id)) {
       return false;
     }
     const key = normalizeCategoryHintKey(product.name);
