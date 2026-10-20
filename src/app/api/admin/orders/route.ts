@@ -7,6 +7,7 @@ import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { dispatchOrderNotifications, getCurrentOrderNotificationEvent, getOrderNotificationHistory, getOrderNotificationSummary, projectPhoneRelayOrderNotifications, type NotificationChannel, type OrderNotificationEvent } from '@/lib/orders/notifications';
 import { getOrderBankAccount } from '@/lib/orders/bankAccount';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
+import { getShippingHistory, prepareShippingUpdate } from '@/lib/orders/shippingWorkflow';
 
 const DEFAULT_SHIPPING_COMPANY = '우체국';
 const ORDER_SELECT =
@@ -168,6 +169,7 @@ function mapOrderRow(row: OrderRow) {
     bankAccount: row.payment_method === 'bank_transfer' ? getOrderBankAccount(row) : null,
     notifications: getOrderNotificationSummary(row.raw_payload),
     notificationHistory: getOrderNotificationHistory(row.raw_payload),
+    shippingHistory: getShippingHistory(row.raw_payload),
     bankName: normalizeText(row.bank_name),
     bankAccountNumber: normalizeText(row.bank_account_number),
     paypalOrderId: normalizeText(row.paypal_order_id),
@@ -272,11 +274,32 @@ function getCancelErrorStatus(error: unknown) {
   return 500;
 }
 
+type NotificationOutcome = 'processed' | 'attention_required' | 'not_requested';
 async function notifyAndRefresh(serviceClient: SupabaseClient, order: OrderRow, event: OrderNotificationEvent) {
-  try { await dispatchOrderNotifications(serviceClient, order.id, event); }
-  catch (error) { console.error('Order notification needs attention', { orderId: order.id, event, error: error instanceof Error ? error.message : 'unknown' }); }
-  const { data } = await serviceClient.from('orders').select(ORDER_SELECT).eq('id', order.id).maybeSingle();
-  return (data || order) as OrderRow;
+  let outcome: NotificationOutcome = 'processed';
+  try {
+    const summary = await dispatchOrderNotifications(serviceClient, order.id, event);
+    // Queue/provider acceptance is separate from delivery. Missing or uncertain
+    // customer results must never turn a saved shipping update into a success claim.
+    if (['customerEmail', 'customerSms'].some(channel => {
+      const status = summary.channels[channel as NotificationChannel]?.status;
+      return !status || !['queued', 'claimed', 'submitted', 'sent'].includes(status);
+    })) outcome = 'attention_required';
+  } catch {
+    outcome = 'attention_required';
+    console.error('Order notification needs attention', { orderId: order.id, event });
+  }
+  try {
+    const { data, error } = await serviceClient.from('orders').select(ORDER_SELECT).eq('id', order.id).maybeSingle();
+    if (error || !data) outcome = 'attention_required';
+    return { order: (data || order) as OrderRow, outcome };
+  } catch {
+    return { order, outcome: 'attention_required' as const };
+  }
+}
+function notificationWarning(outcome: NotificationOutcome) {
+  return outcome === 'attention_required'
+    ? ' 고객 알림 일부는 실패·미설정 또는 결과 확인이 필요합니다. 주문 저장은 완료되었으며 발송 내역을 확인해 주세요.' : '';
 }
 
 async function authenticateAdmin(request: Request): Promise<AdminAuthResult> {
@@ -363,7 +386,7 @@ export async function GET(request: Request) {
       );
     }
     return NextResponse.json(
-      { message: `주문 목록 조회 실패: ${error.message}` },
+      { message: '주문 목록을 조회하지 못했습니다. 잠시 후 다시 확인해 주세요.' },
       { status: 500 },
     );
   }
@@ -387,7 +410,14 @@ export async function PATCH(request: Request) {
   } = {};
 
   try {
-    payload = (await request.json()) as typeof payload;
+    const body: unknown = await request.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('invalid_body');
+    payload = body as typeof payload;
+    for (const field of ['id', 'paymentStatus', 'shippingStatus', 'shippingCompany', 'trackingNumber', 'shippingNote'] as const) {
+      const value = payload[field];
+      if (value !== undefined && (typeof value !== 'string' || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value))) throw new Error('invalid_field');
+    }
+    if ((payload.shippingCompany?.length || 0) > 80 || (payload.trackingNumber?.length || 0) > 120 || (payload.shippingNote?.length || 0) > 2000) throw new Error('field_too_long');
   } catch {
     return NextResponse.json({ message: '잘못된 요청 본문입니다.' }, { status: 400 });
   }
@@ -426,13 +456,13 @@ export async function PATCH(request: Request) {
 
   const { data: existing, error: existingError } = await auth.serviceClient
     .from('orders')
-    .select('id, payment_method, payment_status, shipping_status, shipping_company, tracking_number, shipping_note, shipped_at, delivered_at, raw_payload')
+    .select(ORDER_SELECT)
     .eq('id', id)
     .maybeSingle();
 
   if (existingError) {
     return NextResponse.json(
-      { message: `주문 조회 실패: ${existingError.message}` },
+      { message: '주문을 조회하지 못했습니다. 잠시 후 다시 확인해 주세요.' },
       { status: 500 },
     );
   }
@@ -442,7 +472,6 @@ export async function PATCH(request: Request) {
   }
 
   const nowIso = new Date().toISOString();
-  const nextStatus = requestedShippingStatus;
   const paymentMethod = normalizeText(existing.payment_method).toLowerCase();
   const currentPaymentStatus = normalizeText(existing.payment_status).toLowerCase();
 
@@ -475,6 +504,13 @@ export async function PATCH(request: Request) {
       { message: '결제취소 또는 환불 처리 중인 주문의 배송 상태는 변경할 수 없습니다.' },
       { status: 409 },
     );
+  }
+
+  if (requestedPaymentStatus && requestedPaymentStatus !== currentPaymentStatus
+    && ['refund_pending', 'cancelled'].includes(requestedPaymentStatus)
+    && normalizeShippingStatus(existing.shipping_status) !== null
+    && normalizeShippingStatus(existing.shipping_status) !== 'preparing') {
+    return NextResponse.json({ message: '배송이 시작된 주문은 이 화면에서 취소·환불 상태로 변경할 수 없습니다. 배송 및 반품 내역을 먼저 확인해 주세요.' }, { status: 409 });
   }
 
   if (paymentMethod === 'bank_transfer' && requestedPaymentStatus) {
@@ -569,18 +605,24 @@ export async function PATCH(request: Request) {
         message: '이체확인은 완료되었습니다. 주문 화면을 새로고침한 뒤 배송정보를 저장해 주세요.',
       });
     }
+    const notified = await notifyAndRefresh(auth.serviceClient, confirmedOrder as OrderRow, 'payment_confirmed');
     return NextResponse.json({
-      message: '이체확인 및 단품 재고 처리가 완료되었습니다. 배송정보는 별도로 저장해 주세요.',
-      order: await projectOrderRow(auth.serviceClient, await notifyAndRefresh(auth.serviceClient, confirmedOrder as OrderRow, 'payment_confirmed')),
+      saved: true, notificationOutcome: notified.outcome,
+      message: '이체확인 및 단품 재고 처리가 완료되었습니다. 배송정보는 별도로 저장해 주세요.' + notificationWarning(notified.outcome),
+      order: await projectOrderRow(auth.serviceClient, notified.order),
     });
   }
 
-  const updatePayload: Record<string, unknown> = {
-    updated_at: nowIso,
-    shipping_company: normalizeNullableText(payload.shippingCompany) || DEFAULT_SHIPPING_COMPANY,
-    tracking_number: normalizeNullableText(payload.trackingNumber),
-    shipping_note: normalizeNullableText(payload.shippingNote),
-  };
+  const shippingUpdate = prepareShippingUpdate(existing, { shippingStatus: requestedShippingStatus,
+    shippingCompany: payload.shippingCompany, trackingNumber: payload.trackingNumber, shippingNote: payload.shippingNote },
+    nowIso, requestedPaymentStatus || existing.payment_status);
+  if (!shippingUpdate.ok) return NextResponse.json({ message: shippingUpdate.message }, { status: 409 });
+  const paymentChanged = Boolean(requestedPaymentStatus && requestedPaymentStatus !== currentPaymentStatus);
+  if (!shippingUpdate.changed && !paymentChanged) {
+    return NextResponse.json({ saved: true, notificationOutcome: 'not_requested',
+      message: '변경된 주문 정보가 없습니다.', order: await projectOrderRow(auth.serviceClient, existing as OrderRow) });
+  }
+  const updatePayload: Record<string, unknown> = { ...shippingUpdate.update, updated_at: nowIso };
 
   if (requestedPaymentStatus) {
     updatePayload.payment_status = requestedPaymentStatus;
@@ -594,44 +636,30 @@ export async function PATCH(request: Request) {
           );
         }
         updatePayload.raw_payload = mergeRefundPendingRawPayload(
-          existing.raw_payload,
+          updatePayload.raw_payload ?? existing.raw_payload,
           'admin_manual_refund_pending',
           'admin',
         );
       } else if (requestedPaymentStatus === 'cancelled') {
         updatePayload.raw_payload = currentPaymentStatus === 'pending_transfer'
-          ? mergeUnpaidCancellationRawPayload(existing.raw_payload, 'admin_manual_cancel', 'admin')
-          : mergeRefundCompletedRawPayload(existing.raw_payload, 'admin');
+          ? mergeUnpaidCancellationRawPayload(updatePayload.raw_payload ?? existing.raw_payload, 'admin_manual_cancel', 'admin')
+          : mergeRefundCompletedRawPayload(updatePayload.raw_payload ?? existing.raw_payload, 'admin');
       }
     }
   }
 
-  if (nextStatus) {
-    updatePayload.shipping_status = nextStatus;
-
-    if (nextStatus === 'preparing') {
-      updatePayload.shipped_at = null;
-      updatePayload.delivered_at = null;
-    } else if (nextStatus === 'shipping') {
-      updatePayload.shipped_at = existing.shipped_at || nowIso;
-      updatePayload.delivered_at = null;
-    } else if (nextStatus === 'delivered') {
-      updatePayload.shipped_at = existing.shipped_at || nowIso;
-      updatePayload.delivered_at = nowIso;
-    }
-  }
 
   let updateQuery = auth.serviceClient
     .from('orders')
     .update(updatePayload)
     .eq('id', id)
     .eq('payment_status', existing.payment_status);
-  updateQuery = existing.shipping_status === null
-    ? updateQuery.is('shipping_status', null)
-    : updateQuery.eq('shipping_status', existing.shipping_status);
-  if ('raw_payload' in updatePayload) {
-    updateQuery = existing.raw_payload === null ? updateQuery.is('raw_payload', null) : updateQuery.eq('raw_payload', JSON.stringify(existing.raw_payload));
+  for (const field of ['shipping_status', 'shipping_company', 'tracking_number', 'shipping_note', 'shipped_at', 'delivered_at'] as const) {
+    const value = existing[field];
+    // Undefined only occurs in old fixture/legacy records; SQL rows use null.
+    if (value !== undefined) updateQuery = value === null ? updateQuery.is(field, null) : updateQuery.eq(field, value);
   }
+  updateQuery = existing.raw_payload === null ? updateQuery.is('raw_payload', null) : updateQuery.eq('raw_payload', JSON.stringify(existing.raw_payload));
   const { data, error } = await updateQuery.select(ORDER_SELECT).maybeSingle();
 
   if (error) {
@@ -648,7 +676,7 @@ export async function PATCH(request: Request) {
       );
     }
     return NextResponse.json(
-      { message: `배송 정보 저장 실패: ${error.message}` },
+      { message: '배송 정보를 저장하지 못했습니다. 새로고침 후 저장 여부를 확인해 주세요.' },
       { status: 500 },
     );
   }
@@ -660,16 +688,15 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const changedPayment = requestedPaymentStatus && requestedPaymentStatus !== currentPaymentStatus;
-  const changedShipping = requestedShippingStatus && requestedShippingStatus !== existing.shipping_status &&
-    ['shipping', 'delivered'].includes(requestedShippingStatus);
   const nextEvent = data.payment_status === 'cancelled' && currentPaymentStatus === 'refund_pending'
     ? 'refunded' : getCurrentOrderNotificationEvent(data);
-  const finalOrder = (changedPayment || changedShipping) && nextEvent
-    ? await notifyAndRefresh(auth.serviceClient, data as OrderRow, nextEvent) : data as OrderRow;
+  const notified = (paymentChanged || shippingUpdate.notifyShipment) && nextEvent
+    ? await notifyAndRefresh(auth.serviceClient, data as OrderRow, nextEvent)
+    : { order: data as OrderRow, outcome: 'not_requested' as const };
 
   return NextResponse.json({
-    message:
+    saved: true, notificationOutcome: notified.outcome,
+    message: (
       paymentMethod === 'bank_transfer' && requestedPaymentStatus === 'cancelled'
         ? currentPaymentStatus === 'pending_transfer'
           ? '미입금 주문이 취소되었습니다.'
@@ -678,8 +705,8 @@ export async function PATCH(request: Request) {
             requestedPaymentStatus === 'refund_pending' &&
             currentPaymentStatus !== 'refund_pending'
           ? '환불 진행중 상태로 저장되었습니다.'
-          : '주문 상태/배송 정보가 저장되었습니다.',
-    order: await projectOrderRow(auth.serviceClient, finalOrder),
+          : '주문 상태/배송 정보가 저장되었습니다.') + notificationWarning(notified.outcome),
+    order: await projectOrderRow(auth.serviceClient, notified.order),
   });
 }
 
@@ -720,7 +747,7 @@ export async function POST(request: Request) {
 
   if (existingError) {
     return NextResponse.json(
-      { message: `주문 조회 실패: ${existingError.message}` },
+      { message: '주문을 조회하지 못했습니다. 잠시 후 다시 확인해 주세요.' },
       { status: 500 },
     );
   }
@@ -813,7 +840,7 @@ export async function POST(request: Request) {
 
       updatedOrder = data as OrderRow;
 
-      updatedOrder = await notifyAndRefresh(auth.serviceClient, updatedOrder, wasUnpaid ? 'cancelled' : 'refund_pending');
+      updatedOrder = (await notifyAndRefresh(auth.serviceClient, updatedOrder, wasUnpaid ? 'cancelled' : 'refund_pending')).order;
     } else {
       return NextResponse.json(
         { message: '관리자 주문취소는 NICE Payments와 계좌이체 주문만 지원합니다.' },

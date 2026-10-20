@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
 const ts = require('typescript');
@@ -23,7 +24,7 @@ function load(overrides = {}) {
     if (name === '@/lib/supabase/projectGuard') return { assertExpectedSupabaseProject: value => value || 'https://test.supabase.test' };
     if (name === './rawPayload') return { parseOrderRawPayload: raw => raw && typeof raw === 'object' ? raw : null };
     if (name === './notificationProviders') return { sendOrderNotificationMessage: overrides.send || (async () => ({ status: 'sent' })) };
-    if (['./notificationMessage', './phoneRelayDelivery', './bankAccount'].includes(name)) return loadFile(`src/lib/orders/${name.slice(2)}.ts`);
+    if (name.startsWith('./') || name.startsWith('../')) return loadFile(path.resolve(path.dirname(file), name) + '.ts');
     throw new Error('Unexpected import: ' + name);
   }, mod, mod.exports, { env });
   return mod.exports;

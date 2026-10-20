@@ -5,6 +5,7 @@ import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
 import { getOrderBankAccount } from '@/lib/orders/bankAccount';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { isMemberOrderOwner, LEGACY_MEMBER_ORDER_LINK_MESSAGE } from '@/lib/orders/memberOrderOwnership';
+import { attachCustomerOrderImages, attachCustomerOrderNotifications, getCustomerOrderItems } from '@/lib/orders/customerOrderView';
 
 type OrderRow = {
   id: string;
@@ -59,28 +60,11 @@ function normalizeNumber(value: unknown) {
   return 0;
 }
 
-function normalizeItems(value: unknown) {
-  if (Array.isArray(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-}
-
-export async function GET(request: Request) {
+async function getOrders(request: Request) {
   const config = getServerConfig();
   if (!config) {
     return NextResponse.json(
-      { message: 'Supabase server config is missing.' },
+      { message: '주문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' },
       { status: 500 },
     );
   }
@@ -121,22 +105,8 @@ export async function GET(request: Request) {
     .limit(200);
 
   if (error) {
-    if (error.code === '42P01') {
-      return NextResponse.json(
-        { message: 'orders 테이블이 없습니다. sql/orders_setup.sql을 실행하세요.' },
-        { status: 500 },
-      );
-    }
-    if (error.code === '42703') {
-      return NextResponse.json(
-        { message: 'orders 테이블 컬럼이 최신이 아닙니다. sql/orders_setup.sql을 다시 실행하세요.' },
-        { status: 500 },
-      );
-    }
-    return NextResponse.json(
-      { message: `주문 조회 실패: ${error.message}` },
-      { status: 500 },
-    );
+    console.error('Customer order lookup failed', { code: error.code });
+    return NextResponse.json({ message: '주문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, { status: 500 });
   }
 
   // Only an existence/count query is allowed for legacy orders. Never return
@@ -149,7 +119,13 @@ export async function GET(request: Request) {
   const legacyLinkRequired = Boolean(legacy.error || (legacy.count || 0) > 0);
   if (legacy.error) console.error('Legacy order link status could not be checked', { code: legacy.error.code });
 
-  const orders = ((data || []) as OrderRow[]).filter(row => isMemberOrderOwner(row, user.id)).map((row) => ({
+  const ownedRows = ((data || []) as OrderRow[]).filter(row => isMemberOrderOwner(row, user.id));
+  const [notifications, withImages] = await Promise.all([
+    attachCustomerOrderNotifications(serviceClient, ownedRows),
+    attachCustomerOrderImages(serviceClient, ownedRows.map(row => ({ id: row.id, items: getCustomerOrderItems(row.items) }))),
+  ]);
+  const imagesByOrder = new Map(withImages.map(order => [order.id, order.items]));
+  const orders = ownedRows.map((row) => ({
     id: row.id,
     orderCode: normalizeText(row.order_code),
     guestOrderNumber: normalizeText(row.guest_order_number),
@@ -170,7 +146,8 @@ export async function GET(request: Request) {
     bankName: normalizeText(row.bank_name),
     bankAccountNumber: normalizeText(row.bank_account_number),
     paymentReceiptUrl: extractPaymentReceiptUrl(row.raw_payload),
-    items: normalizeItems(row.items),
+    items: imagesByOrder.get(row.id) || [],
+    notifications: notifications.get(row.id) || {},
     shippingStatus: normalizeText(row.shipping_status || 'preparing'),
     shippingCompany: normalizeText(row.shipping_company),
     trackingNumber: normalizeText(row.tracking_number),
@@ -183,4 +160,18 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ orders, legacyLinkRequired,
     ...(legacyLinkRequired ? { message: LEGACY_MEMBER_ORDER_LINK_MESSAGE } : {}) });
+}
+
+export async function GET(request: Request) {
+  try {
+    const response = await getOrders(request);
+    response.headers.set('Cache-Control', 'private, no-store');
+    return response;
+  } catch {
+    console.error('Customer order lookup could not be completed');
+    return NextResponse.json(
+      { message: '주문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' },
+      { status: 500, headers: { 'Cache-Control': 'private, no-store' } },
+    );
+  }
 }

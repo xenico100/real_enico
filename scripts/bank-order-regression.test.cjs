@@ -126,6 +126,7 @@ function load(file) {
       const base = path.resolve('src', name.slice(2));
       return load(fs.existsSync(`${base}.ts`) ? `${base}.ts` : `${base}.tsx`);
     }
+    if (name.startsWith('./') || name.startsWith('../')) return load(path.resolve(path.dirname(absolute), name) + '.ts');
     return nativeRequire(name);
   }
   vm.runInThisContext(`(function(require,module,exports,fetch){${compiled}\n})`, { filename: absolute })(

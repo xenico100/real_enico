@@ -2,28 +2,21 @@
 
 import { useState } from 'react';
 import { BANK_ACCOUNT } from '@/lib/orders/bankAccount';
+import { getCustomerNotificationEventLabel, getCustomerNotificationLabel } from '@/lib/orders/customerOrderPresentation';
+import styles from './BankTransferInstructions.module.css';
 import type { BankAccountDetails, OrderNotificationSummary } from '@/lib/orders/bankReceipt';
 export type { BankAccountDetails, OrderNotificationSummary } from '@/lib/orders/bankReceipt';
 
-export function CustomerOrderNotifications({ notifications }: { notifications?: OrderNotificationSummary }) {
+export function CustomerOrderNotifications({ notifications, tone = 'light' }: { notifications?: OrderNotificationSummary | null; tone?: 'light' | 'dark' }) {
   if (!notifications) return null;
-  const channels = [
-    ['customerSms', '계좌 안내 문자'],
-    ['customerEmail', '주문 안내 이메일'],
-  ] as const;
-
+  const channels = [['customerSms', '문자'], ['customerEmail', '이메일']] as const;
+  const available = channels.filter(([key]) => notifications[key]);
+  if (!available.length) return null;
   return (
-    <div className="space-y-1 text-xs leading-relaxed text-[#4b5563]" aria-live="polite">
-      {channels.map(([key, label]) => {
-        const status = notifications[key]?.status;
-        const message = status === 'sent' || status === 'accepted'
-          ? '발송 요청 완료'
-          : status === 'failed'
-            ? '발송 실패 — 아래 주문조회에서 다시 확인해 주세요.'
-            : status === 'not_configured' || status === 'skipped'
-              ? '발송되지 않음 — 이 화면 또는 주문조회에서 확인해 주세요.'
-              : '발송 결과 확인 필요 — 이 화면 또는 주문조회에서 확인해 주세요.';
-        return <p key={key}>{label}: {message}</p>;
+    <div className={tone === 'dark' ? styles.notificationDark : 'space-y-1 text-xs leading-relaxed text-[#4b5563]'} aria-live="polite" aria-atomic="true">
+      {available.map(([key, label]) => {
+        const record = notifications[key];
+        return <p key={key}>{getCustomerNotificationEventLabel(record?.event)} {label}: {getCustomerNotificationLabel(record?.status)}</p>;
       })}
     </div>
   );
@@ -32,9 +25,11 @@ export function CustomerOrderNotifications({ notifications }: { notifications?: 
 export function BankTransferInstructions({
   bankAccount = BANK_ACCOUNT,
   amount,
+  tone = 'light',
 }: {
   bankAccount?: BankAccountDetails;
   amount: number;
+  tone?: 'light' | 'dark';
 }) {
   const [copyStatus, setCopyStatus] = useState('');
 
@@ -48,7 +43,7 @@ export function BankTransferInstructions({
   };
 
   return (
-    <section className="rounded-xl border border-[#d1d5db] bg-white p-4 text-[#111827]">
+    <section className={tone === 'dark' ? styles.dark : "rounded-xl border border-[#d1d5db] bg-white p-4 text-[#111827]"}>
       <h3 className="text-sm font-bold">무통장입금 안내</h3>
       <p className="mt-2 text-sm leading-relaxed">주문이 접수되었으며 아직 입금 대기 상태입니다. 아래 계좌로 직접 송금해 주세요.</p>
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">

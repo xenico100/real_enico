@@ -39,7 +39,8 @@ export function VisitTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!pathname) return;
+    // Synthetic component previews must never count as storefront visits.
+    if (!pathname || pathname === '/dev/order-preview') return;
 
     const dateKey = toSeoulDateKey(new Date());
     const storageKey = `${TRACK_STORAGE_PREFIX}:${dateKey}:${pathname}`;

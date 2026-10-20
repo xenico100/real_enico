@@ -19,8 +19,10 @@ import { useFashionCart } from '@/app/context/FashionCartContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import { getUnifiedAdminUrl } from '@/lib/unified-admin';
 import { AccountAuthPanel } from './AccountAuthPanel';
-import { BankTransferInstructions, CustomerOrderNotifications, type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
-import { BANK_ACCOUNT } from '@/lib/orders/bankAccount';
+import { type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
+import { CustomerOrderCard } from './CustomerOrderCard';
+import { CustomerOrderListState } from './CustomerOrderListState';
+import { getCustomerOrderProgress } from '@/lib/orders/customerOrderPresentation';
 import styles from './MyPagePanel.module.css';
 
 type MyPageTab =
@@ -119,6 +121,7 @@ type AdminOrderItem = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  image?: string;
 };
 
 type ShippingStatus = 'preparing' | 'shipping' | 'delivered';
@@ -1223,7 +1226,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const loadMemberOrders = useCallback(async () => {
     const userId = currentUserId;
     const accessToken = session?.access_token || '';
-    if (!userId || !accessToken) return;
+    if (!userId || !accessToken) return false;
 
     const requestId = memberOrdersRequestIdRef.current + 1;
     memberOrdersRequestIdRef.current = requestId;
@@ -1254,16 +1257,18 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
       if (!response.ok) {
         throw new Error(payload.message || '주문 내역 로드 실패');
       }
-      if (controller.signal.aborted || memberOrdersRequestIdRef.current !== requestId) return;
+      if (controller.signal.aborted || memberOrdersRequestIdRef.current !== requestId) return false;
 
       const nextOrders = Array.isArray(payload.orders) ? payload.orders : [];
       setMemberOrders(nextOrders);
       setLegacyLinkRequired(payload.legacyLinkRequired === true);
       setMemberOrdersLoaded(true);
       setMemberOrderMessage(`주문 ${nextOrders.length}건 로드 완료`);
+      return true;
     } catch (error) {
-      if (controller.signal.aborted || memberOrdersRequestIdRef.current !== requestId) return;
+      if (controller.signal.aborted || memberOrdersRequestIdRef.current !== requestId) return false;
       setMemberOrderError(error instanceof Error ? error.message : '주문 내역 로드 실패');
+      return false;
     } finally {
       if (!controller.signal.aborted && memberOrdersRequestIdRef.current === requestId) {
         setIsLoadingMemberOrders(false);
@@ -1426,12 +1431,16 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
       }
 
       if (payload.order) {
-        setMemberOrders((prev) =>
-          prev.map((target) => (target.id === order.id ? payload.order || target : target)),
-        );
+        // Keep allowlisted item/notification data until the customer view reloads.
+        const paymentStatus = payload.order.paymentStatus;
+        const updatedAt = payload.order.updatedAt;
+        setMemberOrders((prev) => prev.map((target) => target.id === order.id
+          ? { ...target, paymentStatus, updatedAt } : target));
       }
-
+      const refreshed = await loadMemberOrders();
+      if (memberOrderMutationIdRef.current !== mutationId) return;
       setMemberOrderMessage(payload.message || '주문취소가 완료되었습니다.');
+      if (!refreshed) setMemberOrderError('취소 요청은 처리되었습니다. 최신 주문 내역을 다시 불러와 주세요.');
     } catch (error) {
       if (memberOrderMutationIdRef.current !== mutationId) return;
       setMemberOrderError(error instanceof Error ? error.message : '주문취소 실패');
@@ -1655,7 +1664,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             {memberOrderError && !memberOrdersLoaded
               ? '주문 요약을 불러오지 못했습니다. 주문 탭에서 다시 시도해 주세요.'
               : memberOrders[0]
-                ? `최근 주문 ${memberOrders[0].orderCode || memberOrders[0].guestOrderNumber || memberOrders[0].id} · ${getShippingStatusLabel(memberOrders[0].shippingStatus)}`
+                ? `최근 주문 ${memberOrders[0].orderCode || memberOrders[0].guestOrderNumber || memberOrders[0].id} · ${getCustomerOrderProgress(memberOrders[0]).label}`
                 : memberOrdersLoaded
                   ? '현재 계정에 연결된 주문 내역이 없습니다.'
                   : '최근 주문과 배송 상태를 확인하고 있습니다.'}
@@ -1720,144 +1729,21 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         {legacyLinkRequired && <div role="status" className="rounded-lg border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">이전 주문은 계정 연결 확인이 필요합니다. 주문번호와 함께 고객센터로 문의해 주세요. <Link href="/?popup=contact" className="font-bold underline">문의하기</Link></div>}
 
         {isLoadingMemberOrders && memberOrders.length === 0 ? (
-          <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
-            주문 목록을 불러오는 중입니다...
-          </div>
+          <CustomerOrderListState state="loading" />
         ) : memberOrders.length === 0 ? (
-          <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
-            {legacyLinkRequired ? '계정 연결이 확인된 주문이 아직 없습니다.' : '주문 내역이 없습니다.'}
-          </div>
+          <CustomerOrderListState state={memberOrderError ? 'error' : 'empty'} legacyLinkRequired={legacyLinkRequired} onRetry={() => void loadMemberOrders()} />
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {memberOrders.map((order) => {
-              const cancelState = getMemberOrderCancelState(order);
-              const isCancelling = cancellingMemberOrderId === order.id;
-
-              return (
-                <article
-                  key={order.id}
-                  className="overflow-hidden rounded-[8px] border-2 border-[#d9dee6] bg-[linear-gradient(180deg,#17191c_0%,#0e0f11_100%)] shadow-[0_0_0_1px_rgba(237,242,246,0.18)]"
-                >
-                  <div className="border-b-2 border-[#b2bbc9] bg-[linear-gradient(135deg,#1d2025_0%,#14161a_55%,#101113_100%)] px-5 py-4">
-                    <div className="mb-3 text-[11px] uppercase tracking-[0.24em] text-[#c7ced8]">
-                      Order Card
-                    </div>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-[#e9edf2] break-all">
-                          주문번호: {order.orderCode || order.guestOrderNumber || order.id}
-                        </p>
-                        <p className="mt-2 text-xs text-[#a4abb5]">
-                          생성일: {formatDate(order.createdAt || undefined)}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-start gap-2 md:items-end">
-                        <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em]">
-                          <span className="rounded-full border border-[#c2c8d1] bg-[#d8dde5]/10 px-3 py-1.5 text-[#f4f7fb]">
-                            {getPaymentStatusLabel(order.paymentMethod, order.paymentStatus)}
-                          </span>
-                          <span className="rounded-full border border-[#7a808a] bg-black/25 px-3 py-1.5 text-[#d4dae2]">
-                            {getPaymentMethodLabel(order.paymentMethod)}
-                          </span>
-                          <span className="rounded-full border border-[#7a808a] bg-black/25 px-3 py-1.5 text-[#d4dae2]">
-                            {order.paymentStatus === 'pending_transfer' ? '입금 확인 후 준비' : order.paymentStatus === 'cancelled' ? '주문 취소' : getShippingStatusLabel(order.shippingStatus)}
-                          </span>
-                        </div>
-                        {cancelState.visible ? (
-                          <button
-                            type="button"
-                            data-destructive="true"
-                            onClick={() => void handleCancelMemberOrder(order)}
-                            disabled={!cancelState.enabled || isCancelling}
-                            className="rounded-[6px] border border-red-600/80 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-red-100 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-[#4b4f55] disabled:text-[#7c8188]"
-                          >
-                            {isCancelling ? '취소 처리중...' : cancelState.label}
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 p-5">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 text-sm">
-                      <div className="rounded-[8px] border border-[#bcc5d0] bg-[#0d1015] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                        <p className="text-[#a7aeb8]">주문 금액</p>
-                        <p className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-white">
-                          {Number(order.amountTotal || 0).toLocaleString('ko-KR')}원
-                        </p>
-                        <p className="mt-2 text-sm text-[#d7dde4]">항목 {order.items.length}개</p>
-                      </div>
-                      <div className="rounded-[8px] border border-[#bcc5d0] bg-[#0d1015] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                        <p className="text-[#a7aeb8]">택배사</p>
-                        <p className="mt-2 text-lg font-medium text-white">{order.shippingCompany || '-'}</p>
-                        <p className="mt-2 text-sm text-[#d7dde4]">발송: {formatDateTime(order.shippedAt)}</p>
-                      </div>
-                      <div className="rounded-[8px] border border-[#bcc5d0] bg-[#0d1015] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                        <p className="text-[#a7aeb8]">운송장번호</p>
-                        <p className="mt-2 break-all text-lg font-medium text-white">{order.trackingNumber || '-'}</p>
-                        <p className="mt-2 text-sm text-[#d7dde4]">완료: {formatDateTime(order.deliveredAt)}</p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-[8px] border border-[#bcc5d0] bg-[#0d1015] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8] mb-2">배송지</p>
-                      <p className="text-sm leading-7 text-[#f0f3f6] break-all">{order.customerAddress || '-'}</p>
-                    </div>
-
-                    <div className="rounded-[8px] border border-[#bcc5d0] bg-[#0d1015] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#c7ced8] mb-2">배송 메모</p>
-                      <p className="text-sm leading-7 text-[#d8dde4] break-all">{order.shippingNote || '-'}</p>
-                    </div>
-
-                    {order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'pending_transfer' ? (
-                      <>
-                        <BankTransferInstructions bankAccount={order.bankAccount || { bankName: order.bankName || BANK_ACCOUNT.bankName, accountNumber: order.bankAccountNumber || BANK_ACCOUNT.accountNumber, accountHolder: BANK_ACCOUNT.accountHolder }} amount={order.amountTotal} />
-                        <div className="rounded-xl bg-white p-3"><CustomerOrderNotifications notifications={order.notifications} /></div>
-                      </>
-                    ) : null}
-
-                    {cancelState.visible ? (
-                      <div className="rounded-[8px] border border-[#bcc5d0] bg-[linear-gradient(180deg,#15181c_0%,#101215_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
-                          {cancelState.title}
-                        </p>
-                        <p className="mt-3 text-sm leading-7 text-[#ccd2da]">
-                          {cancelState.description}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {order.paymentReceiptUrl ? (
-                      <div className="rounded-[8px] border border-[#bcc5d0] bg-[linear-gradient(180deg,#15181c_0%,#101215_100%)] p-4 shadow-[inset_0_0_0_1px_rgba(232,237,243,0.06)]">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-[#d7dde5]">
-                            이체확인 사진
-                          </p>
-                          <a
-                            href={order.paymentReceiptUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11px] uppercase tracking-[0.18em] text-[#e8edf5] hover:text-white"
-                          >
-                            새 탭에서 보기
-                          </a>
-                        </div>
-                        <div className={`${styles.mediaFrame} relative aspect-[4/5] overflow-hidden rounded-[8px] border border-[#bcc5d0] bg-black`}>
-                          <Image
-                            src={order.paymentReceiptUrl}
-                            alt="이체확인 사진"
-                            fill
-                            sizes="(max-width: 768px) 100vw, 50vw"
-                            unoptimized={shouldBypassImageOptimization(order.paymentReceiptUrl)}
-                            className="object-contain bg-black"
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
+            {memberOrders.map((order, index) => (
+              <CustomerOrderCard
+                key={order.id}
+                order={order}
+                index={index}
+                cancelState={getMemberOrderCancelState(order)}
+                isCancelling={cancellingMemberOrderId === order.id}
+                onCancel={() => void handleCancelMemberOrder(order)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -2505,9 +2391,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                                       disabled={isApprovalProcessing}
                                       className="w-full rounded-[8px] border-2 border-[#cfd6df] bg-[#050505] px-4 py-3.5 text-sm text-[#f5f5f5] focus:border-[#00ffd1] focus:outline-none"
                                     >
-                                      <option value="preparing">배송준비중</option>
-                                      <option value="shipping">배송중</option>
-                                      <option value="delivered">배송완료</option>
+                                      <option value="preparing" disabled={order.shippingStatus !== 'preparing'}>배송준비중</option>
+                                      <option value="shipping" disabled={order.shippingStatus === 'delivered'}>배송중</option>
+                                      <option value="delivered" disabled={order.shippingStatus === 'preparing'}>배송완료</option>
                                     </select>
                                   </div>
                                   <div>
@@ -3022,6 +2908,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
             role="tabpanel"
             aria-labelledby={`${tabIdPrefix}-tab-${renderedActiveTab}`}
             tabIndex={0}
+            data-order-view={renderedActiveTab === 'orders' ? 'true' : undefined}
             className={`${styles.contentScroll} md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1`}
           >
             {tabContent[renderedActiveTab]}

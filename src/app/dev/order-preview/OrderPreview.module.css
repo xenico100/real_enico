@@ -1,0 +1,12 @@
+.page { min-height: 100vh; background: #0b0a0c; padding: 72px 24px; color: #eee8ec; font-family: Arial, sans-serif; }
+.wrap { max-width: 1120px; margin: 0 auto; }
+.header > p:first-child { margin: 0; font-family: ui-monospace, monospace; color: #bc9ba8; font-size: 10px; letter-spacing: .18em; }
+.header h1 { margin: 22px 0 18px; font-size: clamp(30px,5vw,58px); font-weight: 500; letter-spacing: -.07em; line-height: 1.3; }
+.fixture { display: inline-block; margin: 0; border: 1px solid #71505e; padding: 9px 12px; color: #d5bac6; font-size: 11px; line-height: 1.6; }
+.controls { display: flex; flex-wrap: wrap; gap: 6px; padding: 32px 0 24px; }
+.controls button { min-height: 44px; border: 1px solid #4c4149; padding: 9px 13px; background: transparent; color: #bcb0b7; font-size: 11px; cursor: pointer; }
+.controls button[aria-pressed='true'] { background: #542535; border-color: #b46c86; color: #fff; }
+.controls button:focus-visible { outline: 2px solid #e5d0dc; outline-offset: 3px; }
+.preview { max-width: 680px; }
+.footnote { max-width: 680px; margin-top: 20px; color: #a79aa2; font-size: 10px; line-height: 1.8; }
+@media(max-width:600px) { .page { padding: 36px 14px; } .fixture { font-size: 10px; } .controls { padding-top: 24px; } }

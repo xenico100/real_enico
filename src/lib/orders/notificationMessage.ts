@@ -1,4 +1,5 @@
 import { formatBankTransferAmount, getOrderBankAccount } from './bankAccount';
+import { isCurrentTrackingCorrection } from './shippingWorkflow';
 
 export type OrderNotificationEvent = 'order_received' | 'payment_confirmed' | 'shipping_started' | 'delivered' | 'cancelled' | 'refund_pending' | 'refunded';
 export type NotificationMessageOrder = {
@@ -25,7 +26,8 @@ function productText(items: unknown) {
 export function buildOrderNotificationMessage(order: NotificationMessageOrder, event: OrderNotificationEvent, admin: boolean) {
   const bank = getOrderBankAccount(order);
   const paymentMethod = order.payment_method.trim().toLowerCase();
-  const label = event === 'payment_confirmed'
+  const correctedTracking = (event === 'shipping_started' || event === 'delivered') && isCurrentTrackingCorrection(order);
+  const label = correctedTracking ? '배송 정보 정정' : event === 'payment_confirmed'
     ? paymentMethod === 'bank_transfer' ? '입금 확인 완료'
       : paymentMethod === 'nicepay' ? '카드 결제 완료'
         : paymentMethod === 'paypal' ? 'PayPal 결제 완료' : '결제 완료'
@@ -45,6 +47,7 @@ export function buildOrderNotificationMessage(order: NotificationMessageOrder, e
     : paymentMethod === 'nicepay' ? '카드 결제가 승인되었습니다. 추가 입금은 필요하지 않습니다.'
       : '결제가 완료되었습니다. 추가 입금은 필요하지 않습니다.');
   if (event === 'shipping_started' || event === 'delivered') lines.push(`택배사: ${order.shipping_company || '우체국'}`, `운송장: ${order.tracking_number || '관리자 확인 필요'}`);
+  if (correctedTracking) lines.push('배송 정보가 정정되었습니다. 위의 최신 택배사와 운송장 번호를 확인해 주세요.');
   if (event === 'refund_pending') lines.push('환불 요청이 접수되었습니다. 실제 환불 완료와는 구분됩니다.');
   if (event === 'cancelled') lines.push('취소된 주문에는 입금하지 마세요. 이미 입금했다면 고객센터로 연락해 주세요.');
   lines.push(admin ? '관리자에서 주문과 실제 입금 내역을 확인해 주세요.' : '주문조회: https://enicoveck.com/orders',

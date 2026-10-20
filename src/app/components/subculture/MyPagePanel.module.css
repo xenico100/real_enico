@@ -254,32 +254,32 @@
   scrollbar-color: var(--mypage-line) var(--mypage-bg);
 }
 
-.contentScroll :where(div, article, section, form, label, table, thead, tbody, tr, td, th, span) {
+.contentScroll:not([data-order-view='true']) :where(div, article, section, form, label, table, thead, tbody, tr, td, th, span) {
   border-color: var(--mypage-line) !important;
   border-radius: 0 !important;
   background-color: var(--mypage-surface) !important;
   box-shadow: none !important;
 }
 
-.contentScroll :where([class*='bg-[linear-gradient']) {
+.contentScroll:not([data-order-view='true']) :where([class*='bg-[linear-gradient']) {
   background-image: none !important;
 }
 
-.contentScroll :where([class~='border-2']) {
+.contentScroll:not([data-order-view='true']) :where([class~='border-2']) {
   border-width: 1px !important;
 }
 
-.contentScroll :where(p, span, td, th, label) {
+.contentScroll:not([data-order-view='true']) :where(p, span, td, th, label) {
   color: var(--mypage-muted) !important;
 }
 
-.contentScroll :where(h1, h2, h3, h4, h5, h6, strong),
-.contentScroll :where([class*='font-semibold'], [class*='font-medium'], [class*='text-white']),
-.contentScroll :where([class*='text-[#f'], [class*='text-[#e']) {
+.contentScroll:not([data-order-view='true']) :where(h1, h2, h3, h4, h5, h6, strong),
+.contentScroll:not([data-order-view='true']) :where([class*='font-semibold'], [class*='font-medium'], [class*='text-white']),
+.contentScroll:not([data-order-view='true']) :where([class*='text-[#f'], [class*='text-[#e']) {
   color: var(--mypage-ink) !important;
 }
 
-.contentScroll :where(
+.contentScroll:not([data-order-view='true']) :where(
   [class*='00ffd1'],
   [class*='bafff'],
   [class*='8fe7d9'],
@@ -289,12 +289,12 @@
   color: var(--mypage-accent) !important;
 }
 
-.contentScroll :where([class*='text-red'], [class*='border-red']) {
+.contentScroll:not([data-order-view='true']) :where([class*='text-red'], [class*='border-red']) {
   border-color: var(--mypage-accent) !important;
   color: #b8001f !important;
 }
 
-.contentScroll :where(button, input, textarea, select) {
+.contentScroll:not([data-order-view='true']) :where(button, input, textarea, select) {
   border: 1px solid var(--mypage-line) !important;
   border-radius: 0 !important;
   background-color: var(--mypage-surface) !important;
@@ -303,67 +303,67 @@
   box-shadow: none !important;
 }
 
-.contentScroll :where(button) {
+.contentScroll:not([data-order-view='true']) :where(button) {
   min-height: 44px;
   font-weight: 700;
 }
 
-.contentScroll :where(button):hover:not(:disabled) {
+.contentScroll:not([data-order-view='true']) :where(button):hover:not(:disabled) {
   border-color: var(--mypage-accent) !important;
   color: var(--mypage-accent) !important;
 }
 
-.contentScroll button[data-destructive='true']:not(:disabled) {
+.contentScroll:not([data-order-view='true']) button[data-destructive='true']:not(:disabled) {
   border-color: var(--mypage-accent) !important;
   background-color: #ffffff !important;
   color: var(--mypage-accent) !important;
 }
 
-.contentScroll button[data-destructive='true']:hover:not(:disabled) {
+.contentScroll:not([data-order-view='true']) button[data-destructive='true']:hover:not(:disabled) {
   border-color: var(--mypage-accent) !important;
   background-color: var(--mypage-accent) !important;
   color: #ffffff !important;
 }
 
-.contentScroll button[data-destructive='true']:disabled,
-.contentScroll button[data-destructive='true']:disabled:hover {
+.contentScroll:not([data-order-view='true']) button[data-destructive='true']:disabled,
+.contentScroll:not([data-order-view='true']) button[data-destructive='true']:disabled:hover {
   border-color: #9ca3af !important;
   background-color: #f3f4f6 !important;
   color: #6b7280 !important;
   opacity: 0.52 !important;
 }
 
-.contentScroll :where(button[aria-pressed='true']) {
+.contentScroll:not([data-order-view='true']) :where(button[aria-pressed='true']) {
   border-color: var(--mypage-accent) !important;
   background: var(--mypage-accent) !important;
   color: #ffffff !important;
 }
 
-.contentScroll :where(button[aria-pressed='true']) :where(p, span) {
+.contentScroll:not([data-order-view='true']) :where(button[aria-pressed='true']) :where(p, span) {
   background: transparent !important;
   color: #ffffff !important;
 }
 
-.contentScroll :where(input, textarea)::placeholder {
+.contentScroll:not([data-order-view='true']) :where(input, textarea)::placeholder {
   color: #4b5563 !important;
   opacity: 1;
 }
 
-.contentScroll :where(input, textarea, select):focus {
+.contentScroll:not([data-order-view='true']) :where(input, textarea, select):focus {
   border-color: var(--mypage-accent) !important;
   outline: 2px solid rgb(184 0 31 / 0.2) !important;
   outline-offset: 1px;
 }
 
-.contentScroll :where(thead) {
+.contentScroll:not([data-order-view='true']) :where(thead) {
   background: #f8f9fa !important;
 }
 
-.contentScroll :where(tbody tr) {
+.contentScroll:not([data-order-view='true']) :where(tbody tr) {
   border-color: #d1d5db !important;
 }
 
-.contentScroll :where(a) {
+.contentScroll:not([data-order-view='true']) :where(a) {
   color: var(--mypage-accent) !important;
   text-decoration-color: rgb(184 0 31 / 0.45);
 }

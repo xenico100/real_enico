@@ -5,6 +5,7 @@ import { BANK_ACCOUNT } from './bankAccount';
 import { buildOrderNotificationMessage, type NotificationMessageOrder, type OrderNotificationEvent } from './notificationMessage';
 export type { OrderNotificationEvent } from './notificationMessage';
 import { parseOrderRawPayload } from './rawPayload';
+import { getShippingNotificationRevision } from './shippingWorkflow';
 import { sendOrderNotificationMessage, type OrderNotificationResult } from './notificationProviders';
 import { enqueuePhoneRelayMessage, getPhoneRelayHealth, getPhoneRelayOrderRevision } from './phoneRelay';
 import { getPhoneRelayDeliveryMetadata, unavailablePhoneRelayDelivery, PHONE_RELAY_DELIVERY_COLUMNS,
@@ -14,7 +15,7 @@ export type NotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms'
 type ChannelRecord = Omit<OrderNotificationResult, 'status'> & Partial<Omit<PhoneRelayDeliveryMetadata, 'status'>> & {
   status: OrderNotificationResult['status'] | 'sending'; attemptedAt?: string; attemptId?: string;
 };
-export type NotificationSummary = { event: OrderNotificationEvent; eventKey: string; createdAt: string; channels: Partial<Record<NotificationChannel, ChannelRecord>> };
+export type NotificationSummary = { event: OrderNotificationEvent; eventKey: string; createdAt: string; shipment?: { company: string | null; trackingNumber: string | null; revision: number }; channels: Partial<Record<NotificationChannel, ChannelRecord>> };
 type NotificationOrder = NotificationMessageOrder;
 const ORDER_COLUMNS = 'id,order_code,guest_order_number,channel,payment_method,payment_status,amount_total,currency,customer_name,customer_email,customer_phone,bank_name,bank_account_number,items,shipping_status,shipping_company,tracking_number,raw_payload';
 const CHANNELS: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms'];
@@ -112,10 +113,38 @@ function eventApplies(order: NotificationOrder, event: OrderNotificationEvent) {
   return getCurrentOrderNotificationEvent(order) === event;
 }
 
-function notificationEventKey(order: NotificationOrder, event: OrderNotificationEvent) {
+function shipmentEventKey(order: NotificationOrder, event: OrderNotificationEvent, revision: number) {
   const shipment = event === 'shipping_started' || event === 'delivered'
-    ? `${order.shipping_company}:${order.tracking_number}` : '';
+    ? `${order.shipping_company}:${order.tracking_number}${revision ? `:revision:${revision}` : ''}` : '';
   return createHash('sha256').update(`${order.id}:${event}:${shipment}`).digest('hex');
+}
+function notificationEventKey(order: NotificationOrder, event: OrderNotificationEvent) {
+  return shipmentEventKey(order, event, getShippingNotificationRevision(order.raw_payload));
+}
+
+/** Existing relay SQL compares shipment fields, not this application's audit
+ * revision. A→B→A can therefore make an older A job eligible again. Until an
+ * atomic SQL revision upgrade is available, an unresolved older A must own the
+ * SMS outcome: save the correction, send email, and require reconciliation.
+ * This read-only check never cancels jobs or repeats an uncertain message. */
+async function hasUnresolvedPriorShipment(client: SupabaseClient, order: NotificationOrder,
+  event: OrderNotificationEvent, currentKey: string) {
+  if (!['shipping_started', 'delivered'].includes(event) || !getShippingNotificationRevision(order.raw_payload)) return false;
+  const previousKeys = new Set(Object.values(readEvents(order.raw_payload)).filter(summary => summary
+    && summary.event === event && summary.eventKey !== currentKey && summary.channels?.customerSms
+    && (summary.eventKey === shipmentEventKey(order, event, 0)
+      || (summary.shipment?.company === order.shipping_company && summary.shipment?.trackingNumber === order.tracking_number)))
+    .map(summary => summary.eventKey));
+  if (!previousKeys.size) return false;
+  const history = getOrderNotificationHistory(order.raw_payload).filter(summary => previousKeys.has(summary.eventKey));
+  try {
+    const [projected] = await projectPhoneRelayOrderNotifications(client,
+      [{ id: order.id, notifications: null, notificationHistory: history }]);
+    return projected.notificationHistory.some(summary => {
+      const status = summary.channels.customerSms?.status;
+      return !status || ['queued', 'claimed', 'sending', 'unknown'].includes(status);
+    });
+  } catch { return true; }
 }
 
 async function readOrder(client: SupabaseClient, id: string) {
@@ -145,9 +174,13 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
   options: { channels?: NotificationChannel[]; retry?: boolean } = {}): Promise<NotificationSummary> {
   const initial = await readOrder(client, orderId);
   const eventKey = notificationEventKey(initial, event);
-  const base: NotificationSummary = readEvents(initial.raw_payload)[eventKey] || { event, eventKey, createdAt: new Date().toISOString(), channels: {} };
+  const base: NotificationSummary = readEvents(initial.raw_payload)[eventKey] || { event, eventKey, createdAt: new Date().toISOString(),
+    ...(['shipping_started', 'delivered'].includes(event) ? { shipment: { company: initial.shipping_company,
+      trackingNumber: initial.tracking_number, revision: getShippingNotificationRevision(initial.raw_payload) } } : {}), channels: {} };
   if (!eventApplies(initial, event)) return { ...base, channels: Object.fromEntries(CHANNELS.map(c => [c, { status: 'skipped', errorCode: 'order_state_changed' }])) };
   const selectedChannels = [...new Set(options.channels || DEFAULT_CHANNELS)].filter(c => CHANNELS.includes(c));
+  const unresolvedPriorShipment = selectedChannels.includes('customerSms')
+    && await hasUnresolvedPriorShipment(client, initial, event, eventKey);
   // Persist a customer job before the owner's wake-up email can reach Mail.
   // Keep every other channel's requested relative order unchanged.
   const channels = selectedChannels.includes('customerSms')
@@ -191,7 +224,9 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
     let result: OrderNotificationResult = { status: 'skipped', errorCode: 'order_state_changed' };
     if (stillApplies) {
       if (channel === 'customerSms') {
-        try {
+        if (unresolvedPriorShipment) {
+          result = { status: 'unknown', errorCode: 'SHIPMENT_CORRECTION_RECONCILIATION_REQUIRED' };
+        } else try {
           result = await enqueuePhoneRelayMessage(client, { channel, eventKey: `${eventKey}:${channel}`, to,
             ...message, orderId, event, eventRevision: getPhoneRelayOrderRevision(beforeSend) });
           if (result.status !== 'not_configured') result = { ...result, provider: 'phone_relay' };
@@ -216,8 +251,14 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
       // A disabled/unpaired relay explicitly yields not_configured. All other
       // queue results own this delivery and must not invoke SOLAPI as well.
       if (result.status === 'not_configured') {
-        result = await sendOrderNotificationMessage({ channel, eventKey: `${eventKey}:${channel}`, to,
-          ...message, replyTo: isAdmin ? beforeSend.customer_email : 'morba9850@gmail.com' });
+        try {
+          result = await sendOrderNotificationMessage({ channel, eventKey: `${eventKey}:${channel}`, to,
+            ...message, replyTo: isAdmin ? beforeSend.customer_email : 'morba9850@gmail.com' });
+        } catch {
+          // The provider may have accepted before the connection failed. Record
+          // an uncertain result and never automatically duplicate that message.
+          result = { status: 'unknown', errorCode: 'notification_provider_outcome_unknown' };
+        }
       }
     }
     let saved = false;

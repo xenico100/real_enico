@@ -66,6 +66,15 @@ function dbFixture(initial, hooks = {}) {
   const db = { row: clone(initial), writes: [], reads: 0 };
   db.client = {
     from(table) {
+      if (table === 'phone_relay_jobs') {
+        let eventKeys = [];
+        const query = {
+          select() { return query; }, in(_field, values) { eventKeys = values; return query; }, eq() { return query; },
+          then(resolve, reject) { return Promise.resolve({ data: (hooks.relayJobs || []).filter(job => eventKeys.includes(job.event_key)),
+            error: hooks.relayReadError ? { code: 'FIXTURE_UNAVAILABLE' } : null }).then(resolve, reject); },
+        };
+        return query;
+      }
       assert.equal(table, 'orders');
       const filters = [];
       let payload;
@@ -585,4 +594,127 @@ test('non-relay SOLAPI acceptance and uncertain outcomes are left unchanged by q
     assert.equal(result[0].notifications.channels.customerSms.status, sourceStatus);
     assert.equal(result[0].notifications.channels.customerSms.provider, undefined);
   }
+});
+
+
+test('tracking corrections have durable revisions, truthful copy, and one delivery per revision', async () => {
+  const order = fixture({ payment_status: 'transfer_confirmed', shipping_status: 'shipping',
+    shipping_company: '우체국', tracking_number: 'TRACK-A' });
+  const db = dbFixture(order);
+  const messages = [];
+  const subject = load(async message => { messages.push(clone(message)); return { status: 'sent', providerId: 'fixture-' + messages.length }; });
+  await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerEmail'] });
+  assert.match(messages[0].subject, /배송 시작/);
+  for (const [revision, number] of [[1, 'TRACK-B'], [2, 'TRACK-A']]) {
+    db.row.tracking_number = number;
+    db.row.raw_payload.shippingNotificationRevision = revision;
+    db.row.raw_payload.shippingHistory = [...(db.row.raw_payload.shippingHistory || []), {
+      actor: 'admin', kind: 'tracking_corrected', changedAt: new Date().toISOString(),
+      from: 'shipping', to: 'shipping', previousCompany: '우체국', shippingCompany: '우체국',
+      previousTrackingNumber: revision === 1 ? 'TRACK-A' : 'TRACK-B', trackingNumber: number,
+    }];
+    db.row.raw_payload.shippingHistory.push({ actor: 'admin', kind: 'details_changed', changedAt: new Date().toISOString(),
+      from: 'shipping', to: 'shipping', shippingCompany: '우체국', trackingNumber: number });
+    await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerEmail'] });
+    await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerEmail'], retry: true });
+    assert.equal(messages.length, revision + 1);
+    assert.match(messages[revision].subject, /배송 정보 정정/);
+    assert.match(messages[revision].text, new RegExp('운송장: ' + number));
+    assert.match(messages[revision].text, /최신 택배사와 운송장/);
+  }
+  assert.equal(new Set(messages.map(message => message.eventKey)).size, 3);
+  assert.equal(subject.getOrderNotificationHistory(db.row.raw_payload).length, 3);
+});
+
+test('provider throws become persisted uncertain results, never a duplicate retry', async () => {
+  const db = dbFixture(fixture());
+  let calls = 0;
+  const subject = load(async () => { calls++; throw new Error('SECRET_PROVIDER_FAILURE'); });
+  const first = await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['customerEmail'] });
+  assert.equal(first.channels.customerEmail.status, 'unknown');
+  assert.equal(first.channels.customerEmail.errorCode, 'notification_provider_outcome_unknown');
+  assert.doesNotMatch(JSON.stringify(db.row.raw_payload), /SECRET_PROVIDER_FAILURE/);
+  await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['customerEmail'], retry: true });
+  assert.equal(calls, 1);
+});
+
+
+for (const prior of ['queued', 'claimed', 'unknown', 'sending', 'missing', 'inaccessible']) {
+  test(`repeated tracking A→B→A does not duplicate an unresolved prior ${prior} SMS`, async () => {
+    const order = fixture({ payment_status: 'transfer_confirmed', shipping_status: 'shipping', shipping_company: '우체국', tracking_number: 'TRACK-A' });
+    const key = eventKey(order, 'shipping_started');
+    order.raw_payload.notifications = { events: { [key]: { event: 'shipping_started', eventKey: key,
+      createdAt: new Date().toISOString(), channels: { customerSms: { status: prior === 'sending' ? 'sending' : 'queued',
+        ...(prior === 'sending' ? {} : { provider: 'phone_relay', providerId: 'prior-fixture-job' }) } } } } };
+    order.raw_payload.shippingNotificationRevision = 2;
+    const now = Date.now();
+    const db = dbFixture(order, { relayReadError: prior === 'inaccessible', relayJobs: prior === 'missing' ? [] : [{
+      id: 'prior-fixture-job', order_id: order.id, event_key: key + ':customerSms',
+      status: ['queued', 'claimed', 'unknown'].includes(prior) ? prior : 'queued',
+      created_at: new Date(now - 1000).toISOString(), expires_at: new Date(now + 60000).toISOString(),
+      claimed_at: prior === 'claimed' ? new Date(now).toISOString() : null,
+      claim_expires_at: new Date(now + 60000).toISOString(), acknowledged_at: null,
+    }] });
+    let enqueues = 0;
+    const sent = [];
+    const subject = load(async message => { sent.push(message); return { status: 'sent' }; }, {
+      enqueue: async () => { enqueues++; return { status: 'queued', providerId: 'new-job' }; },
+    });
+    const summary = await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerSms', 'customerEmail'] });
+    assert.equal(enqueues, 0);
+    assert.equal(summary.channels.customerSms.status, 'unknown');
+    assert.equal(summary.channels.customerSms.errorCode, 'SHIPMENT_CORRECTION_RECONCILIATION_REQUIRED');
+    assert.equal(sent.length, 1); assert.equal(sent[0].channel, 'customerEmail');
+    await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerSms'], retry: true });
+    assert.equal(enqueues, 0);
+  });
+}
+
+for (const status of ['submitted', 'stale']) {
+  test(`prior exact ${status} relay job is terminal and permits one new correction`, async () => {
+    const order = fixture({ payment_status: 'transfer_confirmed', shipping_status: 'shipping', shipping_company: '우체국', tracking_number: 'TRACK-A' });
+    const key = eventKey(order, 'shipping_started');
+    const now = Date.now();
+    order.raw_payload.shippingNotificationRevision = 2;
+    order.raw_payload.notifications = { events: { [key]: { event: 'shipping_started', eventKey: key,
+      createdAt: new Date(now - 1000).toISOString(), channels: { customerSms: { status: 'queued', provider: 'phone_relay', providerId: 'prior-job' } } } } };
+    const db = dbFixture(order, { relayJobs: [{ id: 'prior-job', order_id: order.id, event_key: key + ':customerSms', status,
+      created_at: new Date(now - 1000).toISOString(), expires_at: new Date(now + 60000).toISOString(),
+      claimed_at: new Date(now - 500).toISOString(), acknowledged_at: status === 'submitted' ? new Date(now).toISOString() : null }] });
+    let enqueues = 0;
+    const subject = load(async () => { throw new Error('No paid fallback'); }, { enqueue: async () => {
+      enqueues++; return { status: 'queued', providerId: 'new-correction-job' };
+    } });
+    await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerSms'] });
+    await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerSms'], retry: true });
+    assert.equal(enqueues, 1);
+  });
+}
+
+test('a nonlegacy prior revision is also recognized when tracking returns to that shipment', async () => {
+  const order = fixture({ payment_status: 'transfer_confirmed', shipping_status: 'shipping', shipping_company: '우체국', tracking_number: 'TRACK-B' });
+  const oldKey = crypto.createHash('sha256').update(`${order.id}:shipping_started:우체국:TRACK-B:revision:1`).digest('hex');
+  order.raw_payload.shippingNotificationRevision = 3;
+  order.raw_payload.notifications = { events: { [oldKey]: { event: 'shipping_started', eventKey: oldKey,
+    shipment: { company: '우체국', trackingNumber: 'TRACK-B', revision: 1 }, createdAt: new Date().toISOString(),
+    channels: { customerSms: { status: 'unknown' } } } } };
+  const db = dbFixture(order);
+  let enqueues = 0;
+  const subject = load(async () => { throw new Error('No fallback'); }, { enqueue: async () => { enqueues++; return { status: 'queued' }; } });
+  const summary = await subject.dispatchOrderNotifications(db.client, order.id, 'shipping_started', { channels: ['customerSms'] });
+  assert.equal(enqueues, 0);
+  assert.equal(summary.channels.customerSms.errorCode, 'SHIPMENT_CORRECTION_RECONCILIATION_REQUIRED');
+});
+
+test('a queued shipping-start message cannot suppress a later delivery event for the same tracking', async () => {
+  const order = fixture({ payment_status: 'transfer_confirmed', shipping_status: 'delivered', shipping_company: '우체국', tracking_number: 'TRACK-A' });
+  const oldKey = eventKey(order, 'shipping_started');
+  order.raw_payload.shippingNotificationRevision = 2;
+  order.raw_payload.notifications = { events: { [oldKey]: { event: 'shipping_started', eventKey: oldKey,
+    createdAt: new Date().toISOString(), channels: { customerSms: { status: 'queued', provider: 'phone_relay' } } } } };
+  const db = dbFixture(order);
+  let enqueues = 0;
+  const subject = load(async () => { throw new Error('No fallback'); }, { enqueue: async () => { enqueues++; return { status: 'queued' }; } });
+  await subject.dispatchOrderNotifications(db.client, order.id, 'delivered', { channels: ['customerSms'] });
+  assert.equal(enqueues, 1);
 });

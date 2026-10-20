@@ -6,7 +6,7 @@ export type BankAccountDetails = {
 
 export type OrderNotificationSummary = Partial<Record<
   'customerEmail' | 'customerSms' | 'adminEmail' | 'adminSms',
-  { status: string }
+  { status: string; event?: string; updatedAt?: string }
 >>;
 
 export const BANK_RECEIPT_STORAGE_KEY = 'enicoveck_bank_order_receipt';

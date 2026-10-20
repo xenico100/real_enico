@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test:orders": "node --test scripts/customer-order-view-regression.test.cjs scripts/customer-order-ui-regression.test.cjs scripts/shipping-workflow-regression.test.cjs scripts/member-order-ownership-regression.test.cjs scripts/notifications-regression.test.cjs",
     "test:phone-relay": "node --test scripts/phone-relay-regression.test.cjs scripts/phone-relay-shortcut-regression.test.cjs scripts/phone-relay-sql-regression.test.cjs",
     "test:security": "node --test scripts/security-regression.test.cjs scripts/find-email-regression.test.cjs scripts/chat-message-regression.test.cjs scripts/member-order-ownership-regression.test.cjs",
     "test:payments": "node --test scripts/paypal-regression.test.cjs scripts/nicepay-regression.test.cjs scripts/bank-order-regression.test.cjs scripts/checkout-claims-regression.test.cjs scripts/inventory-regression.test.cjs scripts/bank-receipt-regression.test.cjs scripts/notifications-provider-regression.test.cjs scripts/notifications-regression.test.cjs"

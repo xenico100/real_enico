@@ -75,6 +75,7 @@ function load(file) {
     }) };
     if (name === '@/lib/orders/notifications') return { dispatchOrderNotifications: async () => { notifications += 1; } };
     if (name === '@/lib/orders/nicepayCancel') return { cancelNicepayOrder: async () => { providerCancels += 1; throw new Error('Unexpected provider cancellation'); } };
+    if (name.startsWith('.')) return load(path.join(path.dirname(absolute), name) + '.ts');
     if (name.startsWith('@/')) {
       const base = path.resolve('src', name.slice(2));
       return load(`${base}.ts`);
