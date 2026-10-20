@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, MessageCircle, X } from 'lucide-react';
+import { ArrowUpRight, ChevronLeft, MessageCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/app/context/AuthContext';
 
@@ -120,22 +120,35 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
     ),
     contact: (
       <div className="space-y-8 font-mono">
-        <section aria-labelledby="kakao-contact-heading" className="border border-[#d1d5db] bg-white p-6">
-          <h3 id="kakao-contact-heading" className="text-sm font-bold text-[#111827]">카카오톡 1:1 상담</h3>
-          <p className="mt-2 text-xs leading-relaxed text-[#4b5563]">
-            상품과 주문에 대해 궁금한 점을 에니코벡 채널로 보내주세요.
+        <section aria-labelledby="kakao-contact-heading" className="relative overflow-hidden border border-[#dedbd5] bg-[#f6f4ef] p-6 sm:p-8">
+          <div className="mb-7 flex items-center justify-between border-b border-[#dedbd5] pb-4">
+            <p className="text-[10px] font-bold tracking-[0.18em] text-[#b8001f]">ENICO VECK / CONTACT</p>
+            <span className="text-[10px] tracking-widest text-[#6b7280]">01</span>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="mb-2 text-[11px] font-medium text-[#6b7280]">카카오톡 1:1 상담</p>
+              <h3 id="kakao-contact-heading" className="font-sans text-[26px] font-semibold leading-[1.35] tracking-[-0.06em] text-[#191919] sm:text-[32px]">편하게 물어보세요.</h3>
+            </div>
+            <span className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FEE500] text-[#191919] sm:h-12 sm:w-12">
+              <MessageCircle aria-hidden="true" className="h-5 w-5" strokeWidth={1.6} />
+            </span>
+          </div>
+          <p className="mt-4 font-sans text-[13px] leading-6 text-[#5e605e]">
+            사이즈부터 주문, 제작에 관한 이야기까지.<br />
+            에니코벡과 카카오톡으로 대화하세요.
           </p>
           <a
             href="https://pf.kakao.com/_xiRJmX/chat"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 bg-[#FEE500] px-5 py-3 text-sm font-bold text-[#191919] transition-colors hover:bg-[#f3da00] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#191919]"
+            className="group mt-7 flex min-h-14 w-full items-center justify-between gap-4 bg-[#191919] px-5 py-4 font-sans text-sm font-semibold text-white transition-colors hover:bg-[#383833] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b8001f]"
           >
-            <MessageCircle aria-hidden="true" className="h-5 w-5" />
-            카카오톡으로 상담하기
+            <span>카카오톡으로 상담하기</span>
+            <ArrowUpRight aria-hidden="true" className="h-5 w-5 text-[#FEE500] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transform-none" strokeWidth={1.6} />
             <span className="sr-only"> (새 창 열림)</span>
           </a>
-          <p className="mt-3 text-xs leading-relaxed text-[#6b7280]">메시지를 남겨주시면 확인 후 답변드릴게요.</p>
+          <p className="mt-3 font-sans text-[11px] leading-5 text-[#777970]">메시지를 남겨주시면 확인 후 답변드릴게요.</p>
         </section>
         <form
           onSubmit={handleSendContact}
