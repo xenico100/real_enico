@@ -13,7 +13,7 @@ const ts = require('typescript');
 const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 const channels = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms'];
 
-function load(send, relay = {}) {
+function load(send, relay = {}, env = {}) {
   const cache = new Map();
   function loadFile(file) {
     const absolute = path.resolve(file);
@@ -36,7 +36,7 @@ function load(send, relay = {}) {
       };
       if (name.startsWith('./')) return loadFile(path.join(path.dirname(absolute), name + '.ts'));
       throw new Error('Unexpected notification import: ' + name);
-    }, mod, mod.exports, { env: { ORDER_NOTIFICATION_EMAIL: 'owner@example.test', ADMIN_NOTIFICATION_PHONE: '01099998888' } });
+    }, mod, mod.exports, { env: { ORDER_NOTIFICATION_EMAIL: 'owner@example.test', ADMIN_NOTIFICATION_PHONE: '01099998888', ...env } });
     return mod.exports;
   }
   return loadFile('src/lib/orders/notifications.ts');
@@ -717,4 +717,87 @@ test('a queued shipping-start message cannot suppress a later delivery event for
   const subject = load(async () => { throw new Error('No fallback'); }, { enqueue: async () => { enqueues++; return { status: 'queued' }; } });
   await subject.dispatchOrderNotifications(db.client, order.id, 'delivered', { channels: ['customerSms'] });
   assert.equal(enqueues, 1);
+});
+
+
+test('Alimtalk mode concurrently dispatches exactly one Kakao message without a phone/LMS fallback', async () => {
+  const db = dbFixture(fixture());
+  const calls = [];
+  const subject = load(async message => {
+    calls.push(message);
+    await new Promise(resolve => setImmediate(resolve));
+    return { status: 'sent', provider: 'solapi_alimtalk', providerId: 'kakao-accepted' };
+  }, { enqueue: async () => { throw new Error('Kakao mode must not enqueue SMS'); } },
+  { ORDER_CUSTOMER_MESSAGE_CHANNEL: 'alimtalk' });
+  await Promise.all([1, 2, 3].map(() => subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['customerSms'] })));
+  assert.equal(calls.length, 1);
+  const message = calls[0];
+  assert.equal(message.channel, 'customerKakao');
+  assert.equal(message.to, db.row.customer_phone);
+  assert.match(message.text, /현재 입금 대기 상태/);
+  assert.doesNotMatch(message.text, /결제가 확인|상품이 발송/);
+  assert.equal(message.alimtalk.variables['#{주문번호}'], db.row.order_code);
+  assert.equal(message.alimtalk.variables['#{입금액}'], '123,000원');
+  const summary = subject.getOrderNotificationSummary(db.row.raw_payload);
+  assert.equal(summary.channels.customerKakao.provider, 'solapi_alimtalk');
+  assert.equal(summary.channels.customerKakao.deliveryConfirmed, false);
+  assert.equal(summary.channels.customerSms, undefined);
+});
+
+for (const status of ['not_configured', 'failed', 'unknown']) test(`Kakao ${status} cannot fall through to SMS and ambiguous retries cannot duplicate`, async () => {
+  const db = dbFixture(fixture());
+  const calls = [];
+  const subject = load(async message => { calls.push(message); return { status }; },
+    { enqueue: async () => { throw new Error('Unexpected phone relay'); } }, { ORDER_CUSTOMER_MESSAGE_CHANNEL: 'alimtalk' });
+  const summary = await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['customerSms'] });
+  assert.equal(summary.channels.customerKakao.status, status);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].channel, 'customerKakao');
+  if (status === 'unknown') {
+    await subject.dispatchOrderNotifications(db.client, db.row.id, 'order_received', { channels: ['customerSms'], retry: true });
+    assert.equal(calls.length, 1);
+  }
+});
+
+for (const status of ['queued', 'claimed', 'submitted', 'stale', 'sent', 'unknown', 'sending']) test(`switching to Kakao never repeats a prior ${status} SMS`, async () => {
+  const order = fixture();
+  const key = eventKey(order, 'order_received');
+  order.raw_payload.notifications = { events: { [key]: { event: 'order_received', eventKey: key,
+    createdAt: new Date().toISOString(), channels: { customerSms: { status } } } } };
+  const db = dbFixture(order);
+  const subject = load(async () => { throw new Error('Duplicate transport'); }, {}, { ORDER_CUSTOMER_MESSAGE_CHANNEL: 'alimtalk' });
+  await subject.dispatchOrderNotifications(db.client, order.id, 'order_received', { channels: ['customerSms'], retry: true });
+  assert.equal(db.writes.length, 0);
+});
+
+test('paid bank, Nicepay and PayPal orders use payment copy; unsupported events cannot masquerade as paid', async () => {
+  for (const [payment_method, payment_status] of [['bank_transfer', 'transfer_confirmed'], ['nicepay', 'paid'], ['paypal', 'captured']]) {
+    const db = dbFixture(fixture({ payment_method, payment_status }));
+    const calls = [];
+    const subject = load(async message => { calls.push(message); return { status: 'sent' }; }, {}, { ORDER_CUSTOMER_MESSAGE_CHANNEL: 'alimtalk' });
+    await subject.dispatchOrderNotifications(db.client, db.row.id, 'payment_confirmed', { channels: ['customerSms'] });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].alimtalk.event, 'payment_confirmed');
+    assert.match(calls[0].text, /주문 결제가 확인되었습니다/);
+    assert.doesNotMatch(calls[0].text, /입금계좌|입금 대기/);
+  }
+  const db = dbFixture(fixture({ payment_status: 'cancelled' }));
+  const subject = load(async () => { throw new Error('No approved cancellation template'); }, {}, { ORDER_CUSTOMER_MESSAGE_CHANNEL: 'alimtalk' });
+  const result = await subject.dispatchOrderNotifications(db.client, db.row.id, 'cancelled', { channels: ['customerSms'] });
+  assert.equal(result.channels.customerKakao.status, 'skipped');
+});
+
+test('shipping Alimtalk uses saved carrier/tracking and refuses an incomplete shipment', async () => {
+  for (const tracking_number of ['1234567890123', null]) {
+    const db = dbFixture(fixture({ payment_status: 'transfer_confirmed', shipping_status: 'shipping',
+      shipping_company: '우체국택배', tracking_number }));
+    const calls = [];
+    const subject = load(async message => { calls.push(message); return { status: 'sent' }; }, {}, { ORDER_CUSTOMER_MESSAGE_CHANNEL: 'alimtalk' });
+    const result = await subject.dispatchOrderNotifications(db.client, db.row.id, 'shipping_started', { channels: ['customerSms'] });
+    assert.equal(calls.length, tracking_number ? 1 : 0);
+    if (tracking_number) {
+      assert.equal(calls[0].alimtalk.variables['#{송장번호}'], tracking_number);
+      assert.equal(calls[0].alimtalk.variables['#{택배사}'], '우체국택배');
+    } else assert.equal(result.channels.customerKakao.status, 'skipped');
+  }
 });

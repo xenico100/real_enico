@@ -57,7 +57,7 @@ export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling 
   const identifier = order.orderCode || order.guestOrderNumber || order.id;
   const isPendingTransfer = order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'pending_transfer';
   const trackingUrl = progress.paid ? getShipmentTrackingUrl(order.shippingCompany, order.trackingNumber) : null;
-  const hasCustomerNotifications = Boolean(order.notifications?.customerSms || order.notifications?.customerEmail);
+  const hasCustomerNotifications = Boolean(order.notifications?.customerKakao || order.notifications?.customerSms || order.notifications?.customerEmail);
   const quantity = order.items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0);
   const transition = { duration: reducedMotion ? 0 : 0.45, ease: EASE };
 

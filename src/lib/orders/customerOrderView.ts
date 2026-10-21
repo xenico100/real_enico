@@ -15,7 +15,7 @@ export type CustomerOrderItem = {
   image: string;
 };
 
-const CUSTOMER_CHANNELS = ['customerSms', 'customerEmail'] as const;
+const CUSTOMER_CHANNELS = ['customerKakao', 'customerSms', 'customerEmail'] as const;
 const EVENTS = ['order_received', 'payment_confirmed', 'shipping_started', 'delivered', 'cancelled', 'refund_pending', 'refunded'] as const;
 const STATUSES = ['queued', 'claimed', 'submitted', 'stale', 'sent', 'failed', 'not_configured', 'skipped', 'unknown', 'sending'] as const;
 type CustomerChannel = typeof CUSTOMER_CHANNELS[number];

@@ -9,7 +9,7 @@ export type { BankAccountDetails, OrderNotificationSummary } from '@/lib/orders/
 
 export function CustomerOrderNotifications({ notifications, tone = 'light' }: { notifications?: OrderNotificationSummary | null; tone?: 'light' | 'brand' }) {
   if (!notifications) return null;
-  const channels = [['customerSms', '문자'], ['customerEmail', '이메일']] as const;
+  const channels = [['customerKakao', '카카오톡'], ['customerSms', '문자'], ['customerEmail', '이메일']] as const;
   const available = channels.filter(([key]) => notifications[key]);
   if (!available.length) return null;
   return (

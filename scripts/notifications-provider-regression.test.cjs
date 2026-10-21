@@ -230,3 +230,75 @@ test('invalid content, recipient headers and empty event keys fail before provid
   assert.equal((await provider.sendOrderNotificationMessage(fixture({ to: 'customer@example.com,attacker@example.com' }))).status, 'skipped');
   assert.equal(calls, 0);
 });
+
+
+const kakaoEnv = {
+  SOLAPI_API_KEY: 'test-kakao-key', SOLAPI_API_SECRET: 'test-kakao-secret', SOLAPI_KAKAO_PF_ID: 'test-profile',
+  SOLAPI_KAKAO_ORDER_RECEIVED_TEMPLATE_ID: 'test-order-template', SOLAPI_KAKAO_PAYMENT_CONFIRMED_TEMPLATE_ID: 'test-paid-template',
+  SOLAPI_KAKAO_SHIPPING_STARTED_TEMPLATE_ID: 'test-shipping-template', ORDER_CUSTOMER_MESSAGE_CHANNEL: 'alimtalk',
+};
+function kakaoFixture(event = 'order_received') {
+  return fixture({ channel: 'customerKakao', to: '+82 10-1234-5678',
+    alimtalk: { event, variables: { '#{고객명}': '테스트', '#{주문번호}': 'TEST-ORDER' } } });
+}
+
+test('Kakao requests are signed ATA with exact template/variables and SMS replacement explicitly disabled', async () => {
+  const calls = [];
+  const subject = load(kakaoEnv, async (url, options) => { calls.push({ url, options });
+    return json({ failedMessageList: [], messageList: [{ messageId: 'kakao-1', statusCode: '2000' }] }); });
+  const health = subject.getNotificationConfigHealth();
+  assert.equal(health.customerKakao, true);
+  assert.equal(health.customerMessageChannel, 'alimtalk');
+  assert.equal(health.customerSms, false, 'Kakao needs no registered SMS sender');
+  const result = await subject.sendOrderNotificationMessage(kakaoFixture());
+  assert.equal(result.status, 'sent');
+  assert.equal(result.provider, 'solapi_alimtalk');
+  const { options } = calls[0];
+  const body = JSON.parse(options.body);
+  assert.equal(body.messages.length, 1);
+  const message = body.messages[0];
+  assert.equal(message.type, 'ATA');
+  assert.equal(message.to, '01012345678');
+  assert.equal(message.from, undefined);
+  assert.equal(message.kakaoOptions.disableSms, true);
+  assert.equal(message.kakaoOptions.pfId, kakaoEnv.SOLAPI_KAKAO_PF_ID);
+  assert.equal(message.kakaoOptions.templateId, kakaoEnv.SOLAPI_KAKAO_ORDER_RECEIVED_TEMPLATE_ID);
+  assert.deepEqual(message.kakaoOptions.variables, kakaoFixture().alimtalk.variables);
+  const auth = options.headers.Authorization.match(/^HMAC-SHA256 apiKey=([^,]+), date=([^,]+), salt=([^,]+), signature=(.+)$/);
+  assert.equal(auth[4], crypto.createHmac('sha256', kakaoEnv.SOLAPI_API_SECRET).update(auth[2] + auth[3]).digest('hex'));
+  assert.ok(!options.body.includes(kakaoEnv.SOLAPI_API_SECRET));
+  assert.equal(body.strict, true);
+  assert.equal(body.allowDuplicates, false);
+});
+
+test('each event selects its own template and missing approved templates never reuse a paid template', async () => {
+  for (const [event, id] of [['order_received', 'test-order-template'], ['payment_confirmed', 'test-paid-template'], ['shipping_started', 'test-shipping-template']]) {
+    const subject = load(kakaoEnv, async (_url, options) => {
+      assert.equal(JSON.parse(options.body).messages[0].kakaoOptions.templateId, id);
+      return json({ failedMessageList: [], messageList: [{ messageId: 'accepted', statusCode: '2000' }] });
+    });
+    assert.equal((await subject.sendOrderNotificationMessage(kakaoFixture(event))).status, 'sent');
+  }
+  const subject = load({ ...kakaoEnv, SOLAPI_KAKAO_ORDER_RECEIVED_TEMPLATE_ID: '' });
+  assert.equal((await subject.sendOrderNotificationMessage(kakaoFixture())).status, 'not_configured');
+});
+
+test('Kakao timeout and 5xx are ambiguous and perform one attempt; rejected registration is a failure', async () => {
+  for (const response of [null, json({}, 503), json({ failedMessageList: [{ statusCode: '1042' }] })]) {
+    let calls = 0;
+    const result = await load(kakaoEnv, async () => { calls++; if (!response) throw new Error('private network detail'); return response; })
+      .sendOrderNotificationMessage(kakaoFixture());
+    assert.equal(calls, 1);
+    assert.equal(result.status, response && response.status === 200 ? 'failed' : 'unknown');
+    assert.ok(!JSON.stringify(result).includes('private network detail'));
+  }
+});
+
+test('invalid recipient, empty variables and oversized Kakao copy never reach the provider', async () => {
+  const subject = load(kakaoEnv);
+  for (const message of [
+    { ...kakaoFixture(), to: 'invalid phone' },
+    { ...kakaoFixture(), text: '가'.repeat(1001) },
+    { ...kakaoFixture(), alimtalk: { event: 'order_received', variables: { '#{고객명}': '' } } },
+  ]) assert.ok(['failed', 'skipped'].includes((await subject.sendOrderNotificationMessage(message)).status));
+});

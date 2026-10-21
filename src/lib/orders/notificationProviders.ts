@@ -2,14 +2,14 @@ import 'server-only';
 
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 
-export type OrderNotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms';
+export type OrderNotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms' | 'customerKakao';
 export type OrderNotificationResult = {
   // "queued" waits for the paired phone; "sent" is provider acceptance only.
   // Neither status proves that a customer's handset received the message.
   status: 'queued' | 'claimed' | 'submitted' | 'stale' | 'sent' | 'failed' | 'not_configured' | 'skipped' | 'unknown';
   providerId?: string;
   errorCode?: string;
-  provider?: 'phone_relay';
+  provider?: 'phone_relay' | 'solapi_alimtalk';
 };
 export type OrderNotificationMessage = {
   channel: OrderNotificationChannel;
@@ -18,10 +18,14 @@ export type OrderNotificationMessage = {
   subject: string;
   text: string;
   replyTo?: string;
+  alimtalk?: { event: 'order_received' | 'payment_confirmed' | 'shipping_started'; variables: Record<string, string> };
 };
 export type OrderNotificationConfigHealth = {
   adminEmail: boolean;
   customerEmail: boolean;
+  customerKakao: boolean;
+  customerMessageChannel: 'alimtalk' | 'sms';
+  alimtalkTemplates: { order_received: boolean; payment_confirmed: boolean; shipping_started: boolean };
   customerSms: boolean;
   adminSms: boolean;
   adminPhone: string | null;
@@ -76,6 +80,7 @@ function config() {
     adminEmail: env('ORDER_NOTIFICATION_EMAIL') || DEFAULT_ADMIN_EMAIL,
     solapiKey: env('SOLAPI_API_KEY'),
     solapiSecret: env('SOLAPI_API_SECRET'),
+    kakaoPfId: env('SOLAPI_KAKAO_PF_ID'),
     senderPhone: koreanMobile(env('SMS_SENDER_PHONE')),
     adminPhone: koreanMobile(env('ADMIN_NOTIFICATION_PHONE')),
   };
@@ -89,6 +94,14 @@ export function getNotificationConfigHealth(): OrderNotificationConfigHealth {
   return {
     adminEmail: emailReady && isEmail(settings.adminEmail),
     customerEmail: emailReady && settings.customSender,
+    customerMessageChannel: env('ORDER_CUSTOMER_MESSAGE_CHANNEL') === 'alimtalk' ? 'alimtalk' : 'sms',
+    customerKakao: Boolean(settings.solapiKey && settings.solapiSecret && settings.kakaoPfId
+      && env('SOLAPI_KAKAO_ORDER_RECEIVED_TEMPLATE_ID') && env('SOLAPI_KAKAO_PAYMENT_CONFIRMED_TEMPLATE_ID')),
+    alimtalkTemplates: {
+      order_received: Boolean(env('SOLAPI_KAKAO_ORDER_RECEIVED_TEMPLATE_ID')),
+      payment_confirmed: Boolean(env('SOLAPI_KAKAO_PAYMENT_CONFIRMED_TEMPLATE_ID')),
+      shipping_started: Boolean(env('SOLAPI_KAKAO_SHIPPING_STARTED_TEMPLATE_ID')),
+    },
     customerSms: smsReady,
     adminSms: smsReady && Boolean(settings.adminPhone),
     adminPhone: maskedPhone(settings.adminPhone),
@@ -195,37 +208,56 @@ async function sendSms(message: OrderNotificationMessage): Promise<OrderNotifica
   if (Buffer.byteLength(message.text, 'utf8') > 2_000 || /[\uD800-\uDFFF]/.test(message.text)) {
     return { status: 'failed', errorCode: 'INVALID_SMS_CONTENT' };
   }
+  return sendSolapiMessage({
+    to, from: settings.senderPhone, text: message.text, type: 'LMS',
+    subject: 'ENICO VECK',
+    customFields: { notificationId: createHash('sha256').update(message.eventKey).digest('hex') },
+  });
+}
+
+async function sendAlimtalk(message: OrderNotificationMessage): Promise<OrderNotificationResult> {
+  const settings = config();
+  const templates = {
+    order_received: env('SOLAPI_KAKAO_ORDER_RECEIVED_TEMPLATE_ID'),
+    payment_confirmed: env('SOLAPI_KAKAO_PAYMENT_CONFIRMED_TEMPLATE_ID'),
+    shipping_started: env('SOLAPI_KAKAO_SHIPPING_STARTED_TEMPLATE_ID'),
+  };
+  const content = message.alimtalk;
+  if (!content) return { status: 'skipped', errorCode: 'ALIMTALK_EVENT_UNSUPPORTED' };
+  const templateId = templates[content.event];
+  if (!settings.solapiKey || !settings.solapiSecret || !settings.kakaoPfId || !templateId) {
+    return { status: 'not_configured', errorCode: 'ALIMTALK_NOT_CONFIGURED' };
+  }
+  const to = koreanMobile(message.to);
+  if (!to) return { status: 'skipped', errorCode: 'INVALID_RECIPIENT_PHONE' };
+  if ([...message.text].length > 1000 || Object.entries(content.variables).some(([key, value]) =>
+    !/^#\{[^{}]+\}$/.test(key) || typeof value !== 'string' || !value.trim())) {
+    return { status: 'failed', errorCode: 'INVALID_ALIMTALK_CONTENT' };
+  }
+  const result = await sendSolapiMessage({
+    to, type: 'ATA', text: message.text,
+    kakaoOptions: { pfId: settings.kakaoPfId, templateId, variables: content.variables, disableSms: true },
+    customFields: { notificationId: createHash('sha256').update(message.eventKey).digest('hex') },
+  });
+  return { ...result, provider: 'solapi_alimtalk' };
+}
+
+async function sendSolapiMessage(payload: Record<string, unknown>): Promise<OrderNotificationResult> {
+  const settings = config();
   const date = new Date().toISOString();
   const salt = randomBytes(24).toString('hex');
   const signature = createHmac('sha256', settings.solapiSecret).update(date + salt).digest('hex');
   try {
-    // SOLAPI does not document request-level idempotency for this endpoint.
-    // The caller's durable claim prevents duplicate HTTP requests; this
-    // allowDuplicates flag only deduplicates recipients inside this group.
+    // Exactly one HTTP request. Durable channel claims own idempotency; this
+    // endpoint's allowDuplicates flag only deduplicates recipients in a group.
     const response = await fetch(SOLAPI_ENDPOINT, {
-      method: 'POST',
-      redirect: 'error',
-      cache: 'no-store',
+      method: 'POST', redirect: 'error', cache: 'no-store',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
         Authorization: `HMAC-SHA256 apiKey=${settings.solapiKey}, date=${date}, salt=${salt}, signature=${signature}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        messages: [{
-          to,
-          from: settings.senderPhone,
-          text: message.text,
-          type: 'LMS',
-          // Keep the provider subject short and deterministic, without splitting
-          // multibyte characters or including untrusted header content.
-          subject: 'ENICO VECK',
-          customFields: { notificationId: createHash('sha256').update(message.eventKey).digest('hex') },
-        }],
-        strict: true,
-        allowDuplicates: false,
-        showMessageList: true,
-      }),
+      body: JSON.stringify({ messages: [payload], strict: true, allowDuplicates: false, showMessageList: true }),
     });
     if (!response.ok) return httpFailure('SOLAPI', response.status);
     const body = record(await response.json().catch(() => null));
@@ -267,6 +299,7 @@ export async function sendOrderNotificationMessage(message: OrderNotificationMes
     return { status: 'failed', errorCode: 'INVALID_NOTIFICATION_CONTENT' };
   }
   if (message.channel === 'adminEmail' || message.channel === 'customerEmail') return sendEmail(message);
+  if (message.channel === 'customerKakao') return sendAlimtalk(message);
   if (message.channel === 'customerSms' || message.channel === 'adminSms') return sendSms(message);
   return { status: 'failed', errorCode: 'INVALID_NOTIFICATION_CHANNEL' };
 }

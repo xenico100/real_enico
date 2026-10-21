@@ -5,7 +5,7 @@ export type BankAccountDetails = {
 };
 
 export type OrderNotificationSummary = Partial<Record<
-  'customerEmail' | 'customerSms' | 'adminEmail' | 'adminSms',
+  'customerKakao' | 'customerEmail' | 'customerSms' | 'adminEmail' | 'adminSms',
   { status: string; event?: string; updatedAt?: string }
 >>;
 
@@ -46,7 +46,7 @@ export function readBankOrderReceipt(value: string | null, now = Date.now()): Ba
       return { id: item.id, name: item.name, selectedSize: typeof item.selectedSize === 'string' ? item.selectedSize : null, quantity: item.quantity, lineTotal: item.lineTotal };
     });
     const notifications: OrderNotificationSummary = {};
-    for (const key of ['customerEmail', 'customerSms', 'adminEmail', 'adminSms'] as const) {
+    for (const key of ['customerKakao', 'customerEmail', 'customerSms', 'adminEmail', 'adminSms'] as const) {
       const status = candidate.notifications?.[key]?.status;
       if (typeof status === 'string') notifications[key] = { status };
     }

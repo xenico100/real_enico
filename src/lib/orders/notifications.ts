@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buildOrderAlimtalk } from './alimtalkMessage';
 import { BANK_ACCOUNT } from './bankAccount';
 import { buildOrderNotificationMessage, type NotificationMessageOrder, type OrderNotificationEvent } from './notificationMessage';
 export type { OrderNotificationEvent } from './notificationMessage';
@@ -11,14 +12,14 @@ import { enqueuePhoneRelayMessage, getPhoneRelayHealth, getPhoneRelayOrderRevisi
 import { getPhoneRelayDeliveryMetadata, unavailablePhoneRelayDelivery, PHONE_RELAY_DELIVERY_COLUMNS,
   type PhoneRelayDeliveryMetadata, type PhoneRelayDeliveryRow } from './phoneRelayDelivery';
 
-export type NotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms';
+export type NotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms' | 'customerKakao';
 type ChannelRecord = Omit<OrderNotificationResult, 'status'> & Partial<Omit<PhoneRelayDeliveryMetadata, 'status'>> & {
   status: OrderNotificationResult['status'] | 'sending'; attemptedAt?: string; attemptId?: string;
 };
 export type NotificationSummary = { event: OrderNotificationEvent; eventKey: string; createdAt: string; shipment?: { company: string | null; trackingNumber: string | null; revision: number }; channels: Partial<Record<NotificationChannel, ChannelRecord>> };
 type NotificationOrder = NotificationMessageOrder;
 const ORDER_COLUMNS = 'id,order_code,guest_order_number,channel,payment_method,payment_status,amount_total,currency,customer_name,customer_email,customer_phone,bank_name,bank_account_number,items,shipping_status,shipping_company,tracking_number,raw_payload';
-const CHANNELS: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms'];
+const CHANNELS: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms', 'customerKakao'];
 const DEFAULT_CHANNELS: NotificationChannel[] = ['customerSms', 'adminEmail', 'customerEmail', 'adminSms'];
 
 
@@ -37,8 +38,8 @@ export function getOrderNotificationHistory(raw: unknown): NotificationSummary[]
     .map(e => ({ event: e.event, eventKey: e.eventKey, createdAt: e.createdAt,
       channels: Object.fromEntries(Object.entries(e.channels || {}).filter(([key]) => CHANNELS.includes(key as NotificationChannel))
         .map(([key, record]) => [key, { status: record.status, attemptedAt: record.attemptedAt,
-          ...(key === 'customerSms' || key === 'adminSms' ? { deliveryConfirmed: false } : {}),
-          ...(record.provider === 'phone_relay' ? { provider: 'phone_relay' as const } : {}),
+          ...(key === 'customerSms' || key === 'adminSms' || key === 'customerKakao' ? { deliveryConfirmed: false } : {}),
+          ...(['phone_relay', 'solapi_alimtalk'].includes(record.provider || '') ? { provider: record.provider } : {}),
           ...(record.providerId ? { providerId: record.providerId } : {}), ...(record.errorCode ? { errorCode: record.errorCode } : {}) }])) }));
 }
 
@@ -178,7 +179,11 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
     ...(['shipping_started', 'delivered'].includes(event) ? { shipment: { company: initial.shipping_company,
       trackingNumber: initial.tracking_number, revision: getShippingNotificationRevision(initial.raw_payload) } } : {}), channels: {} };
   if (!eventApplies(initial, event)) return { ...base, channels: Object.fromEntries(CHANNELS.map(c => [c, { status: 'skipped', errorCode: 'order_state_changed' }])) };
-  const selectedChannels = [...new Set(options.channels || DEFAULT_CHANNELS)].filter(c => CHANNELS.includes(c));
+  const alimtalkMode = process.env.ORDER_CUSTOMER_MESSAGE_CHANNEL === 'alimtalk';
+  // The transport choice is explicit and sticky: missing Kakao configuration or
+  // a failed Kakao request must never silently become a phone relay/LMS send.
+  const selectedChannels = [...new Set((options.channels || DEFAULT_CHANNELS)
+    .map(c => alimtalkMode && c === 'customerSms' ? 'customerKakao' as const : c))].filter(c => CHANNELS.includes(c));
   const unresolvedPriorShipment = selectedChannels.includes('customerSms')
     && await hasUnresolvedPriorShipment(client, initial, event, eventKey);
   // Persist a customer job before the owner's wake-up email can reach Mail.
@@ -196,6 +201,12 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
       if (!eventApplies(current, event) || notificationEventKey(current, event) !== eventKey) break;
       const existing = readEvents(current.raw_payload)[eventKey] || base;
       const previous = existing.channels[channel];
+      if (channel === 'customerKakao' || channel === 'customerSms') {
+        const other = existing.channels[channel === 'customerKakao' ? 'customerSms' : 'customerKakao'];
+        // Switching providers/retrying an old event never repeats a message
+        // that was already accepted or whose outcome remains uncertain.
+        if (other && ['queued', 'claimed', 'submitted', 'stale', 'sent', 'unknown', 'sending'].includes(other.status)) break;
+      }
       // Another dispatcher may be enqueuing the phone job. Let that claimant
       // finish and send the wake-up mail; sending here could consume the email
       // idempotency claim before a durable queued job exists.
@@ -223,7 +234,16 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
     }
     let result: OrderNotificationResult = { status: 'skipped', errorCode: 'order_state_changed' };
     if (stillApplies) {
-      if (channel === 'customerSms') {
+      if (channel === 'customerKakao') {
+        const kakao = buildOrderAlimtalk(beforeSend, event);
+        try {
+          result = kakao ? await sendOrderNotificationMessage({ channel, eventKey: `${eventKey}:${channel}`, to,
+            subject: message.subject, ...kakao })
+            : { status: 'skipped', errorCode: 'ALIMTALK_EVENT_OR_CONTENT_UNAVAILABLE' };
+        } catch {
+          result = { status: 'unknown', provider: 'solapi_alimtalk', errorCode: 'notification_provider_outcome_unknown' };
+        }
+      } else if (channel === 'customerSms') {
         if (unresolvedPriorShipment) {
           result = { status: 'unknown', errorCode: 'SHIPMENT_CORRECTION_RECONCILIATION_REQUIRED' };
         } else try {
@@ -250,7 +270,7 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
       }
       // A disabled/unpaired relay explicitly yields not_configured. All other
       // queue results own this delivery and must not invoke SOLAPI as well.
-      if (result.status === 'not_configured') {
+      if (result.status === 'not_configured' && channel !== 'customerKakao') {
         try {
           result = await sendOrderNotificationMessage({ channel, eventKey: `${eventKey}:${channel}`, to,
             ...message, replyTo: isAdmin ? beforeSend.customer_email : 'morba9850@gmail.com' });

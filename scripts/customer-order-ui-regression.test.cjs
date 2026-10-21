@@ -210,3 +210,10 @@ test('order surfaces inherit existing palette and its text pairs meet WCAG AA co
   }
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'src/app/dev/order-preview/OrderPreview.module.css'), 'utf8'), /#[a-f\d]{3,8}\b/i);
 });
+
+
+test('Kakao acceptance is visibly labeled Kakao and is never presented as handset delivery', () => {
+  const markup = render(CustomerOrderNotifications, { notifications: { customerKakao: { status: 'sent', event: 'order_received' } } });
+  assert.match(markup, /카카오톡/);
+  assert.doesNotMatch(markup, /수신 완료|문자:/);
+});
