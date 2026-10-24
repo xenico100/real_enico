@@ -41,6 +41,7 @@ const { getShipmentTrackingUrl } = load('src/lib/orders/shipmentTracking.ts');
 const { CustomerOrderCard } = load('src/app/components/subculture/CustomerOrderCard.tsx');
 const { CustomerOrderNotifications } = load('src/app/components/subculture/BankTransferInstructions.tsx');
 const { CustomerOrderListState } = load('src/app/components/subculture/CustomerOrderListState.tsx');
+const { AdminReturnIntake } = load('src/app/components/subculture/AdminReturnIntake.tsx');
 const fixture = {
   id: 'fixture-order', orderCode: 'FIXTURE-1', guestOrderNumber: '', paymentMethod: 'bank_transfer', paymentStatus: 'pending_transfer', currency: 'KRW', amountTotal: 128000,
   customerAddress: 'Synthetic address', shippingStatus: 'preparing', shippingCompany: '우체국', trackingNumber: '', shippingNote: '', shippedAt: null, deliveredAt: null,
@@ -132,6 +133,58 @@ test('cancelled and refund-pending orders never animate a completed shipping flo
     const markup = render(CustomerOrderCard, { order: { ...fixture, paymentStatus, shippingStatus: 'delivered' } });
     assert.doesNotMatch(markup, /aria-label="주문 진행 단계"|직접 송금/);
   }
+});
+
+test('a delivered member order exposes a return entry without expanding details', () => {
+  const markup = render(CustomerOrderCard, { order: { ...fixture, paymentStatus: 'transfer_confirmed', shippingStatus: 'delivered',
+    returnEligibility: { eligible: true, reason: 'eligible', deadline: '2026-10-31T00:00:00Z', request: null } }, onReturn: async () => true });
+  assert.match(markup, /aria-label="반품 신청"/);
+  assert.match(markup, />반품 신청<\/button>/);
+  assert.match(markup, /배송 완료일로부터 7일 이내/);
+  assert.match(markup, /신청 기한/);
+  assert.match(markup, /aria-expanded="false"/);
+});
+
+test('returns show a saved request or support fallback and never enable guest, unpaid or shipping orders', () => {
+  const delivered = { ...fixture, paymentStatus: 'transfer_confirmed', shippingStatus: 'delivered',
+    returnEligibility: { eligible: true, reason: 'eligible', deadline: '2026-10-31T00:00:00Z', request: null } };
+  const requested = render(CustomerOrderCard, { order: { ...delivered,
+    returnEligibility: { eligible: false, reason: 'already_requested', deadline: null, request: { status: 'requested', requestedAt: '2026-10-24T00:00:00Z' } } }, onReturn: async () => true });
+  assert.match(requested, /반품 신청이 접수되었습니다/);
+  assert.doesNotMatch(requested, />반품 신청<\/button>/);
+  for (const reason of ['window_elapsed', 'delivery_time_missing']) {
+    const fallback = render(CustomerOrderCard, { order: { ...delivered, returnEligibility: { eligible: false, reason, deadline: null, request: null } }, onReturn: async () => true });
+    assert.match(fallback, /href="\/\?popup=contact"/);
+    assert.match(fallback, /반품 문의/);
+    assert.doesNotMatch(fallback, />반품 신청<\/button>/);
+  }
+  assert.doesNotMatch(render(CustomerOrderCard, { order: delivered }), /aria-label="반품 신청"/);
+  for (const order of [{ ...delivered, paymentStatus: 'pending_transfer' }, { ...delivered, shippingStatus: 'shipping' }]) {
+    assert.doesNotMatch(render(CustomerOrderCard, { order, onReturn: async () => true }), /aria-label="반품 신청"/);
+  }
+});
+
+test('admin return intake renders submitted reason safely and offers review without refund actions', () => {
+  const markup = render(AdminReturnIntake, { orders: [
+    { id: 'synthetic-intake', orderCode: 'FIXTURE-RETURN-1', guestOrderNumber: '', returnRequest: { status: 'requested', requestedAt: '2026-10-24T00:00:00Z', reason: '<script>unsafe()</script>\n봉제 상태 확인 요청' } },
+    { id: 'unrelated-order', orderCode: 'SHOULD-NOT-APPEAR', guestOrderNumber: '' },
+  ], loading: false, error: null, onReload() {}, ordersUrl: 'https://example.invalid/admin?view=orders' });
+  assert.match(markup, /FIXTURE-RETURN-1/);
+  assert.match(markup, /봉제 상태 확인 요청/);
+  assert.match(markup, /&lt;script&gt;unsafe\(\)&lt;\/script&gt;/);
+  assert.doesNotMatch(markup, /<script>|SHOULD-NOT-APPEAR/);
+  assert.match(markup, /결제 취소·환불은 진행되지 않습니다/);
+  assert.match(markup, /통합 관리자에서 주문 확인/);
+  assert.doesNotMatch(markup, />환불|>반품 승인|data-destructive/);
+});
+
+test('admin intake differentiates fetch failure, loading and no requests', () => {
+  const props = { orders: [], loading: false, error: null, onReload() {}, ordersUrl: null };
+  const error = render(AdminReturnIntake, { ...props, error: '반품 목록을 불러오지 못했습니다.' });
+  assert.match(error, /role="alert"/);
+  assert.doesNotMatch(error, /접수된 반품 신청이 없습니다/);
+  assert.match(render(AdminReturnIntake, { ...props, loading: true }), /반품 접수 내역을 확인하고 있습니다/);
+  assert.match(render(AdminReturnIntake, props), /접수된 반품 신청이 없습니다/);
 });
 
 test('real shared list states communicate loading, error retry and empty separately', () => {

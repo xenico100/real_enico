@@ -373,6 +373,15 @@
   grid-template-columns: 1fr;
   gap: 0.75rem;
 }
+.returnIntake { grid-column: 1 / -1; }
+.returnIntakeHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.returnIntakeHeader h5 { margin: 0; font-size: 15px; }
+.returnIntakeHeader button { margin-top: 0; }
+.returnIntakeHeader button:disabled { opacity: .6; cursor: wait; }
+.returnIntakeList { display: grid; gap: 16px; list-style: none; padding: 0; margin: 20px 0; }
+.returnIntakeList li { border-top: 1px solid var(--mypage-line); padding-top: 16px; }
+.returnIntakeIdentifier { font-size: 13px; overflow-wrap: anywhere; }
+.returnIntakeReason { margin-top: 10px; font-size: 12px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .overviewCard {
   display: flex;

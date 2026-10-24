@@ -23,6 +23,7 @@ const fixture: CustomerOrderCardData = {
 
 const MODES = [
   ['pending', '입금 대기'], ['confirmed', '입금 확인'], ['shipping', '배송중'], ['delivered', '배송 완료'],
+  ['return-requested', '반품 접수'], ['return-expired', '반품 기간 경과'],
   ['failed', '알림 실패'], ['cancelled', '취소'], ['unknown-carrier', '기타 택배사'], ['loading', '로딩'], ['error', '오류'], ['empty', '빈 상태'],
 ] as const;
 type PreviewMode = typeof MODES[number][0];
@@ -30,13 +31,17 @@ type PreviewMode = typeof MODES[number][0];
 function getFixture(mode: PreviewMode): CustomerOrderCardData {
   const order = { ...fixture };
   if (mode !== 'pending') order.paymentStatus = 'transfer_confirmed';
-  if (['shipping', 'delivered', 'unknown-carrier'].includes(mode)) {
-    order.shippingStatus = mode === 'delivered' ? 'delivered' : 'shipping';
+  if (['shipping', 'delivered', 'unknown-carrier', 'return-requested', 'return-expired'].includes(mode)) {
+    order.shippingStatus = ['delivered', 'return-requested', 'return-expired'].includes(mode) ? 'delivered' : 'shipping';
     order.shippedAt = '2026-01-02T00:00:00.000Z';
     order.trackingNumber = '0000000000000';
     order.notifications = { customerSms: { status: 'sent', event: 'shipping_started' } };
   }
-  if (mode === 'delivered') order.deliveredAt = '2026-01-03T00:00:00.000Z';
+  if (['delivered', 'return-requested', 'return-expired'].includes(mode)) {
+    order.deliveredAt = '2026-10-24T00:00:00.000Z';
+    order.returnEligibility = { eligible: mode === 'delivered', reason: mode === 'return-requested' ? 'already_requested' : mode === 'return-expired' ? 'window_elapsed' : 'eligible',
+      deadline: '2026-10-31T00:00:00.000Z', request: mode === 'return-requested' ? { status: 'requested', requestedAt: '2026-10-24T01:00:00.000Z' } : null };
+  }
   if (mode === 'unknown-carrier') {
     order.shippingCompany = '지원 외 택배사';
     order.trackingNumber = '0000000000001';
@@ -61,7 +66,7 @@ export function OrderPreview() {
           <h2 className={myPageStyles.contentHeading}>{referenceStatus}</h2>
           <p className={myPageStyles.meta}>{order.orderCode} · {formatCustomerOrderMoney(order.amountTotal, order.currency)} · 개인정보 없는 비교 기준</p>
         </section>
-        {mode === 'loading' || mode === 'error' || mode === 'empty' ? <CustomerOrderListState state={mode} onRetry={() => setMode('pending')} /> : <CustomerOrderCard order={order} cancelState={{ visible: true, enabled: false, title: '개발용 예시', label: 'fixture · 변경 불가', description: '개발용 예시입니다. 실제 취소나 고객 알림을 실행하지 않습니다.' }} />}
+        {mode === 'loading' || mode === 'error' || mode === 'empty' ? <CustomerOrderListState state={mode} onRetry={() => setMode('pending')} /> : <CustomerOrderCard key={mode} order={order} onReturn={async () => { setMode('return-requested'); return true; }} cancelState={{ visible: true, enabled: false, title: '개발용 예시', label: 'fixture · 변경 불가', description: '개발용 예시입니다. 실제 취소나 고객 알림을 실행하지 않습니다.' }} />}
       </div>
       <p className={styles.footnote}>실제 고객용 컴포넌트를 사용합니다. 상태 선택은 브라우저 안에서만 바뀌며 주문 API를 호출하지 않습니다.</p>
     </div>

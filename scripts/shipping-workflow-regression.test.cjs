@@ -22,7 +22,7 @@ function harness(overrides = {}, hooks = {}) {
     ...clone(overrides),
   }, writes: [], notifications: [], rpcCalls: 0 };
   const client = {
-    auth: { getUser: async () => ({ data: { user: { id: 'fixture-admin' } }, error: null }) },
+    auth: { getUser: async () => ({ data: { user: { id: hooks.userId || 'fixture-admin' } }, error: null }) },
     rpc: async () => { state.rpcCalls++; throw new Error('Unexpected RPC in shipping test'); },
     from(table) {
       assert.equal(table, 'orders');
@@ -31,6 +31,15 @@ function harness(overrides = {}, hooks = {}) {
       const query = {
         select: () => query,
         eq(key, value) { filters.push({ key, value, kind: 'eq' }); return query; },
+        neq(key, value) { filters.push({ key, value, kind: 'neq' }); return query; },
+        order() { return query; },
+        async limit() {
+          const rows = [state.row].filter(row => filters.every(({ key, value, kind }) => {
+            const actual = key === 'raw_payload->returnRequest->>status' ? row.raw_payload?.returnRequest?.status : row[key];
+            return kind === 'neq' ? actual !== value : actual === value;
+          }));
+          return { data: clone(rows), error: null };
+        },
         is(key, value) { filters.push({ key, value, kind: 'is' }); return query; },
         async maybeSingle() {
           if (hooks.readError && !update) return { data: null, error: { message: 'SECRET_DB_ERROR', code: 'XX999' } };
@@ -94,6 +103,25 @@ function harness(overrides = {}, hooks = {}) {
 }
 const tracking = { shippingCompany: '우체국', trackingNumber: '1234567890123' };
 const shipped = { shipping_status: 'shipping', shipping_company: '우체국', tracking_number: '1234567890123', shipped_at: '2026-10-01T00:00:00.000Z' };
+
+test('only authenticated admin can read pending return intake with an allowlisted request', async () => {
+  const h = harness({ raw_payload: { secretProviderData: 'PRIVATE_PAYLOAD', returnRequest: {
+    status: 'requested', requestedAt: '2026-10-24T00:00:00Z', reason: 'Synthetic return reason', requestedByUserId: 'PRIVATE_USER',
+  } } });
+  const route = h.load('src/app/api/admin/orders/route.ts');
+  assert.equal((await route.GET(new Request('http://localhost/api/admin/orders?returns=1'))).status, 401);
+  const foreign = harness({}, { userId: 'fixture-customer' }).load('src/app/api/admin/orders/route.ts');
+  assert.equal((await foreign.GET(new Request('http://localhost/api/admin/orders?returns=1', { headers: { authorization: 'Bearer fixture' } }))).status, 403);
+  const response = await route.GET(new Request('http://localhost/api/admin/orders?returns=1', { headers: { authorization: 'Bearer fixture' } }));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.orders[0].returnRequest, { status: 'requested', requestedAt: '2026-10-24T00:00:00Z', reason: 'Synthetic return reason' });
+  assert.doesNotMatch(JSON.stringify(body), /PRIVATE_/);
+  h.state.row.raw_payload.returnRequest.status = 'completed';
+  assert.equal((await (await route.GET(new Request('http://localhost/api/admin/orders?returns=1', { headers: { authorization: 'Bearer fixture' } }))).json()).orders.length, 0);
+  assert.equal(h.state.writes.length, 0);
+  assert.equal(h.state.notifications.length, 0);
+});
 
 test('shipping advances explicitly, records history, and preserves first shipment/delivery times', async () => {
   const h = harness();

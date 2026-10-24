@@ -7,6 +7,7 @@ import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { dispatchOrderNotifications, getCurrentOrderNotificationEvent, getOrderNotificationHistory, getOrderNotificationSummary, projectPhoneRelayOrderNotifications, type NotificationChannel, type OrderNotificationEvent } from '@/lib/orders/notifications';
 import { getOrderBankAccount } from '@/lib/orders/bankAccount';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
+import { getAdminReturnRequest } from '@/lib/orders/returnPolicy';
 import { getShippingHistory, prepareShippingUpdate } from '@/lib/orders/shippingWorkflow';
 
 const DEFAULT_SHIPPING_COMPANY = '우체국';
@@ -170,6 +171,7 @@ function mapOrderRow(row: OrderRow) {
     notifications: getOrderNotificationSummary(row.raw_payload),
     notificationHistory: getOrderNotificationHistory(row.raw_payload),
     shippingHistory: getShippingHistory(row.raw_payload),
+    returnRequest: getAdminReturnRequest(row.raw_payload),
     bankName: normalizeText(row.bank_name),
     bankAccountNumber: normalizeText(row.bank_account_number),
     paypalOrderId: normalizeText(row.paypal_order_id),
@@ -365,12 +367,11 @@ export async function GET(request: Request) {
     ? Math.max(1, Math.min(500, Math.floor(limitParam)))
     : 200;
 
-  const { data, error } = await auth.serviceClient
-    .from('orders')
-    .select(ORDER_SELECT)
-    .neq('payment_status', 'pending_payment')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  const returnsOnly = url.searchParams.get('returns') === '1';
+  let query = auth.serviceClient.from('orders').select(ORDER_SELECT)
+    .neq('payment_status', 'pending_payment');
+  if (returnsOnly) query = query.eq('raw_payload->returnRequest->>status', 'requested');
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(limit);
 
   if (error) {
     if (error.code === '42P01') {

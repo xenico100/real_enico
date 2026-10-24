@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getReturnEligibility } from '@/lib/orders/returnPolicy';
 import { isVerifiedMember, literalEmailPattern } from '@/lib/security/identity';
 import { NextResponse } from 'next/server';
 import { extractPaymentReceiptUrl } from '@/lib/orders/rawPayload';
@@ -154,6 +155,7 @@ async function getOrders(request: Request) {
     shippingNote: normalizeText(row.shipping_note),
     shippedAt: row.shipped_at,
     deliveredAt: row.delivered_at,
+    returnEligibility: getReturnEligibility(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));

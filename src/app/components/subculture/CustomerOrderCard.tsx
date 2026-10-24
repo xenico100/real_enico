@@ -1,12 +1,14 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useId, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowUpRight, Check, ChevronDown, Copy, Package } from 'lucide-react';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import { BANK_ACCOUNT } from '@/lib/orders/bankAccount';
 import { getShipmentTrackingUrl } from '@/lib/orders/shipmentTracking';
+import type { ReturnEligibility } from '@/lib/orders/returnPolicy';
 import {
   formatCustomerOrderDate, formatCustomerOrderMoney, getCustomerOrderProgress,
   getCustomerPaymentLabel, type CustomerOrderItem,
@@ -36,23 +38,30 @@ export type CustomerOrderCardData = {
   deliveredAt: string | null;
   createdAt: string | null;
   paymentReceiptUrl?: string;
+  returnEligibility?: ReturnEligibility;
 };
 
 type CancelState = { visible: boolean; enabled: boolean; title: string; label: string; description: string };
 const STEPS = ['결제 확인', '배송 준비', '배송중', '배송 완료'];
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling = false, onCancel }: {
+export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling = false, onCancel, isRequestingReturn = false, onReturn }: {
   order: CustomerOrderCardData;
   index?: number;
   cancelState?: CancelState;
   isCancelling?: boolean;
   onCancel?: () => void;
+  isRequestingReturn?: boolean;
+  onReturn?: (reason: string) => Promise<boolean>;
 }) {
   const [expanded, setExpanded] = useState(() => Boolean(order.shippingNote.trim()));
   const [copyStatus, setCopyStatus] = useState<{ trackingNumber: string; message: string } | null>(null);
+  const [returnFormOpen, setReturnFormOpen] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
   const reducedMotion = useReducedMotion();
   const detailsId = useId();
+  const returnReasonId = useId();
+  const returnFormId = useId();
   const progress = getCustomerOrderProgress(order);
   const identifier = order.orderCode || order.guestOrderNumber || order.id;
   const isPendingTransfer = order.paymentMethod === 'bank_transfer' && order.paymentStatus === 'pending_transfer';
@@ -138,6 +147,31 @@ export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling 
 
       {isPendingTransfer && <div className={styles.bank}><BankTransferInstructions tone="brand" bankAccount={order.bankAccount || { ...BANK_ACCOUNT, bankName: order.bankName || BANK_ACCOUNT.bankName, accountNumber: order.bankAccountNumber || BANK_ACCOUNT.accountNumber }} amount={order.amountTotal} /></div>}
       {hasCustomerNotifications && <div className={styles.notifications}><CustomerOrderNotifications tone="brand" notifications={order.notifications} /></div>}
+
+      {onReturn && order.returnEligibility && progress.paid && order.shippingStatus === 'delivered' && <section className={styles.returns} aria-label="반품 신청">
+        <h3 className={styles.returnTitle}>반품</h3>
+        {order.returnEligibility.request ? <div role="status">
+          <p>반품 신청이 접수되었습니다.</p>
+          <p>접수일 {formatCustomerOrderDate(order.returnEligibility.request.requestedAt, true)} · 담당자 확인 후 안내해 드립니다.</p>
+        </div> : order.returnEligibility.eligible ? <>
+          <p>배송 완료일로부터 7일 이내 반품을 신청할 수 있습니다. 접수 후 반품 가능 여부와 절차를 안내해 드립니다.</p>
+          {order.returnEligibility.deadline && <p>신청 기한 {formatCustomerOrderDate(order.returnEligibility.deadline, true)}</p>}
+          <button type="button" className={styles.action} aria-expanded={returnFormOpen} aria-controls={returnFormId} disabled={isRequestingReturn} onClick={() => setReturnFormOpen(value => !value)}>반품 신청</button>
+          {returnFormOpen && <form id={returnFormId} className={styles.returnForm} onSubmit={async event => {
+            event.preventDefault();
+            if (!returnReason.trim() || isRequestingReturn) return;
+            if (await onReturn(returnReason.trim())) { setReturnFormOpen(false); setReturnReason(''); }
+          }}>
+            <label htmlFor={returnReasonId}>반품 사유</label>
+            <textarea id={returnReasonId} value={returnReason} onChange={event => setReturnReason(event.target.value)} required maxLength={1000} rows={4} disabled={isRequestingReturn} placeholder="반품 사유와 상품 상태를 알려 주세요." />
+            <p>신청만 접수되며, 결제 취소나 환불은 바로 진행되지 않습니다. 안내를 받기 전 상품을 보내지 마세요.</p>
+            <button type="submit" className={styles.action} disabled={isRequestingReturn || !returnReason.trim()}>{isRequestingReturn ? '접수중...' : '반품 신청 접수'}</button>
+          </form>}
+        </> : <>
+          <p>{order.returnEligibility.reason === 'window_elapsed' ? '온라인 반품 신청 기간이 지났습니다.' : '배송 완료일 확인이 필요합니다.'} 상품 하자·오배송 등 반품 상담은 고객센터로 문의해 주세요.</p>
+          <Link className={styles.action} href="/?popup=contact">반품 문의</Link>
+        </>}
+      </section>}
 
       <button type="button" className={styles.expand} aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(value => !value)}>
         배송 정보 · 주문 상세

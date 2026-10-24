@@ -22,7 +22,9 @@ import { AccountAuthPanel } from './AccountAuthPanel';
 import { type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
 import { CustomerOrderCard } from './CustomerOrderCard';
 import { CustomerOrderListState } from './CustomerOrderListState';
+import { AdminReturnIntake, type AdminReturnOrder } from './AdminReturnIntake';
 import { getCustomerOrderProgress } from '@/lib/orders/customerOrderPresentation';
+import type { ReturnEligibility } from '@/lib/orders/returnPolicy';
 import { trackStorefrontEvent } from '@/app/components/system/VisitTracker';
 import styles from './MyPagePanel.module.css';
 
@@ -174,6 +176,7 @@ type OrderRecord = {
   deliveredAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  returnEligibility?: ReturnEligibility;
 };
 
 type AdminOrderRecord = OrderRecord;
@@ -728,6 +731,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const memberOrdersRequestIdRef = useRef(0);
   const memberOrdersAbortControllerRef = useRef<AbortController | null>(null);
   const memberOrderMutationIdRef = useRef(0);
+  const memberReturnMutationIdRef = useRef(0);
+  const memberReturnInFlightRef = useRef(false);
+  const adminReturnRequestIdRef = useRef(0);
   const [activeTab, setActiveTab] = useState<MyPageTab>(() => normalizeInitialTab(initialTab));
   useEffect(() => {
     if (!initialTab) return;
@@ -761,6 +767,9 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const [storedCancellingMemberOrderId, setCancellingMemberOrderId] = useState<string | null>(
     null,
   );
+  const [storedRequestingReturnOrderId, setRequestingReturnOrderId] = useState<string | null>(null);
+  const [adminReturnReloadKey, setAdminReturnReloadKey] = useState(0);
+  const [adminReturnState, setAdminReturnState] = useState<{ userId: string; orders: AdminReturnOrder[]; loading: boolean; error: string | null }>({ userId: '', orders: [], loading: false, error: null });
   const [adminOrders, setAdminOrders] = useState<AdminOrderRecord[]>([]);
   const [adminOrderDrafts, setAdminOrderDrafts] = useState<Record<string, AdminOrderDraft>>({});
   const [adminOrdersLoaded, setAdminOrdersLoaded] = useState(false);
@@ -789,6 +798,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const cancellingMemberOrderId = isMemberOrderStateCurrent
     ? storedCancellingMemberOrderId
     : null;
+  const requestingReturnOrderId = isMemberOrderStateCurrent ? storedRequestingReturnOrderId : null;
   const capabilities = adminAccess.userId === user?.id
       ? adminAccess.capabilities
       : EMPTY_ADMIN_CAPABILITIES;
@@ -840,6 +850,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   useEffect(() => {
     memberOrdersRequestIdRef.current += 1;
     memberOrderMutationIdRef.current += 1;
+    memberReturnMutationIdRef.current += 1;
+    memberReturnInFlightRef.current = false;
     memberOrdersAbortControllerRef.current?.abort();
     memberOrdersAbortControllerRef.current = null;
 
@@ -851,10 +863,13 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     setMemberOrderMessage(null);
     setMemberOrderError(null);
     setCancellingMemberOrderId(null);
+    setRequestingReturnOrderId(null);
 
     return () => {
       memberOrdersRequestIdRef.current += 1;
       memberOrderMutationIdRef.current += 1;
+      memberReturnMutationIdRef.current += 1;
+      memberReturnInFlightRef.current = false;
       memberOrdersAbortControllerRef.current?.abort();
       memberOrdersAbortControllerRef.current = null;
     };
@@ -932,6 +947,30 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
       controller.abort();
     };
   }, [adminAccessRetryKey, currentUserId, session?.access_token]);
+
+  useEffect(() => {
+    const requestId = ++adminReturnRequestIdRef.current;
+    const accessToken = session?.access_token || '';
+    if (!currentUserId || !accessToken || !canManageOrders || activeTab !== 'overview') return;
+    const controller = new AbortController();
+    setAdminReturnState(previous => ({ userId: currentUserId, orders: previous.userId === currentUserId ? previous.orders : [], loading: true, error: null }));
+    const loadReturns = async () => {
+      try {
+        const response = await fetch('/api/admin/orders?returns=1&limit=500', {
+          headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store', signal: controller.signal,
+        });
+        const payload = await response.json() as { orders?: AdminReturnOrder[]; message?: string };
+        if (controller.signal.aborted || adminReturnRequestIdRef.current !== requestId) return;
+        if (!response.ok) throw new Error(payload.message || '반품 접수 내역을 불러오지 못했습니다.');
+        setAdminReturnState({ userId: currentUserId, orders: Array.isArray(payload.orders) ? payload.orders : [], loading: false, error: null });
+      } catch (error) {
+        if (controller.signal.aborted || adminReturnRequestIdRef.current !== requestId) return;
+        setAdminReturnState({ userId: currentUserId, orders: [], loading: false, error: error instanceof Error ? error.message : '반품 접수 내역을 불러오지 못했습니다.' });
+      }
+    };
+    void loadReturns();
+    return () => { controller.abort(); adminReturnRequestIdRef.current += 1; };
+  }, [activeTab, adminReturnReloadKey, canManageOrders, currentUserId, session?.access_token]);
 
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const adminOrderViewCounts = useMemo(
@@ -1462,6 +1501,41 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
     }
   };
 
+  const handleReturnMemberOrder = async (order: MemberOrderRecord, reason: string) => {
+    const accessToken = session?.access_token || '';
+    if (!currentUserId || !accessToken || memberReturnInFlightRef.current || !order.returnEligibility?.eligible) return false;
+    const mutationId = memberReturnMutationIdRef.current + 1;
+    memberReturnMutationIdRef.current = mutationId;
+    memberReturnInFlightRef.current = true;
+    resetMemberOrderMessages();
+    setRequestingReturnOrderId(order.id);
+    try {
+      const response = await fetch('/api/orders/my/return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ id: order.id, reason }),
+      });
+      const payload = await response.json() as { message?: string; returnEligibility?: ReturnEligibility };
+      if (memberReturnMutationIdRef.current !== mutationId) return false;
+      if (payload.returnEligibility && (response.ok || response.status === 409)) setMemberOrders(previous => previous.map(target => target.id === order.id
+        ? { ...target, returnEligibility: payload.returnEligibility } : target));
+      if (!response.ok) throw new Error(payload.message || '반품 신청을 접수하지 못했습니다.');
+      const refreshed = await loadMemberOrders();
+      if (memberReturnMutationIdRef.current !== mutationId) return false;
+      setMemberOrderMessage(payload.message || '반품 신청이 접수되었습니다. 담당자 확인 후 안내해 드립니다.');
+      if (!refreshed) setMemberOrderError('반품 신청은 접수되었습니다. 최신 주문 내역을 다시 불러와 주세요.');
+      return true;
+    } catch (error) {
+      if (memberReturnMutationIdRef.current === mutationId) setMemberOrderError(error instanceof Error ? error.message : '반품 신청을 접수하지 못했습니다.');
+      return false;
+    } finally {
+      if (memberReturnMutationIdRef.current === mutationId) {
+        memberReturnInFlightRef.current = false;
+        setRequestingReturnOrderId(null);
+      }
+    }
+  };
+
   const handleCancelAdminOrder = async (order: AdminOrderRecord) => {
     if (!canManageOrders) return;
     if (!session?.access_token) return;
@@ -1644,6 +1718,13 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
   const tabContent: Record<MyPageTab, ReactNode> = {
     overview: (
       <div className={styles.overviewGrid}>
+        {canManageOrders && <AdminReturnIntake
+          orders={adminReturnState.userId === currentUserId ? adminReturnState.orders : []}
+          loading={adminReturnState.userId !== currentUserId || adminReturnState.loading}
+          error={adminReturnState.userId === currentUserId ? adminReturnState.error : null}
+          onReload={() => setAdminReturnReloadKey(key => key + 1)}
+          ordersUrl={getUnifiedAdminUrl('enico', 'orders')}
+        />}
         <article className={styles.overviewCard}>
           <p className={styles.overviewKicker}>Account</p>
           <p className={styles.overviewValue}>{userDisplayName}</p>
@@ -1712,7 +1793,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
         <div className="rounded-[8px] border-2 border-[#d7dce4] bg-[linear-gradient(180deg,#181a1d_0%,#111214_100%)] p-5 shadow-[0_0_0_1px_rgba(236,240,245,0.16)]">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#c7ced8]">내 주문 / 배송조회</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[#c7ced8]">내 주문 / 배송조회 · 반품</p>
             </div>
             <button
               type="button"
@@ -1753,6 +1834,8 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                 cancelState={getMemberOrderCancelState(order)}
                 isCancelling={cancellingMemberOrderId === order.id}
                 onCancel={() => void handleCancelMemberOrder(order)}
+                isRequestingReturn={requestingReturnOrderId === order.id}
+                onReturn={reason => handleReturnMemberOrder(order, reason)}
               />
             ))}
           </div>
