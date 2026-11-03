@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { Skeleton } from 'skullet/react';
 import { useAuth } from '@/app/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { BankTransferInstructions, CustomerOrderNotifications, type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
@@ -734,54 +735,81 @@ export function AccountAuthPanel({ initialTab = 'login' }: { initialTab?: AuthTa
             </div>
           )}
 
-          {lookupOrder && (
-            <div className="space-y-3 border border-[#b8001f]/40 bg-[#fff1f2] p-4 rounded-xl">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-bold text-[#b8001f] uppercase tracking-widest">
-                  비회원 주문 조회 결과
-                </p>
-                <p className="text-[11px] font-semibold text-[#881337] break-all">{lookupOrder.orderCode || lookupOrder.guestOrderNumber}</p>
-              </div>
-              <div className="border border-[#d1d5db] bg-white p-3 rounded-lg text-sm font-bold text-[#111827]">결제 상태: {getPaymentStatusLabel(lookupOrder.paymentStatus)}</div>
-              {lookupOrder.items && lookupOrder.items.length > 0 && <ul className="space-y-2 rounded-lg border border-[#d1d5db] bg-white p-3 text-sm text-[#111827]">{lookupOrder.items.map((item, index) => <li key={`${item.id}-${index}`}>{item.name}{item.selectedSize ? ` / ${item.selectedSize}` : ''} × {item.quantity}</li>)}</ul>}
-              {lookupOrder.paymentMethod === 'bank_transfer' && lookupOrder.paymentStatus === 'pending_transfer' && <BankTransferInstructions bankAccount={lookupOrder.bankAccount} amount={lookupOrder.amountTotal} />}
-              {lookupOrder.paymentStatus === 'pending_transfer' && <CustomerOrderNotifications notifications={lookupOrder.notifications} />}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
-                  <p className="text-[#6b7280] font-bold mb-1">배송 상태</p>
-                  <p className="text-[#111827] font-semibold">
-                    {lookupOrder.paymentStatus === 'pending_transfer' ? '입금 확인 후 준비' : lookupOrder.paymentStatus === 'cancelled' ? '주문 취소' : getShippingStatusLabel(lookupOrder.shippingStatus)}
-                  </p>
+          {(isLookupLoading || lookupOrder) && (() => {
+            const activeLookup: GuestLookupOrder = lookupOrder ?? {
+              orderCode: 'ENV-20261103-0184',
+              guestOrderNumber: 'ENV-20261103-0184',
+              paymentMethod: 'nicepay',
+              paymentStatus: 'paid',
+              amountTotal: 228000,
+              customerName: '주문자',
+              customerEmail: '',
+              customerPhone: '010-0000-0000',
+              customerAddress: '배송지 확인 중',
+              shippingStatus: 'shipping',
+              shippingCompany: '우체국',
+              trackingNumber: '6864100000000',
+              shippingNote: '안전하게 출고 준비 및 이동 중입니다.',
+              shippedAt: '2026-11-03T01:00:00.000Z',
+              deliveredAt: null,
+              createdAt: '2026-11-02T14:20:00.000Z',
+              items: [{ id: 'skullet-guest-item', name: 'Archive Structured Jacket', quantity: 1, selectedSize: 'L' }],
+            };
+            return (
+              <Skeleton
+                id="guest-order-lookup-result"
+                loading={isLookupLoading}
+                label="비회원 주문 내역을 조회하고 있습니다."
+              >
+                <div className="space-y-3 border border-[#b8001f]/40 bg-[#fff1f2] p-4 rounded-xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold text-[#b8001f] uppercase tracking-widest">
+                      비회원 주문 조회 결과
+                    </p>
+                    <p className="text-[11px] font-semibold text-[#881337] break-all">{activeLookup.orderCode || activeLookup.guestOrderNumber}</p>
+                  </div>
+                  <div className="border border-[#d1d5db] bg-white p-3 rounded-lg text-sm font-bold text-[#111827]">결제 상태: {getPaymentStatusLabel(activeLookup.paymentStatus)}</div>
+                  {activeLookup.items && activeLookup.items.length > 0 && <ul className="space-y-2 rounded-lg border border-[#d1d5db] bg-white p-3 text-sm text-[#111827]">{activeLookup.items.map((item, index) => <li key={`${item.id}-${index}`}>{item.name}{item.selectedSize ? ` / ${item.selectedSize}` : ''} × {item.quantity}</li>)}</ul>}
+                  {activeLookup.paymentMethod === 'bank_transfer' && activeLookup.paymentStatus === 'pending_transfer' && <BankTransferInstructions bankAccount={activeLookup.bankAccount} amount={activeLookup.amountTotal} />}
+                  {activeLookup.paymentStatus === 'pending_transfer' && <CustomerOrderNotifications notifications={activeLookup.notifications} />}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                    <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-[#6b7280] font-bold mb-1">배송 상태</p>
+                      <p className="text-[#111827] font-semibold">
+                        {activeLookup.paymentStatus === 'pending_transfer' ? '입금 확인 후 준비' : activeLookup.paymentStatus === 'cancelled' ? '주문 취소' : getShippingStatusLabel(activeLookup.shippingStatus)}
+                      </p>
+                    </div>
+                    <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-[#6b7280] font-bold mb-1">주문 금액</p>
+                      <p className="text-[#111827] font-semibold">{formatKrw(activeLookup.amountTotal || 0)}</p>
+                    </div>
+                    <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-[#6b7280] font-bold mb-1">택배사</p>
+                      <p className="text-[#111827] font-semibold">{activeLookup.shippingCompany || '-'}</p>
+                    </div>
+                    <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-[#6b7280] font-bold mb-1">운송장번호</p>
+                      <p className="text-[#111827] font-semibold break-all">{activeLookup.trackingNumber || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="border border-[#d1d5db] bg-white p-3 text-xs rounded-lg shadow-sm">
+                    <p className="text-[#6b7280] font-bold mb-1">배송 메모</p>
+                    <p className="text-[#111827] font-semibold">{activeLookup.shippingNote || '-'}</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                    <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-[#6b7280] font-bold mb-1">발송일시</p>
+                      <p className="text-[#111827] font-semibold">{formatDateTime(activeLookup.shippedAt)}</p>
+                    </div>
+                    <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-[#6b7280] font-bold mb-1">배송완료일시</p>
+                      <p className="text-[#111827] font-semibold">{formatDateTime(activeLookup.deliveredAt)}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
-                  <p className="text-[#6b7280] font-bold mb-1">주문 금액</p>
-                  <p className="text-[#111827] font-semibold">{formatKrw(lookupOrder.amountTotal || 0)}</p>
-                </div>
-                <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
-                  <p className="text-[#6b7280] font-bold mb-1">택배사</p>
-                  <p className="text-[#111827] font-semibold">{lookupOrder.shippingCompany || '-'}</p>
-                </div>
-                <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
-                  <p className="text-[#6b7280] font-bold mb-1">운송장번호</p>
-                  <p className="text-[#111827] font-semibold break-all">{lookupOrder.trackingNumber || '-'}</p>
-                </div>
-              </div>
-              <div className="border border-[#d1d5db] bg-white p-3 text-xs rounded-lg shadow-sm">
-                <p className="text-[#6b7280] font-bold mb-1">배송 메모</p>
-                <p className="text-[#111827] font-semibold">{lookupOrder.shippingNote || '-'}</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
-                  <p className="text-[#6b7280] font-bold mb-1">발송일시</p>
-                  <p className="text-[#111827] font-semibold">{formatDateTime(lookupOrder.shippedAt)}</p>
-                </div>
-                <div className="border border-[#d1d5db] bg-white p-3 rounded-lg shadow-sm">
-                  <p className="text-[#6b7280] font-bold mb-1">배송완료일시</p>
-                  <p className="text-[#111827] font-semibold">{formatDateTime(lookupOrder.deliveredAt)}</p>
-                </div>
-              </div>
-            </div>
-          )}
+              </Skeleton>
+            );
+          })()}
         </div>
       )}
 

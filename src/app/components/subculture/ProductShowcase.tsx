@@ -3,10 +3,12 @@
 import Image from 'next/image';
 import { startTransition, useDeferredValue, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { Skeleton } from 'skullet/react';
 import {
   PRODUCT_CATEGORIES,
   type ProductCategory,
 } from '@/app/constants/productCategories';
+import { STOREFRONT_PRODUCT_SAMPLES } from '@/lib/storefront/skulletSamples';
 import {
   type FashionCartAdditionFeedback,
   getFashionCartItemKey,
@@ -32,6 +34,7 @@ import { trackStorefrontEvent } from '@/app/components/system/VisitTracker';
 interface ProductShowcaseProps {
   initialProducts?: Product[];
   usingFallbackCatalog?: boolean;
+  loading?: boolean;
   onProductClick: (product: Product) => void;
 }
 
@@ -255,6 +258,7 @@ function ProductCard({
 export function ProductShowcase({
   initialProducts,
   usingFallbackCatalog = false,
+  loading = false,
   onProductClick,
 }: ProductShowcaseProps) {
   const sourceProducts = initialProducts ?? EMPTY_PRODUCTS;
@@ -378,7 +382,12 @@ export function ProductShowcase({
     };
   }, [sourceProducts, usingFallbackCatalog]);
 
-  const productCards = filteredProducts.map((product) => {
+  const isSkeletonLoading = Boolean(
+    loading || (usingFallbackCatalog && isRecoveringProducts && visibleCatalogProducts.length === 0),
+  );
+  const displayProducts = isSkeletonLoading ? STOREFRONT_PRODUCT_SAMPLES : filteredProducts;
+
+  const productCards = displayProducts.map((product) => {
     const isInCart = cartProductKeys.has(getFashionCartItemKey(product.id, null));
     const isSoldOut = Boolean(product.isSoldOut);
 
@@ -510,18 +519,24 @@ export function ProductShowcase({
           </div>
         ) : null}
 
-        {visibleCatalogProducts.length === 0 ? (
+        {!isSkeletonLoading && visibleCatalogProducts.length === 0 ? (
           <div className="border border-[#d1d5db] bg-white shadow-sm px-4 py-10 text-center font-mono text-sm text-[#4b5563] font-semibold">
             표시할 의류 게시물이 없습니다.
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : !isSkeletonLoading && filteredProducts.length === 0 ? (
           <div className="border border-[#d1d5db] bg-white shadow-sm px-4 py-10 text-center font-mono text-sm text-[#4b5563] font-semibold">
             이 탭에 표시할 의류 게시물이 없습니다.
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
-            {productCards}
-          </div>
+          <Skeleton
+            id={`storefront-apparel-${deferredActiveCategory}`}
+            loading={isSkeletonLoading}
+            label="의류 게시물을 불러오는 중입니다."
+          >
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
+              {productCards}
+            </div>
+          </Skeleton>
         )}
       </div>
     </section>

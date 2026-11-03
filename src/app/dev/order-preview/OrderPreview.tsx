@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Skeleton } from 'skullet/react';
 import { CustomerOrderCard, type CustomerOrderCardData } from '@/app/components/subculture/CustomerOrderCard';
 import { CustomerOrderListState } from '@/app/components/subculture/CustomerOrderListState';
 import { getCustomerOrderProgress, formatCustomerOrderMoney } from '@/lib/orders/customerOrderPresentation';
@@ -66,7 +67,31 @@ export function OrderPreview() {
           <h2 className={myPageStyles.contentHeading}>{referenceStatus}</h2>
           <p className={myPageStyles.meta}>{order.orderCode} · {formatCustomerOrderMoney(order.amountTotal, order.currency)} · 개인정보 없는 비교 기준</p>
         </section>
-        {mode === 'loading' || mode === 'error' || mode === 'empty' ? <CustomerOrderListState state={mode} onRetry={() => setMode('pending')} /> : <CustomerOrderCard key={mode} order={order} onReturn={async () => { setMode('return-requested'); return true; }} cancelState={{ visible: true, enabled: false, title: '개발용 예시', label: 'fixture · 변경 불가', description: '개발용 예시입니다. 실제 취소나 고객 알림을 실행하지 않습니다.' }} />}
+        {mode === 'error' || mode === 'empty' ? (
+          <CustomerOrderListState state={mode} onRetry={() => setMode('pending')} />
+        ) : (
+          <Skeleton
+            id="order-preview-customer-card"
+            loading={mode === 'loading'}
+            label="주문 내역을 확인하고 있습니다. 잠시만 기다려 주세요."
+          >
+            <CustomerOrderCard
+              key={mode === 'loading' ? 'pending' : mode}
+              order={mode === 'loading' ? getFixture('shipping') : order}
+              onReturn={async () => {
+                setMode('return-requested');
+                return true;
+              }}
+              cancelState={{
+                visible: true,
+                enabled: false,
+                title: '개발용 예시',
+                label: 'fixture · 변경 불가',
+                description: '개발용 예시입니다. 실제 취소나 고객 알림을 실행하지 않습니다.',
+              }}
+            />
+          </Skeleton>
+        )}
       </div>
       <p className={styles.footnote}>실제 고객용 컴포넌트를 사용합니다. 상태 선택은 브라우저 안에서만 바뀌며 주문 API를 호출하지 않습니다.</p>
     </div>

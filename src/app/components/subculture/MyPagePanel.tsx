@@ -14,9 +14,12 @@ import {
   type ReactNode,
 } from 'react';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
+import { Skeleton } from 'skullet/react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useFashionCart } from '@/app/context/FashionCartContext';
+import { DarkSkulletBoundary } from '@/app/components/system/StorefrontSkulletProvider';
 import { shouldBypassImageOptimization } from '@/lib/images';
+import { CUSTOMER_ORDER_CARD_SAMPLES } from '@/lib/storefront/skulletSamples';
 import { getUnifiedAdminUrl } from '@/lib/unified-admin';
 import { AccountAuthPanel } from './AccountAuthPanel';
 import { type BankAccountDetails, type OrderNotificationSummary } from './BankTransferInstructions';
@@ -1820,25 +1823,36 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
 
         {legacyLinkRequired && <div role="status" className="rounded-lg border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">이전 주문은 계정 연결 확인이 필요합니다. 주문번호와 함께 고객센터로 문의해 주세요. <Link href="/?popup=contact" className="font-bold underline">문의하기</Link></div>}
 
-        {isLoadingMemberOrders && memberOrders.length === 0 ? (
-          <CustomerOrderListState state="loading" />
-        ) : memberOrders.length === 0 ? (
+        {!isLoadingMemberOrders && memberOrders.length === 0 ? (
           <CustomerOrderListState state={memberOrderError ? 'error' : 'empty'} legacyLinkRequired={legacyLinkRequired} onRetry={() => void loadMemberOrders()} />
         ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {memberOrders.map((order, index) => (
-              <CustomerOrderCard
-                key={order.id}
-                order={order}
-                index={index}
-                cancelState={getMemberOrderCancelState(order)}
-                isCancelling={cancellingMemberOrderId === order.id}
-                onCancel={() => void handleCancelMemberOrder(order)}
-                isRequestingReturn={requestingReturnOrderId === order.id}
-                onReturn={reason => handleReturnMemberOrder(order, reason)}
-              />
-            ))}
-          </div>
+          <Skeleton
+            id="mypage-member-orders"
+            loading={isLoadingMemberOrders && memberOrders.length === 0}
+            label="주문 내역을 확인하고 있습니다. 잠시만 기다려 주세요."
+          >
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {(isLoadingMemberOrders && memberOrders.length === 0
+                ? CUSTOMER_ORDER_CARD_SAMPLES
+                : memberOrders
+              ).map((order, index) => (
+                <CustomerOrderCard
+                  key={order.id}
+                  order={order}
+                  index={index}
+                  cancelState={
+                    isLoadingMemberOrders && memberOrders.length === 0
+                      ? undefined
+                      : getMemberOrderCancelState(order as MemberOrderRecord)
+                  }
+                  isCancelling={cancellingMemberOrderId === order.id}
+                  onCancel={() => void handleCancelMemberOrder(order as MemberOrderRecord)}
+                  isRequestingReturn={requestingReturnOrderId === order.id}
+                  onReturn={reason => handleReturnMemberOrder(order as MemberOrderRecord, reason)}
+                />
+              ))}
+            </div>
+          </Skeleton>
         )}
       </div>
     ),
@@ -2085,111 +2099,122 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
               </div>
             )}
 
-            {isLoadingDailyStats && dailyStatsRows.length === 0 ? (
-              <div className="border border-[#333] bg-[#111] p-4 text-xs text-[#c6c6c6]">
-                일일 데이터를 불러오는 중입니다...
-              </div>
-            ) : dailyStatsRows.length === 0 ? (
+            {!isLoadingDailyStats && dailyStatsRows.length === 0 ? (
               <div className="border border-dashed border-[#333] bg-[#0a0a0a] p-4 text-xs text-[#9b9b9b]">
                 표시할 일일 데이터가 없습니다.
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="overflow-x-auto border border-[#333] bg-[#101010]">
-                  <table className="w-full min-w-[760px] text-xs">
-                    <thead className="bg-black/60 text-[#8a8a8a]">
-                      <tr>
-                        <th className="text-left px-3 py-2 font-medium">날짜(KST)</th>
-                        <th className="text-right px-3 py-2 font-medium">방문자</th>
-                        <th className="text-right px-3 py-2 font-medium">페이지 hit</th>
-                        <th className="text-right px-3 py-2 font-medium">생성 채팅방</th>
-                        <th className="text-right px-3 py-2 font-medium">메시지</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dailyStatsRows.map((row) => (
-                        <tr key={row.dateKst} className="border-t border-[#252525]">
-                        <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
-                        <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  </table>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <VisitSourceDonutCard
-                    title="오늘 유입 비중"
-                    subtitle="오늘 기준 인스타 / 유튜브 / 쓰레드 / 트위터 / 그 외"
-                    breakdown={latestDailyStats?.sourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
-                  />
-                  <VisitSourceDonutCard
-                    title={`최근 ${dailyStatsRangeLabel} 유입 비중`}
-                    subtitle="누적 유입 비중"
-                    breakdown={dailyStatsSummary?.totalSourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
-                  />
-                </div>
-
-                {dailyStatsSummary?.totalEventCounts && (
-                  <div className="border border-[#333] bg-[#101010] p-4 space-y-3">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
-                        스토어 퍼널 이벤트 (오늘 / 최근 {dailyStatsRangeLabel})
-                      </p>
-                      <p className="text-xs text-[#9a9a9a] mt-1">
-                        탭 이동 · 카테고리 필터 · 상품 상세 클릭 · 장바구니 담기 · 결제창 진입 · 주문 접수 집계
-                      </p>
+              <DarkSkulletBoundary>
+                <Skeleton
+                  id="mypage-daily-stats"
+                  loading={isLoadingDailyStats && dailyStatsRows.length === 0}
+                  label="일일 데이터를 불러오는 중입니다..."
+                >
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto border border-[#333] bg-[#101010]">
+                      <table className="w-full min-w-[760px] text-xs">
+                        <thead className="bg-black/60 text-[#8a8a8a]">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium">날짜(KST)</th>
+                            <th className="text-right px-3 py-2 font-medium">방문자</th>
+                            <th className="text-right px-3 py-2 font-medium">페이지 hit</th>
+                            <th className="text-right px-3 py-2 font-medium">생성 채팅방</th>
+                            <th className="text-right px-3 py-2 font-medium">메시지</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(isLoadingDailyStats && dailyStatsRows.length === 0
+                            ? [
+                                { dateKst: '2026-11-03', visitorCount: 64, pageHitCount: 182, sourceVisitors: EMPTY_VISIT_SOURCE_BREAKDOWN, createdRoomCount: 3, messageCount: 28 },
+                                { dateKst: '2026-11-02', visitorCount: 81, pageHitCount: 235, sourceVisitors: EMPTY_VISIT_SOURCE_BREAKDOWN, createdRoomCount: 5, messageCount: 41 },
+                                { dateKst: '2026-11-01', visitorCount: 73, pageHitCount: 198, sourceVisitors: EMPTY_VISIT_SOURCE_BREAKDOWN, createdRoomCount: 2, messageCount: 19 },
+                              ]
+                            : dailyStatsRows
+                          ).map((row) => (
+                            <tr key={row.dateKst} className="border-t border-[#252525]">
+                              <td className="px-3 py-2 text-[#d8d8d8]">{row.dateKst}</td>
+                              <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.visitorCount.toLocaleString('ko-KR')}</td>
+                              <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.pageHitCount.toLocaleString('ko-KR')}</td>
+                              <td className="px-3 py-2 text-right text-[#c8c8c8]">{row.createdRoomCount.toLocaleString('ko-KR')}</td>
+                              <td className="px-3 py-2 text-right text-[#00ffd1]">{row.messageCount.toLocaleString('ko-KR')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
-                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
-                        <p className="text-[#9b9b9b]">탭 이동 클릭</p>
-                        <p className="mt-1 text-[#00ffd1] font-semibold">
-                          {(latestDailyStats?.eventCounts?.tab_click || 0).toLocaleString('ko-KR')} /{' '}
-                          {dailyStatsSummary.totalEventCounts.tab_click.toLocaleString('ko-KR')}회
-                        </p>
-                      </div>
-                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
-                        <p className="text-[#9b9b9b]">카테고리 필터</p>
-                        <p className="mt-1 text-[#00ffd1] font-semibold">
-                          {(latestDailyStats?.eventCounts?.category_filter || 0).toLocaleString('ko-KR')} /{' '}
-                          {dailyStatsSummary.totalEventCounts.category_filter.toLocaleString('ko-KR')}회
-                        </p>
-                      </div>
-                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
-                        <p className="text-[#9b9b9b]">상품 상세 클릭</p>
-                        <p className="mt-1 text-[#00ffd1] font-semibold">
-                          {(latestDailyStats?.eventCounts?.product_click || 0).toLocaleString('ko-KR')} /{' '}
-                          {dailyStatsSummary.totalEventCounts.product_click.toLocaleString('ko-KR')}회
-                        </p>
-                      </div>
-                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
-                        <p className="text-[#9b9b9b]">장바구니 담기</p>
-                        <p className="mt-1 text-[#00ffd1] font-semibold">
-                          {(latestDailyStats?.eventCounts?.add_to_cart || 0).toLocaleString('ko-KR')} /{' '}
-                          {dailyStatsSummary.totalEventCounts.add_to_cart.toLocaleString('ko-KR')}회
-                        </p>
-                      </div>
-                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
-                        <p className="text-[#9b9b9b]">결제창 진입</p>
-                        <p className="mt-1 text-[#00ffd1] font-semibold">
-                          {(latestDailyStats?.eventCounts?.checkout_open || 0).toLocaleString('ko-KR')} /{' '}
-                          {dailyStatsSummary.totalEventCounts.checkout_open.toLocaleString('ko-KR')}회
-                        </p>
-                      </div>
-                      <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
-                        <p className="text-[#9b9b9b]">주문 접수 시도</p>
-                        <p className="mt-1 text-[#00ffd1] font-semibold">
-                          {(latestDailyStats?.eventCounts?.order_submit || 0).toLocaleString('ko-KR')} /{' '}
-                          {dailyStatsSummary.totalEventCounts.order_submit.toLocaleString('ko-KR')}회
-                        </p>
-                      </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <VisitSourceDonutCard
+                        title="오늘 유입 비중"
+                        subtitle="오늘 기준 인스타 / 유튜브 / 쓰레드 / 트위터 / 그 외"
+                        breakdown={latestDailyStats?.sourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
+                      />
+                      <VisitSourceDonutCard
+                        title={`최근 ${dailyStatsRangeLabel} 유입 비중`}
+                        subtitle="누적 유입 비중"
+                        breakdown={dailyStatsSummary?.totalSourceVisitors || EMPTY_VISIT_SOURCE_BREAKDOWN}
+                      />
                     </div>
+
+                    {dailyStatsSummary?.totalEventCounts && (
+                      <div className="border border-[#333] bg-[#101010] p-4 space-y-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-[#00ffd1]">
+                            스토어 퍼널 이벤트 (오늘 / 최근 {dailyStatsRangeLabel})
+                          </p>
+                          <p className="text-xs text-[#9a9a9a] mt-1">
+                            탭 이동 · 카테고리 필터 · 상품 상세 클릭 · 장바구니 담기 · 결제창 진입 · 주문 접수 집계
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                          <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                            <p className="text-[#9b9b9b]">탭 이동 클릭</p>
+                            <p className="mt-1 text-[#00ffd1] font-semibold">
+                              {(latestDailyStats?.eventCounts?.tab_click || 0).toLocaleString('ko-KR')} /{' '}
+                              {dailyStatsSummary.totalEventCounts.tab_click.toLocaleString('ko-KR')}회
+                            </p>
+                          </div>
+                          <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                            <p className="text-[#9b9b9b]">카테고리 필터</p>
+                            <p className="mt-1 text-[#00ffd1] font-semibold">
+                              {(latestDailyStats?.eventCounts?.category_filter || 0).toLocaleString('ko-KR')} /{' '}
+                              {dailyStatsSummary.totalEventCounts.category_filter.toLocaleString('ko-KR')}회
+                            </p>
+                          </div>
+                          <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                            <p className="text-[#9b9b9b]">상품 상세 클릭</p>
+                            <p className="mt-1 text-[#00ffd1] font-semibold">
+                              {(latestDailyStats?.eventCounts?.product_click || 0).toLocaleString('ko-KR')} /{' '}
+                              {dailyStatsSummary.totalEventCounts.product_click.toLocaleString('ko-KR')}회
+                            </p>
+                          </div>
+                          <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                            <p className="text-[#9b9b9b]">장바구니 담기</p>
+                            <p className="mt-1 text-[#00ffd1] font-semibold">
+                              {(latestDailyStats?.eventCounts?.add_to_cart || 0).toLocaleString('ko-KR')} /{' '}
+                              {dailyStatsSummary.totalEventCounts.add_to_cart.toLocaleString('ko-KR')}회
+                            </p>
+                          </div>
+                          <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                            <p className="text-[#9b9b9b]">결제창 진입</p>
+                            <p className="mt-1 text-[#00ffd1] font-semibold">
+                              {(latestDailyStats?.eventCounts?.checkout_open || 0).toLocaleString('ko-KR')} /{' '}
+                              {dailyStatsSummary.totalEventCounts.checkout_open.toLocaleString('ko-KR')}회
+                            </p>
+                          </div>
+                          <div className="border border-[#2a2a2a] bg-[#0b0b0b] p-2.5">
+                            <p className="text-[#9b9b9b]">주문 접수 시도</p>
+                            <p className="mt-1 text-[#00ffd1] font-semibold">
+                              {(latestDailyStats?.eventCounts?.order_submit || 0).toLocaleString('ko-KR')} /{' '}
+                              {dailyStatsSummary.totalEventCounts.order_submit.toLocaleString('ko-KR')}회
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </Skeleton>
+              </DarkSkulletBoundary>
             )}
           </>
         )}

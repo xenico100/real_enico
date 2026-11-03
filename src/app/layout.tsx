@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "../styles/index.css";
 import { AuthProvider } from "@/app/context/AuthContext";
+import { StorefrontSkulletProvider } from "@/app/components/system/StorefrontSkulletProvider";
 import { VisitTracker } from "@/app/components/system/VisitTracker";
 
 export const metadata: Metadata = {
@@ -49,10 +50,12 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
       </head>
       <body>
-        <AuthProvider>
-          <VisitTracker />
-          {children}
-        </AuthProvider>
+        <StorefrontSkulletProvider>
+          <AuthProvider>
+            <VisitTracker />
+            {children}
+          </AuthProvider>
+        </StorefrontSkulletProvider>
       </body>
     </html>
   );

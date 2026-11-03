@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
+import { Skeleton } from 'skullet/react';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import {
   buildCollectionCatalog,
   type Collection,
 } from '@/lib/storefront/collectionCatalog';
+import { STOREFRONT_COLLECTION_SAMPLES } from '@/lib/storefront/skulletSamples';
 import {
   buildStorefrontSelect,
   extractMissingStorefrontColumn,
@@ -18,6 +20,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 interface CollectionSectionProps {
   initialCollections?: Collection[];
   usingFallbackCatalog?: boolean;
+  loading?: boolean;
   onCollectionClick: (collection: Collection) => void;
 }
 
@@ -28,6 +31,7 @@ const EMPTY_COLLECTIONS: Collection[] = [];
 export function CollectionSection({
   initialCollections,
   usingFallbackCatalog = false,
+  loading = false,
   onCollectionClick,
 }: CollectionSectionProps) {
   const sourceCollections = initialCollections ?? EMPTY_COLLECTIONS;
@@ -40,6 +44,10 @@ export function CollectionSection({
     usingFallbackCatalog && recoveredCatalog?.source === sourceCollections
       ? recoveredCatalog.collections
       : sourceCollections;
+  const isSkeletonLoading = Boolean(
+    loading || (usingFallbackCatalog && isRecoveringCollections && displayedCollections.length === 0),
+  );
+  const activeCollections = isSkeletonLoading ? STOREFRONT_COLLECTION_SAMPLES : displayedCollections;
 
   useEffect(() => {
     if (!usingFallbackCatalog) return;
@@ -148,7 +156,7 @@ export function CollectionSection({
           </div>
         ) : null}
 
-        {displayedCollections.length === 0 ? (
+        {!isSkeletonLoading && displayedCollections.length === 0 ? (
           <div className="border-2 border-black bg-white p-10 text-center">
             <p className="font-heading text-4xl uppercase leading-none">컬렉션 없음</p>
             <p className="font-mono text-xs text-black/60 mt-4">
@@ -156,8 +164,13 @@ export function CollectionSection({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3">
-            {displayedCollections.map((collection, index) => (
+          <Skeleton
+            id="storefront-collections"
+            loading={isSkeletonLoading}
+            label="컬렉션 게시물을 불러오는 중입니다."
+          >
+            <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3">
+              {activeCollections.map((collection, index) => (
               <div
                 key={collection.id}
                 role="button"
@@ -233,8 +246,9 @@ export function CollectionSection({
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </Skeleton>
         )}
       </div>
     </section>
