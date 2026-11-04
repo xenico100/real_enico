@@ -79,7 +79,6 @@ function item(overrides = {}) { return { id: productId, name: 'FIXTURE ARCHIVE J
 function order(id = 'own', overrides = {}) { return { id, channel: 'member', payment_method: 'bank_transfer', payment_status: 'pending_transfer', shipping_status: 'preparing', amount_total: 23000, currency: 'KRW', items: [item()], customer_email: owner.email, raw_payload: { customerUserId: owner.id }, ...overrides }; }
 function event(channels, overrides = {}) { return { event: 'payment_confirmed', eventKey, createdAt: '2026-10-20T01:00:00.000Z', channels, ...overrides }; }
 function withEvent(entry) { return { customerUserId: owner.id, notifications: { events: { fixture: entry } } }; }
-function job(overrides = {}) { return { id: 'job-fixture', order_id: 'own', kind: 'customer_sms', event_key: `${eventKey}:customerSms`, status: 'queued', created_at: '2026-10-20T01:00:00Z', claimed_at: null, claim_expires_at: null, acknowledged_at: null, expires_at: '2099-01-01T00:00:00Z', ...overrides }; }
 
 test('member ownership gates every image and notification enrichment query', async () => {
   reset();
@@ -134,38 +133,16 @@ test('customer notification fields are allowlisted, with channel-specific events
   for (const secret of ['PRIVATE', '01000000000', 'private@example.test', 'ADMIN_SECRET', 'providerId', 'errorCode', 'adminEmail']) assert.ok(!result.includes(secret), secret);
 });
 
-test('relay queue, claim, local submission and expiration never imply delivery', async () => {
+test('retired relay pending status needs no queue reads and preserves terminal history', async () => {
   reset();
-  const rows = [order('own', { raw_payload: withEvent(event({ customerSms: { status: 'queued', provider: 'phone_relay', providerId: 'job-fixture' } })) })];
-  for (const [status, extras, expected] of [
-    ['queued', {}, 'queued'],
-    ['claimed', { claimed_at: '2026-10-20T01:05:00Z', claim_expires_at: '2099-01-01T00:00:00Z' }, 'claimed'],
-    ['submitted', { acknowledged_at: '2026-10-20T01:06:00Z' }, 'submitted'],
-    ['submitted', {}, 'unknown'],
-    ['queued', { expires_at: '2000-01-01T00:00:00Z' }, 'stale'],
-  ]) {
-    tables.phone_relay_jobs = [job({ status, ...extras })];
-    const summary = (await view.attachCustomerOrderNotifications(client, rows)).get('own');
+  for (const [status, expected] of [['queued','skipped'],['claimed','unknown'],['submitted','submitted'],['stale','stale'],['sent','sent'],['failed','failed'],['unknown','unknown'],['sending','unknown']]) {
+    const rows = [order('own', { raw_payload: withEvent(event({ customerSms: { status, provider: 'phone_relay' } })) })];
+    const before = structuredClone(rows);
+    const summary = (await view.attachCustomerOrderNotifications({ from() { throw new Error('Retired tables must never be queried'); } }, rows)).get('own');
     assert.equal(summary.customerSms.status, expected);
-    assert.notEqual(summary.customerSms.status, 'delivered');
+    assert.deepEqual(rows, before);
   }
-  const relayQuery = queries.find(q => q.table === 'phone_relay_jobs');
-  assert.ok(relayQuery.filters.some(([op, key, value]) => op === 'in' && key === 'order_id' && value.includes('own')));
-  assert.ok(relayQuery.filters.some(([op, key, value]) => op === 'eq' && key === 'kind' && value === 'customer_sms'));
-  assert.ok(!relayQuery.columns.includes('to'));
-  assert.ok(!relayQuery.columns.includes('body'));
-});
-
-test('missing, inaccessible or mismatched relay metadata remains unknown', async () => {
-  reset();
-  const rows = [order('own', { raw_payload: withEvent(event({ customerSms: { status: 'queued', provider: 'phone_relay', providerId: 'job-fixture' } })) })];
-  for (const jobs of [[], [job({ order_id: 'foreign' })], [job({ event_key: `${'b'.repeat(64)}:customerSms` })], [job({ id: 'another-job' })]]) {
-    tables.phone_relay_jobs = jobs;
-    assert.equal((await view.attachCustomerOrderNotifications(client, rows)).get('own').customerSms.status, 'unknown');
-  }
-  errors.phone_relay_jobs = { code: '42501', message: 'PRIVATE_PERMISSION_ERROR' };
-  tables.phone_relay_jobs = [job()];
-  assert.equal((await view.attachCustomerOrderNotifications(client, rows)).get('own').customerSms.status, 'unknown');
+  assert.equal(queries.length, 0);
 });
 
 test('manual Gmail and unknown notification data are never manufactured into successful sends', async () => {

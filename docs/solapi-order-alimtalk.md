@@ -28,7 +28,7 @@ All variables below are server-only. Set them in the Vercel `real-enico` product
 
 Copy in `src/lib/orders/alimtalkMessage.ts` must match the approved template body exactly. The older deposit-confirmed/shipping-date template cannot be substituted for the new order-received template.
 
-Without the explicit `alimtalk` transport selection, existing SMS/phone-relay behavior stays in place. After selection, missing Kakao configuration, rejection or timeout never falls through to SMS/LMS or the phone relay. Requests explicitly use `type: ATA` and `kakaoOptions.disableSms: true`; a registered SMS sender is not required.
+Without the explicit `alimtalk` transport selection, order notifications use email. SMS/phone-relay was retired on 2026-11-04. Missing Kakao configuration, rejection or timeout never falls through to SMS/LMS or the phone relay. Requests explicitly use `type: ATA` and `kakaoOptions.disableSms: true`; a registered SMS sender is not required.
 
 ## Delivery and retries
 
@@ -44,7 +44,7 @@ Without the explicit `alimtalk` transport selection, existing SMS/phone-relay be
 1. Confirm both new templates are approved in the 에니코벡 channel.
 2. Authorize and configure the dedicated API credentials in production; keep them out of logs.
 3. Use a clearly marked synthetic message to the owner's authorized test number. Verify `ATA`, `disableSms: true`, the selected template and final provider status, without creating a real charge/order or messaging historical customers.
-4. Set the production transport to `alimtalk`, redeploy, then verify the authenticated configuration endpoint. Keep existing phone-relay jobs intact; accepted older events are not resent.
+4. Set the production transport to `alimtalk`, redeploy, then verify the authenticated configuration endpoint. Historical order notification records stay intact; accepted older events are not resent. The retired phone-relay tables are no longer read or required.
 
 Implementation verification: `npm run test:payments`, `npm run test:orders`, targeted ESLint and `npm run build`. Provider and database tests use isolated in-memory fixtures and never transmit real customer data.
 

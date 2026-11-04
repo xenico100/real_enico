@@ -64,10 +64,6 @@ function koreanMobile(value: string): string | null {
   return /^010\d{8}$/.test(phone) ? phone : null;
 }
 
-function maskedPhone(phone: string | null): string | null {
-  return phone ? `${phone.slice(0, 3)}-****-${phone.slice(-4)}` : null;
-}
-
 function config() {
   const from = env('ORDER_FROM_EMAIL') || DEFAULT_FROM_EMAIL;
   const fromAddress = senderAddress(from);
@@ -81,8 +77,6 @@ function config() {
     solapiKey: env('SOLAPI_API_KEY'),
     solapiSecret: env('SOLAPI_API_SECRET'),
     kakaoPfId: env('SOLAPI_KAKAO_PF_ID'),
-    senderPhone: koreanMobile(env('SMS_SENDER_PHONE')),
-    adminPhone: koreanMobile(env('ADMIN_NOTIFICATION_PHONE')),
   };
 }
 
@@ -90,7 +84,6 @@ function config() {
 export function getNotificationConfigHealth(): OrderNotificationConfigHealth {
   const settings = config();
   const emailReady = Boolean(settings.resendKey && settings.fromAddress);
-  const smsReady = Boolean(settings.solapiKey && settings.solapiSecret && settings.senderPhone);
   return {
     adminEmail: emailReady && isEmail(settings.adminEmail),
     customerEmail: emailReady && settings.customSender,
@@ -102,12 +95,12 @@ export function getNotificationConfigHealth(): OrderNotificationConfigHealth {
       payment_confirmed: Boolean(env('SOLAPI_KAKAO_PAYMENT_CONFIRMED_TEMPLATE_ID')),
       shipping_started: Boolean(env('SOLAPI_KAKAO_SHIPPING_STARTED_TEMPLATE_ID')),
     },
-    customerSms: smsReady,
-    adminSms: smsReady && Boolean(settings.adminPhone),
-    adminPhone: maskedPhone(settings.adminPhone),
-    senderPhone: maskedPhone(settings.senderPhone),
+    customerSms: false,
+    adminSms: false,
+    adminPhone: null,
+    senderPhone: null,
     customerEmailRequiresVerifiedSender: !settings.customSender,
-    smsProvider: smsReady ? 'solapi' : null,
+    smsProvider: null,
   };
 }
 
@@ -191,28 +184,6 @@ async function sendEmail(message: OrderNotificationMessage): Promise<OrderNotifi
     // Do not retain provider messages, recipient addresses, or secrets in errors.
     return { status: 'unknown', errorCode: 'RESEND_NETWORK_OUTCOME_UNKNOWN' };
   }
-}
-
-async function sendSms(message: OrderNotificationMessage): Promise<OrderNotificationResult> {
-  const settings = config();
-  if (!settings.solapiKey || !settings.solapiSecret || !settings.senderPhone) {
-    return { status: 'not_configured', errorCode: 'SMS_NOT_CONFIGURED' };
-  }
-  if (message.channel === 'adminSms' && !settings.adminPhone) {
-    return { status: 'not_configured', errorCode: 'ADMIN_NOTIFICATION_PHONE_NOT_CONFIGURED' };
-  }
-  const to = koreanMobile(message.to);
-  if (!to) return { status: 'skipped', errorCode: 'INVALID_RECIPIENT_PHONE' };
-  // EUC-KR limits are 2,000 bytes for LMS. UTF-8 is a conservative limit for
-  // Korean text; unsupported supplementary characters must never be mangled.
-  if (Buffer.byteLength(message.text, 'utf8') > 2_000 || /[\uD800-\uDFFF]/.test(message.text)) {
-    return { status: 'failed', errorCode: 'INVALID_SMS_CONTENT' };
-  }
-  return sendSolapiMessage({
-    to, from: settings.senderPhone, text: message.text, type: 'LMS',
-    subject: 'ENICO VECK',
-    customFields: { notificationId: createHash('sha256').update(message.eventKey).digest('hex') },
-  });
 }
 
 async function sendAlimtalk(message: OrderNotificationMessage): Promise<OrderNotificationResult> {
@@ -300,6 +271,6 @@ export async function sendOrderNotificationMessage(message: OrderNotificationMes
   }
   if (message.channel === 'adminEmail' || message.channel === 'customerEmail') return sendEmail(message);
   if (message.channel === 'customerKakao') return sendAlimtalk(message);
-  if (message.channel === 'customerSms' || message.channel === 'adminSms') return sendSms(message);
+  if (message.channel === 'customerSms' || message.channel === 'adminSms') return { status: 'skipped', errorCode: 'SMS_RETIRED' };
   return { status: 'failed', errorCode: 'INVALID_NOTIFICATION_CHANNEL' };
 }

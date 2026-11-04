@@ -1,7 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseOrderRawPayload } from './rawPayload';
-import { getPhoneRelayDeliveryMetadata, PHONE_RELAY_DELIVERY_COLUMNS, type PhoneRelayDeliveryRow } from './phoneRelayDelivery';
 import { isStorefrontProductVisible } from '../storefront/productDisplay';
 
 export type CustomerOrderItem = {
@@ -113,36 +112,13 @@ function notificationCandidates(rawPayload: unknown): NotificationCandidate[] {
 }
 
 function isRelay(record: Record<string, unknown>): boolean {
-  return record.provider === 'phone_relay' || ['queued', 'claimed', 'submitted', 'stale'].includes(String(record.status))
+  return record.provider === 'phone_relay' || ['queued', 'claimed', 'submitted', 'stale', 'sending'].includes(String(record.status))
     || (record.status === 'unknown' && typeof record.errorCode === 'string' && record.errorCode.startsWith('PHONE_RELAY_'));
 }
 
 /** Read-only, owner-scoped projection. It never dispatches or marks a manual email sent. */
-export async function attachCustomerOrderNotifications<T extends { id: string; raw_payload: unknown }>(client: SupabaseClient, orders: T[]): Promise<Map<string, CustomerNotificationSummary>> {
+export async function attachCustomerOrderNotifications<T extends { id: string; raw_payload: unknown }>(_client: SupabaseClient, orders: T[]): Promise<Map<string, CustomerNotificationSummary>> {
   const eventsByOrder = new Map(orders.map(order => [order.id, notificationCandidates(order.raw_payload)]));
-  const expectedJobs = new Map<string, { orderId: string; providerId: unknown }>();
-  for (const order of orders) {
-    // Only the latest customer SMS is displayed. Looking up older jobs would
-    // add cost and disclose unnecessary metadata to this read model.
-    const event = (eventsByOrder.get(order.id) || []).find(event => object(event.channels.customerSms));
-    const record = object(event?.channels.customerSms);
-    if (event && record && isRelay(record)) expectedJobs.set(`${event.eventKey}:customerSms`, { orderId: order.id, providerId: record.providerId });
-  }
-  const keys = [...expectedJobs.keys()];
-  const jobs = new Map<string, PhoneRelayDeliveryRow>();
-  for (let offset = 0; offset < keys.length; offset += 100) {
-    const chunk = keys.slice(offset, offset + 100);
-    try {
-      const { data, error } = await client.from('phone_relay_jobs').select(PHONE_RELAY_DELIVERY_COLUMNS)
-        .in('event_key', chunk).in('order_id', [...new Set(chunk.map(key => expectedJobs.get(key)!.orderId))]).eq('kind', 'customer_sms');
-      if (error) continue;
-      for (const job of (data || []) as PhoneRelayDeliveryRow[]) {
-        const expected = expectedJobs.get(job.event_key);
-        if (chunk.includes(job.event_key) && expected?.orderId === job.order_id
-          && (!expected.providerId || expected.providerId === job.id)) jobs.set(job.event_key, job);
-      }
-    } catch { /* Unavailable delivery metadata remains unknown, never a success. */ }
-  }
   const summaries = new Map<string, CustomerNotificationSummary>();
   for (const order of orders) {
     const summary: CustomerNotificationSummary = {};
@@ -151,13 +127,11 @@ export async function attachCustomerOrderNotifications<T extends { id: string; r
       const record = object(event.channels[channel]);
       if (!record) continue;
       let status: CustomerStatus = STATUSES.includes(record.status as CustomerStatus) ? record.status as CustomerStatus : 'unknown';
-      let updatedAt = timestamp(record.attemptedAt) || event.createdAt;
+      const updatedAt = timestamp(record.attemptedAt) || event.createdAt;
       if (channel === 'customerSms' && isRelay(record)) {
-        const candidate = jobs.get(`${event.eventKey}:customerSms`);
-        const job = candidate?.order_id === order.id && (!record.providerId || record.providerId === candidate.id) ? candidate : null;
-        const metadata = job ? getPhoneRelayDeliveryMetadata(job) : null;
-        status = metadata?.status || 'unknown';
-        updatedAt = metadata?.resultUpdatedAt || updatedAt;
+        // Preserve terminal history; retired pending work cannot still be active.
+        if (status === 'queued') status = 'skipped';
+        else if (['claimed', 'sending'].includes(status)) status = 'unknown';
       }
       // Provider acceptance (sent) and local phone submission (submitted) do not
       // prove delivery. No current provider writes verified delivery receipts.

@@ -82,8 +82,7 @@ function harness(overrides = {}, hooks = {}) {
         dispatchOrderNotifications: async (_client, id, event) => {
           state.notifications.push({ id, event });
           if (hooks.notificationThrow) throw new Error('SECRET_PROVIDER_ERROR');
-          return { channels: { customerSms: { status: hooks.notificationStatus || 'queued' },
-            customerEmail: { status: 'sent' } } };
+          return { channels: { customerEmail: { status: hooks.notificationStatus || 'sent' } } };
         },
       };
       if (name.startsWith('@/')) return load(path.join('src', name.slice(2)) + '.ts');

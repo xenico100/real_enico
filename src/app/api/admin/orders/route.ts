@@ -283,7 +283,7 @@ async function notifyAndRefresh(serviceClient: SupabaseClient, order: OrderRow, 
     const summary = await dispatchOrderNotifications(serviceClient, order.id, event);
     // Queue/provider acceptance is separate from delivery. Missing or uncertain
     // customer results must never turn a saved shipping update into a success claim.
-    if (['customerEmail', process.env.ORDER_CUSTOMER_MESSAGE_CHANNEL === 'alimtalk' ? 'customerKakao' : 'customerSms'].some(channel => {
+    if (['customerEmail', ...(process.env.ORDER_CUSTOMER_MESSAGE_CHANNEL === 'alimtalk' ? ['customerKakao'] : [])].some(channel => {
       const status = summary.channels[channel as NotificationChannel]?.status;
       return !status || !['queued', 'claimed', 'submitted', 'sent'].includes(status);
     })) outcome = 'attention_required';
@@ -758,7 +758,7 @@ export async function POST(request: Request) {
   }
 
   if (action === 'retry_notifications') {
-    const allowedChannels: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms', 'customerKakao'];
+    const allowedChannels: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerKakao'];
     if (payload.channels && (!Array.isArray(payload.channels) || payload.channels.some(c => !allowedChannels.includes(c)))) {
       return NextResponse.json({ message: '알림 채널이 올바르지 않습니다.' }, { status: 400 });
     }

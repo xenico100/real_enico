@@ -54,11 +54,11 @@ test('health exposes readiness and masked phones, never credentials', () => {
   const health = load({ ...emailEnv, ...smsEnv }).getNotificationConfigHealth();
   assert.equal(health.adminEmail, true);
   assert.equal(health.customerEmail, true);
-  assert.equal(health.customerSms, true);
-  assert.equal(health.adminSms, true);
-  assert.equal(health.adminPhone, '010-****-8901');
-  assert.equal(health.senderPhone, '010-****-5432');
-  assert.equal(health.smsProvider, 'solapi');
+  assert.equal(health.customerSms, false);
+  assert.equal(health.adminSms, false);
+  assert.equal(health.adminPhone, null);
+  assert.equal(health.senderPhone, null);
+  assert.equal(health.smsProvider, null);
   const output = JSON.stringify(health);
   for (const sensitive of Object.values({ ...emailEnv, ...smsEnv })) assert.ok(!output.includes(sensitive));
 });
@@ -85,7 +85,7 @@ test('missing provider credentials or malformed sender never trigger network req
     assert.equal((await load(env, neverSend).sendOrderNotificationMessage(fixture())).status, 'not_configured');
   }
   assert.equal((await load({ ...smsEnv, SOLAPI_API_SECRET: '' }, neverSend)
-    .sendOrderNotificationMessage(fixture({ channel: 'customerSms', to: '01012345678' }))).status, 'not_configured');
+    .sendOrderNotificationMessage(fixture({ channel: 'customerSms', to: '01012345678' }))).status, 'skipped');
   assert.equal(calls, 0);
 });
 
@@ -122,10 +122,10 @@ test('long or non-ASCII email event keys produce bounded deterministic headers',
 });
 
 test('provider network failure and malformed success remain unknown without adapter retries', async () => {
-  for (const channel of ['customerEmail', 'customerSms']) {
+  for (const channel of ['customerEmail', 'adminEmail']) {
     let calls = 0;
     const provider = load({ ...emailEnv, ...smsEnv }, async () => { calls += 1; throw new Error('timeout with private data'); });
-    const result = await provider.sendOrderNotificationMessage(fixture({ channel, to: channel === 'customerSms' ? '01012345678' : 'customer@example.com' }));
+    const result = await provider.sendOrderNotificationMessage(fixture({ channel, to: 'customer@example.com' }));
     assert.equal(result.status, 'unknown');
     assert.equal(calls, 1);
     assert.ok(!JSON.stringify(result).includes('private data'));
@@ -143,87 +143,20 @@ test('explicit email rejection differs from ambiguous server errors and concurre
   }
 });
 
-test('SOLAPI requests use normalized mobile numbers, LMS and a verifiable fresh HMAC', async () => {
-  const calls = [];
-  const provider = load(smsEnv, async (url, options) => {
-    calls.push({ url, options });
-    return json({ failedMessageList: [], messageList: [{ messageId: 'M4_TEST', statusCode: '2000' }], groupInfo: { groupId: 'G4_TEST' } });
-  });
-  for (const to of ['+82 10-1234-5678', '82 (0)10-1234-5678', '01012345678']) {
-    const result = await provider.sendOrderNotificationMessage(fixture({ channel: 'customerSms', to }));
-    assert.equal(result.status, 'sent');
-    assert.equal(result.providerId, 'M4_TEST');
+test('retired SMS ignores even complete provider credentials and never contacts a provider', async () => {
+  const provider = load(smsEnv, async () => { throw new Error('Retired SMS must never reach SOLAPI'); });
+  for (const channel of ['customerSms','adminSms']) {
+    const result = await provider.sendOrderNotificationMessage(fixture({ channel, to:'01012345678' }));
+    assert.equal(result.status, 'skipped');
+    assert.equal(result.errorCode, 'SMS_RETIRED');
   }
-  for (const { url, options } of calls) {
-    assert.equal(url, 'https://api.solapi.com/messages/v4/send-many/detail');
-    assert.equal(options.redirect, 'error');
-    const auth = options.headers.Authorization.match(/^HMAC-SHA256 apiKey=(.+), date=(.+), salt=(.+), signature=(.+)$/);
-    assert.ok(auth);
-    assert.equal(auth[1], smsEnv.SOLAPI_API_KEY);
-    assert.equal(auth[4], crypto.createHmac('sha256', smsEnv.SOLAPI_API_SECRET).update(auth[2] + auth[3]).digest('hex'));
-    const body = JSON.parse(options.body);
-    assert.equal(body.messages[0].to, '01012345678');
-    assert.equal(body.messages[0].from, '01098765432');
-    assert.equal(body.messages[0].type, 'LMS');
-    assert.equal(body.allowDuplicates, false);
-    assert.equal(body.strict, true);
-    assert.equal(body.showMessageList, true);
-    assert.ok(!options.body.includes(smsEnv.SOLAPI_API_SECRET));
-  }
-  assert.notEqual(calls[0].options.headers.Authorization, calls[1].options.headers.Authorization);
-});
-
-test('multiple, malformed or foreign SMS recipients are never silently coerced', async () => {
-  let calls = 0;
-  const provider = load(smsEnv, async () => { calls += 1; return json({}); });
-  for (const to of ['01012345678,01099998888', 'call 01012345678', '0101234567', '+1 212 555 1234', '+82+1012345678', '0212345678']) {
-    const result = await provider.sendOrderNotificationMessage(fixture({ channel: 'customerSms', to }));
-    assert.equal(result.status, 'skipped', to);
-    assert.equal(result.errorCode, 'INVALID_RECIPIENT_PHONE');
-  }
-  assert.equal(calls, 0);
-});
-
-test('SOLAPI HTTP 200 with rejected registration is failed, not sent', async () => {
-  const result = await load(smsEnv, async () => json({
-    failedMessageList: [{ statusCode: '3040', statusMessage: 'unregistered sender with sensitive contents' }],
-    groupInfo: { groupId: 'G4_REJECTED', count: { registeredSuccess: 0, registeredFailed: 1 } },
-  })).sendOrderNotificationMessage(fixture({ channel: 'customerSms', to: '01012345678' }));
-  assert.equal(result.status, 'failed');
-  assert.equal(result.errorCode, 'SOLAPI_REGISTRATION_REJECTED_3040');
-  assert.ok(!JSON.stringify(result).includes('sensitive contents'));
-});
-
-test('SOLAPI delivery failure is not hidden by a successful registration count', async () => {
-  const result = await load(smsEnv, async () => json({
-    failedMessageList: [], messageList: [{ messageId: 'M4_FAILED', statusCode: '4001' }],
-    groupInfo: { groupId: 'G4_TEST', count: { registeredSuccess: 1, registeredFailed: 0 } },
-  })).sendOrderNotificationMessage(fixture({ channel: 'customerSms', to: '01012345678' }));
-  assert.equal(result.status, 'failed');
-});
-
-test('SOLAPI missing acceptance evidence and server failures remain unknown', async () => {
-  for (const response of [json({ failedMessageList: [], groupInfo: { groupId: 'G4_UNKNOWN' } }), json({}, 502), json({})]) {
-    const result = await load(smsEnv, async () => response)
-      .sendOrderNotificationMessage(fixture({ channel: 'customerSms', to: '01012345678' }));
-    assert.equal(result.status, 'unknown');
-  }
-});
-
-test('no configured owner phone never sends an administrator SMS to an arbitrary fallback', async () => {
-  let calls = 0;
-  const result = await load({ ...smsEnv, ADMIN_NOTIFICATION_PHONE: '' }, async () => { calls += 1; return json({}); })
-    .sendOrderNotificationMessage(fixture({ channel: 'adminSms', to: '01012345678' }));
-  assert.equal(result.status, 'not_configured');
-  assert.equal(calls, 0);
 });
 
 test('invalid content, recipient headers and empty event keys fail before provider calls', async () => {
   let calls = 0;
   const provider = load({ ...emailEnv, ...smsEnv }, async () => { calls += 1; return json({}); });
   for (const overrides of [{ eventKey: '' }, { text: '' }, { subject: 'order\nBcc: other@example.com' },
-    { replyTo: 'owner@example.com\nBcc: other@example.com' }, { channel: 'customerSms', to: '01012345678', text: '가'.repeat(1_000) },
-    { channel: 'customerSms', to: '01012345678', text: '입금 안내 😀' }]) {
+    { replyTo: 'owner@example.com\nBcc: other@example.com' }]) {
     const result = await provider.sendOrderNotificationMessage(fixture(overrides));
     assert.equal(result.status, 'failed');
   }

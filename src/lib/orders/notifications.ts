@@ -8,9 +8,7 @@ export type { OrderNotificationEvent } from './notificationMessage';
 import { parseOrderRawPayload } from './rawPayload';
 import { getShippingNotificationRevision } from './shippingWorkflow';
 import { sendOrderNotificationMessage, type OrderNotificationResult } from './notificationProviders';
-import { enqueuePhoneRelayMessage, getPhoneRelayHealth, getPhoneRelayOrderRevision } from './phoneRelay';
-import { getPhoneRelayDeliveryMetadata, unavailablePhoneRelayDelivery, PHONE_RELAY_DELIVERY_COLUMNS,
-  type PhoneRelayDeliveryMetadata, type PhoneRelayDeliveryRow } from './phoneRelayDelivery';
+import type { PhoneRelayDeliveryMetadata } from './phoneRelayDelivery';
 
 export type NotificationChannel = 'adminEmail' | 'customerEmail' | 'customerSms' | 'adminSms' | 'customerKakao';
 type ChannelRecord = Omit<OrderNotificationResult, 'status'> & Partial<Omit<PhoneRelayDeliveryMetadata, 'status'>> & {
@@ -20,7 +18,8 @@ export type NotificationSummary = { event: OrderNotificationEvent; eventKey: str
 type NotificationOrder = NotificationMessageOrder;
 const ORDER_COLUMNS = 'id,order_code,guest_order_number,channel,payment_method,payment_status,amount_total,currency,customer_name,customer_email,customer_phone,bank_name,bank_account_number,items,shipping_status,shipping_company,tracking_number,raw_payload';
 const CHANNELS: NotificationChannel[] = ['adminEmail', 'customerEmail', 'customerSms', 'adminSms', 'customerKakao'];
-const DEFAULT_CHANNELS: NotificationChannel[] = ['customerSms', 'adminEmail', 'customerEmail', 'adminSms'];
+// customerSms is a legacy selector mapped to Kakao only when explicitly configured.
+const DEFAULT_CHANNELS: NotificationChannel[] = ['customerSms', 'adminEmail', 'customerEmail'];
 
 
 function readEvents(raw: unknown): Record<string, NotificationSummary> {
@@ -50,46 +49,25 @@ export function getOrderNotificationSummary(raw: unknown) {
 /** Project the consumer's latest outcome without ever rewriting financial JSON. */
 export async function projectPhoneRelayOrderNotifications<T extends {
   id: string; notifications: NotificationSummary | null; notificationHistory: NotificationSummary[];
-}>(client: SupabaseClient, orders: T[]): Promise<T[]> {
+}>(_client: SupabaseClient, orders: T[]): Promise<T[]> {
   function relayCandidate(summary: NotificationSummary) {
     const message = summary.channels.customerSms;
     return message && (message.provider === 'phone_relay'
       || ['queued', 'claimed', 'submitted', 'stale', 'sending'].includes(message.status)
       || (message.status === 'unknown' && message.errorCode?.startsWith('PHONE_RELAY_')));
   }
-  const eventKeys = [...new Set(orders.flatMap(order => order.notificationHistory
-    .filter(relayCandidate).filter(summary => /^[a-f0-9]{64}$/.test(summary.eventKey))
-    .map(summary => `${summary.eventKey}:customerSms`)))];
-  if (!eventKeys.length) return orders;
-  const jobs = new Map<string, PhoneRelayDeliveryRow>();
-  // event_key is globally UNIQUE. A bounded chunk cannot be silently truncated
-  // by PostgREST's default row limit, even for a long order history.
-  for (let offset = 0; offset < eventKeys.length; offset += 100) {
-    const chunk = eventKeys.slice(offset, offset + 100);
-    try {
-      const { data, error } = await client.from('phone_relay_jobs').select(PHONE_RELAY_DELIVERY_COLUMNS)
-        .in('event_key', chunk).eq('kind', 'customer_sms');
-      if (!error) for (const job of data || []) {
-        if (typeof job.event_key === 'string' && chunk.includes(job.event_key)) jobs.set(job.event_key, job as PhoneRelayDeliveryRow);
-      }
-    } catch { /* Missing rows remain explicit unknowns; never trigger delivery. */ }
-  }
-  function project(orderId: string, summary: NotificationSummary | null): NotificationSummary | null {
+  function project(summary: NotificationSummary | null): NotificationSummary | null {
     const message = summary?.channels.customerSms;
     if (!summary || !message || !relayCandidate(summary)) return summary;
-    const job = jobs.get(`${summary.eventKey}:customerSms`);
-    // A capability-like provider ID in raw JSON never grants access to another
-    // order's queue metadata. Match both immutable order and event identifiers.
-    const matches = job && job.order_id === orderId
-      && (!message.providerId || message.providerId === job.id);
-    if (!matches && message.status === 'sending' && message.provider !== 'phone_relay') return summary;
-    const metadata = matches ? getPhoneRelayDeliveryMetadata(job)
-      : unavailablePhoneRelayDelivery(message.providerId);
-    return { ...summary, channels: { ...summary.channels, customerSms: { ...message, ...metadata,
-      ...(matches ? { providerId: job.id } : {}), errorCode: metadata.reasonCode || undefined } } };
+    // The retired queue is never queried. Preserve terminal history without
+    // implying receipt; old pending work cannot remain advertised as active.
+    return { ...summary, channels: { ...summary.channels, customerSms: { ...message,
+      ...(['queued', 'claimed', 'sending'].includes(message.status)
+        ? { status: message.status === 'queued' ? 'skipped' : 'unknown', errorCode: 'PHONE_RELAY_RETIRED', reasonCode: 'PHONE_RELAY_RETIRED' } : {}),
+      deliveryConfirmed: false } } };
   }
-  return orders.map(order => ({ ...order, notifications: project(order.id, order.notifications),
-    notificationHistory: order.notificationHistory.map(summary => project(order.id, summary) as NotificationSummary) }));
+  return orders.map(order => ({ ...order, notifications: project(order.notifications),
+    notificationHistory: order.notificationHistory.map(summary => project(summary) as NotificationSummary) }));
 }
 
 export function getCurrentOrderNotificationEvent(order: { payment_method: string | null; payment_status: string | null; shipping_status: string | null; raw_payload?: unknown }): OrderNotificationEvent | null {
@@ -121,31 +99,6 @@ function shipmentEventKey(order: NotificationOrder, event: OrderNotificationEven
 }
 function notificationEventKey(order: NotificationOrder, event: OrderNotificationEvent) {
   return shipmentEventKey(order, event, getShippingNotificationRevision(order.raw_payload));
-}
-
-/** Existing relay SQL compares shipment fields, not this application's audit
- * revision. A→B→A can therefore make an older A job eligible again. Until an
- * atomic SQL revision upgrade is available, an unresolved older A must own the
- * SMS outcome: save the correction, send email, and require reconciliation.
- * This read-only check never cancels jobs or repeats an uncertain message. */
-async function hasUnresolvedPriorShipment(client: SupabaseClient, order: NotificationOrder,
-  event: OrderNotificationEvent, currentKey: string) {
-  if (!['shipping_started', 'delivered'].includes(event) || !getShippingNotificationRevision(order.raw_payload)) return false;
-  const previousKeys = new Set(Object.values(readEvents(order.raw_payload)).filter(summary => summary
-    && summary.event === event && summary.eventKey !== currentKey && summary.channels?.customerSms
-    && (summary.eventKey === shipmentEventKey(order, event, 0)
-      || (summary.shipment?.company === order.shipping_company && summary.shipment?.trackingNumber === order.tracking_number)))
-    .map(summary => summary.eventKey));
-  if (!previousKeys.size) return false;
-  const history = getOrderNotificationHistory(order.raw_payload).filter(summary => previousKeys.has(summary.eventKey));
-  try {
-    const [projected] = await projectPhoneRelayOrderNotifications(client,
-      [{ id: order.id, notifications: null, notificationHistory: history }]);
-    return projected.notificationHistory.some(summary => {
-      const status = summary.channels.customerSms?.status;
-      return !status || ['queued', 'claimed', 'sending', 'unknown'].includes(status);
-    });
-  } catch { return true; }
 }
 
 async function readOrder(client: SupabaseClient, id: string) {
@@ -180,17 +133,11 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
       trackingNumber: initial.tracking_number, revision: getShippingNotificationRevision(initial.raw_payload) } } : {}), channels: {} };
   if (!eventApplies(initial, event)) return { ...base, channels: Object.fromEntries(CHANNELS.map(c => [c, { status: 'skipped', errorCode: 'order_state_changed' }])) };
   const alimtalkMode = process.env.ORDER_CUSTOMER_MESSAGE_CHANNEL === 'alimtalk';
-  // The transport choice is explicit and sticky: missing Kakao configuration or
-  // a failed Kakao request must never silently become a phone relay/LMS send.
-  const selectedChannels = [...new Set((options.channels || DEFAULT_CHANNELS)
-    .map(c => alimtalkMode && c === 'customerSms' ? 'customerKakao' as const : c))].filter(c => CHANNELS.includes(c));
-  const unresolvedPriorShipment = selectedChannels.includes('customerSms')
-    && await hasUnresolvedPriorShipment(client, initial, event, eventKey);
-  // Persist a customer job before the owner's wake-up email can reach Mail.
-  // Keep every other channel's requested relative order unchanged.
-  const channels = selectedChannels.includes('customerSms')
-    ? ['customerSms' as const, ...selectedChannels.filter(c => c !== 'customerSms')]
-    : selectedChannels;
+  // Retired SMS selectors may only resolve to the existing configured Kakao channel.
+  // SMS retries and old clients cannot enqueue or fall back to a paid provider.
+  const channels = [...new Set((options.channels || DEFAULT_CHANNELS)
+    .map(c => alimtalkMode && c === 'customerSms' ? 'customerKakao' as const : c))]
+    .filter(c => CHANNELS.includes(c) && c !== 'customerSms' && c !== 'adminSms');
   for (const channel of channels) {
     const attemptId = randomUUID();
     let claimed: NotificationOrder | null = null;
@@ -207,10 +154,6 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
         // that was already accepted or whose outcome remains uncertain.
         if (other && ['queued', 'claimed', 'submitted', 'stale', 'sent', 'unknown', 'sending'].includes(other.status)) break;
       }
-      // Another dispatcher may be enqueuing the phone job. Let that claimant
-      // finish and send the wake-up mail; sending here could consume the email
-      // idempotency claim before a durable queued job exists.
-      if (channel === 'adminEmail' && existing.channels.customerSms?.status === 'sending') break;
       // An unknown provider result can have incurred a charge/delivered a message.
       // Never blindly repeat it, including from the administrator retry button.
       if (previous && ['queued', 'claimed', 'submitted', 'stale', 'sent', 'unknown', 'sending'].includes(previous.status)) break;
@@ -227,11 +170,6 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
       : channel === 'adminSms' ? process.env.ADMIN_NOTIFICATION_PHONE || ''
       : channel === 'customerEmail' ? beforeSend.customer_email : beforeSend.customer_phone;
     const message = buildOrderNotificationMessage(beforeSend, event, isAdmin);
-    // The email is a wake-up signal, never an instruction containing a recipient
-    // to parse. The phone must fetch and claim the authenticated server queue.
-    if (channel === 'adminEmail' && readEvents(beforeSend.raw_payload)[eventKey]?.channels.customerSms?.status === 'queued') {
-      message.subject = `[ENICO PHONE] ${message.subject}`;
-    }
     let result: OrderNotificationResult = { status: 'skipped', errorCode: 'order_state_changed' };
     if (stillApplies) {
       if (channel === 'customerKakao') {
@@ -243,33 +181,10 @@ export async function dispatchOrderNotifications(client: SupabaseClient, orderId
         } catch {
           result = { status: 'unknown', provider: 'solapi_alimtalk', errorCode: 'notification_provider_outcome_unknown' };
         }
-      } else if (channel === 'customerSms') {
-        if (unresolvedPriorShipment) {
-          result = { status: 'unknown', errorCode: 'SHIPMENT_CORRECTION_RECONCILIATION_REQUIRED' };
-        } else try {
-          result = await enqueuePhoneRelayMessage(client, { channel, eventKey: `${eventKey}:${channel}`, to,
-            ...message, orderId, event, eventRevision: getPhoneRelayOrderRevision(beforeSend) });
-          if (result.status !== 'not_configured') result = { ...result, provider: 'phone_relay' };
-        } catch {
-          // An insert can commit before the network fails. Never fall back to a
-          // second SMS provider after an uncertain queue outcome.
-          result = { status: 'unknown', provider: 'phone_relay', errorCode: 'PHONE_RELAY_ENQUEUE_OUTCOME_UNKNOWN' };
-        }
-      } else if (channel === 'adminSms') {
-        try {
-          // The paired phone shows the owner's local Shortcut notification. Do
-          // not also pay for an SMS back to that same device.
-          result = (await getPhoneRelayHealth(client)).ready
-            ? { status: 'skipped', errorCode: 'PHONE_RELAY_OWNER_LOCAL_NOTIFICATION' }
-            : { status: 'not_configured' };
-        } catch {
-          result = { status: 'unknown', errorCode: 'PHONE_RELAY_HEALTH_UNAVAILABLE' };
-        }
       } else {
         result = { status: 'not_configured' };
       }
-      // A disabled/unpaired relay explicitly yields not_configured. All other
-      // queue results own this delivery and must not invoke SOLAPI as well.
+      // Only email channels reach this adapter; Kakao never falls back to SMS.
       if (result.status === 'not_configured' && channel !== 'customerKakao') {
         try {
           result = await sendOrderNotificationMessage({ channel, eventKey: `${eventKey}:${channel}`, to,

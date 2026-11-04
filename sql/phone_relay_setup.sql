@@ -1,3 +1,4 @@
+-- HISTORICAL ONLY: SMS/phone relay retired 2026-11-04. Do not re-apply.
 -- Run as the project owner. All API access uses the server service_role only.
 -- No customer messages are sent until the owner pairs, tests, and enables one phone.
 begin;
