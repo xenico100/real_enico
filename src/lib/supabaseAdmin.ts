@@ -3,7 +3,7 @@ import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 
-export function getSupabaseAdminClient() {
+export function getSupabaseAdminClient(options: { timeoutMs?: number } = {}) {
   const url = assertExpectedSupabaseProject(
     process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
   );
@@ -16,6 +16,9 @@ export function getSupabaseAdminClient() {
   }
 
   return createClient(url, serviceRoleKey, {
+    ...(options.timeoutMs ? { global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, {
+      ...init, signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(options.timeoutMs!)]) : AbortSignal.timeout(options.timeoutMs!),
+    }) } } : {}),
     auth: {
       persistSession: false,
       autoRefreshToken: false,

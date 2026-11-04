@@ -39,6 +39,7 @@ type MemberResponse = {
 type AuthUserForMembers = {
   id: string;
   email?: string | null;
+  phone?: string | null;
   user_metadata?: Record<string, unknown> | null;
   app_metadata?: Record<string, unknown> | null;
   is_anonymous?: boolean | null;
@@ -64,7 +65,7 @@ function normalizeText(value: unknown) {
 }
 
 function isAnonymousAuthUser(authUser: AuthUserForMembers) {
-  if (authUser.is_anonymous) return true;
+  if (typeof authUser.is_anonymous === 'boolean') return authUser.is_anonymous;
 
   const metadata =
     authUser.app_metadata && typeof authUser.app_metadata === 'object'
@@ -97,8 +98,8 @@ function buildMemberResponse(
 
   const fullNameFromMeta =
     typeof metadata.full_name === 'string' ? normalizeText(metadata.full_name) : '';
-  const phone = typeof metadata.phone === 'string' ? normalizeText(metadata.phone) : '';
-  const address = typeof metadata.address === 'string' ? normalizeText(metadata.address) : '';
+  const phone = normalizeText(metadata.phone) || normalizeText(metadata.phone_number) || normalizeText(authUser.phone);
+  const address = normalizeText(metadata.address);
 
   const email = normalizeText(authUser.email || profile?.email || '');
   const fullName = fullNameFromMeta || normalizeText(profile?.full_name || '');
@@ -215,6 +216,7 @@ export async function GET(request: Request) {
         {
           id: item.id,
           email: item.email,
+          phone: item.phone,
           user_metadata:
             item.user_metadata && typeof item.user_metadata === 'object'
               ? (item.user_metadata as Record<string, unknown>)

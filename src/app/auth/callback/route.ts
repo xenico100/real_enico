@@ -1,9 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { assertExpectedSupabaseProject } from '@/lib/supabase/projectGuard';
 import { safeRedirectPath } from '@/lib/security/identity';
+import { notifySignup } from '@/lib/auth/signupNotification';
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -45,17 +46,21 @@ export async function GET(request: Request) {
     );
 
     if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) return NextResponse.redirect(new URL('/?auth_error=1', requestUrl.origin));
+      const userId = data.user?.id;
+      if (userId) after(async () => { await notifySignup(userId); });
     } else if (tokenHash && type) {
       if (!['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email'].includes(type)) {
         return NextResponse.redirect(new URL('/?auth_error=1', requestUrl.origin));
       }
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         token_hash: tokenHash,
         type: type as EmailOtpType,
       });
       if (error) return NextResponse.redirect(new URL('/?auth_error=1', requestUrl.origin));
+      const userId = data.user?.id;
+      if (userId) after(async () => { await notifySignup(userId); });
     }
   }
 

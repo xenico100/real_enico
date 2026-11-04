@@ -2808,7 +2808,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                               </p>
                               <p>
                                 <span className="mr-2 text-[#8f99a6]">전화번호</span>
-                                <span>{member.phone || '-'}</span>
+                                <span>{member.phone || '미등록'}</span>
+                              </p>
+                              <p className="break-words">
+                                <span className="mr-2 text-[#8f99a6]">주소</span>
+                                <span>{member.address || '미등록'}</span>
                               </p>
                             </div>
                           </div>

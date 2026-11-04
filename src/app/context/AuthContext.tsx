@@ -77,7 +77,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function isAnonymousAuthUser(user: User | null | undefined) {
   if (!user) return false;
-  if (user.is_anonymous) return true;
+  if (typeof user.is_anonymous === 'boolean') return user.is_anonymous;
 
   const provider =
     typeof user.app_metadata?.provider === 'string'
@@ -125,6 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isMountedRef = useRef(true);
+  const signupNotificationsInFlight = useRef(new Set<string>());
+  const signupNotificationsDone = useRef(new Set<string>());
   const isConfigured = hasSupabaseBrowserConfig();
 
   useEffect(() => {
@@ -176,19 +178,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSafeState(setProfile, data ?? null);
   }, [setSafeState]);
 
+  const notifyRecentSignup = useCallback(async (nextSession: Session) => {
+    const nextUser = nextSession.user;
+    const age = Date.now() - Date.parse(nextUser.created_at);
+    if (!nextUser.email_confirmed_at || isAnonymousAuthUser(nextUser) || !Number.isFinite(age)
+      || age < 0 || age >= 86400000 || signupNotificationsInFlight.current.has(nextUser.id)
+      || signupNotificationsDone.current.has(nextUser.id)) return;
+    signupNotificationsInFlight.current.add(nextUser.id);
+    try {
+      for (let attempt = 0; attempt < 3 && isMountedRef.current; attempt += 1) {
+        let retrySeconds = 2 ** attempt;
+        try {
+          const response = await fetch('/api/auth/signup-notify', {
+            method: 'POST', headers: { Authorization: `Bearer ${nextSession.access_token}` },
+          });
+          if (response.ok) {
+            signupNotificationsDone.current.add(nextUser.id);
+            return;
+          }
+          if (![429, 503, 504].includes(response.status)) return;
+          const retryAfter = Number(response.headers.get('Retry-After'));
+          if (Number.isFinite(retryAfter) && retryAfter > 0) retrySeconds = Math.min(retryAfter, 60);
+        } catch { /* Retry a transient connection failure without blocking login. */ }
+        if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, retrySeconds * 1000));
+      }
+    } finally {
+      signupNotificationsInFlight.current.delete(nextUser.id);
+    }
+  }, []);
+
   const syncSession = useCallback(async (nextSession: Session | null) => {
     const nextUser = nextSession?.user ?? null;
     setSafeState(setSession, nextSession);
     setSafeState(setUser, nextUser);
-    if (nextSession && nextUser?.email_confirmed_at && !isAnonymousAuthUser(nextUser) && Date.now() - Date.parse(nextUser.created_at) < 86400000) {
-      void fetch('/api/auth/signup-notify', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${nextSession.access_token}` },
-      }).catch(() => { /* Notification failure must not block login. */ });
-    }
+    if (nextSession) void notifyRecentSignup(nextSession);
     await fetchProfile(isAnonymousAuthUser(nextUser) ? null : nextUser);
     setSafeState(setIsAuthReady, true);
-  }, [fetchProfile, setSafeState]);
+  }, [fetchProfile, notifyRecentSignup, setSafeState]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
