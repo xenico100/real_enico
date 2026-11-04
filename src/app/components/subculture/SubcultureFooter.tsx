@@ -12,32 +12,32 @@ export function SubcultureFooter() {
     <footer className="relative border-t border-[#d1d5db] bg-[linear-gradient(180deg,#ffffff_0%,#f8f9fa_100%)]">
       <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(rgba(0,0,0,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.08)_1px,transparent_1px)] bg-[size:20px_20px]" />
 
-      <div className="relative z-10 px-4 py-10 md:px-10 md:py-14">
-        <div className="flex flex-col gap-4 border border-[#d1d5db] bg-white p-5 md:flex-row md:items-end md:justify-between md:p-7 shadow-sm">
+      <div className="relative z-10 px-4 py-5 md:px-10 md:py-6">
+        <div className="flex flex-col gap-2 border-b border-[#e5e7eb] pb-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#b8001f] font-bold">
+            <p className="font-mono text-[9px] uppercase tracking-[0.08em] text-[#999999] font-normal">
               Shop Info
             </p>
-            <h2 className="mt-2 font-heading text-base uppercase tracking-[0.06em] text-[#111827] md:text-lg">
+            <h2 className="mt-1 font-mono text-[10px] uppercase tracking-[0.04em] text-[#999999] font-normal">
               Monangsangin
             </h2>
-            <p className="mt-1 break-all text-[9px] leading-relaxed text-[#4b5563] md:text-[10px]">
+            <p className="mt-1 break-all text-[9px] leading-relaxed text-[#999999]">
               morba9850@gmail.com. Copyright © Enico Veck. All rights reserved.
             </p>
           </div>
 
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#b8001f] font-semibold">
+          <p className="font-mono text-[9px] uppercase tracking-[0.08em] text-[#999999] font-normal">
             ENICO VECK STORELINE
           </p>
         </div>
 
-        <div className="grid gap-3 border-x border-b border-[#d1d5db] bg-[#f8f9fa] p-4 md:grid-cols-2 md:p-7 xl:grid-cols-4 shadow-sm">
+        <div className="grid gap-x-4 gap-y-2 pt-3 md:grid-cols-2 xl:grid-cols-4">
           {FOOTER_FIELDS.map((field) => (
-            <div key={field.label} className="border border-[#e5e7eb] bg-white px-4 py-4 shadow-sm">
-              <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-[#4b5563] md:text-[10px] font-semibold">
+            <div key={field.label} className="min-w-0 py-1">
+              <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-[#999999] font-normal">
                 {field.label}
               </p>
-              <p className="mt-1.5 break-words text-[11px] font-bold leading-relaxed text-[#111827] md:text-xs">
+              <p className="mt-1 break-words text-[9px] font-normal leading-relaxed text-[#999999] md:text-[10px]">
                 {field.value}
               </p>
             </div>

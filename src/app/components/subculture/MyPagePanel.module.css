@@ -531,3 +531,41 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Append to the source MyPagePanel.module.css, after its existing layout rules.
+   Only the orders tab changes; use the outer shell as its single scroll owner. */
+@media (min-width: 768px) {
+  .shell:has(.contentScroll[data-order-view="true"]) {
+    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-color: var(--mypage-line) var(--mypage-bg);
+  }
+
+  .shell:has(.contentScroll[data-order-view="true"]) .panel {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .shell:has(.contentScroll[data-order-view="true"]) .header,
+  .shell:has(.contentScroll[data-order-view="true"]) .contentHeading {
+    flex-shrink: 0;
+  }
+
+  .shell:has(.contentScroll[data-order-view="true"]) .contentShell {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .contentScroll[data-order-view="true"] {
+    flex: 0 0 auto;
+    min-height: 320px;
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+  }
+}
