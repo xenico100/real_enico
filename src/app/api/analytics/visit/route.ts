@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
   let source = 'other';
   let incomingEvent: VisitEventItem | null = null;
   let incomingAttribution: VisitAttribution | undefined;
+  let attributionOnly = false;
 
   try {
     const payload = await readJsonObject(request, 8192);
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
       incomingEvent = normalizeVisitEventItem(payload.event, now.toISOString());
     }
     incomingAttribution = normalizeVisitAttribution(payload?.attribution);
+    attributionOnly = payload?.attributionOnly === true && !Object.hasOwn(payload || {}, 'event') && Boolean(incomingAttribution);
   } catch {
     // ignore body parse errors
   }
@@ -143,7 +145,7 @@ export async function POST(request: NextRequest) {
       }
 
       const existingMeta = parseVisitMeta(existingRow.last_path);
-      const shouldIncrementHit = !incomingEvent || incomingEvent.type === 'page_view';
+      const shouldIncrementHit = !attributionOnly && (!incomingEvent || incomingEvent.type === 'page_view');
       const nextHitCount = Math.max(
         1,
         Number(existingRow.hit_count || 0) + (shouldIncrementHit ? 1 : 0),

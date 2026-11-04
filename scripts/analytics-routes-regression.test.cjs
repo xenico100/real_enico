@@ -149,6 +149,53 @@ const dailyStatsRequest = () => ({
   headers: { get: () => 'Bearer fixture' },
 });
 
+test('metadata-only acquisition upgrades preserve page hits and first touch through the existing CAS', async () => {
+  const direct = analytics().inferVisitAttribution({ currentUrl: 'https://enicoveck.com/' });
+  const db = visitDb(row({ path: '/', source: 'other', attribution: direct }, 7));
+  const response = await visitHandler(db)(request({ path: '/', source: 'other', attribution: googleAttribution(), attributionOnly: true }));
+  assert.equal(response.status, 200);
+  assert.equal(db.row.hit_count, 7);
+  assert.equal(analytics().parseVisitMeta(db.row.last_path).attribution.source, 'google');
+  assert.ok(db.updates[0].filters.some(filter => filter.key === 'hit_count' && filter.value === 7));
+});
+
+test('metadata-only flags do not suppress explicit page views, invalid evidence or nonboolean values', async () => {
+  for (const extra of [
+    { attributionOnly: 'true' }, { attributionOnly: 1 },
+    { attributionOnly: true, event: { type: 'page_view', target: '/' } },
+    { attributionOnly: true, event: null },
+    { attributionOnly: true, attribution: null },
+  ]) {
+    const db = visitDb(row({ path: '/', source: 'other' }, 7));
+    const response = await visitHandler(db)(request({ path: '/', source: 'other', attribution: googleAttribution(), ...extra }));
+    assert.equal(response.status, 200);
+    assert.equal(db.row.hit_count, 8);
+  }
+});
+
+test('new v2 click/app evidence is normalized without leaking raw identifiers into stored metadata', async () => {
+  for (const attribution of [
+    analytics().inferVisitAttribution({ currentUrl: 'https://enicoveck.com/?gclid=PRIVATE_CLICK' }),
+    analytics().inferVisitAttribution({ currentUrl: 'https://enicoveck.com/', referrer: 'android-app://com.kakao.talk/private?token=PRIVATE' }),
+  ]) {
+    const db = visitDb(null);
+    assert.equal((await visitHandler(db)(request({ path: '/', source: 'other', attribution: { ...attribution, clickId: 'PRIVATE' } }))).status, 200);
+    assert.deepEqual(analytics().parseVisitMeta(db.row.last_path).attribution, attribution);
+    assert.ok(!db.row.last_path.includes('PRIVATE'));
+  }
+});
+
+test('the API storage boundary strips raw identifiers from a custom-client path', async () => {
+  const db = visitDb(null);
+  const response = await visitHandler(db)(request({
+    path: '/shop?gclid=PRIVATE_CLICK&access_token=PRIVATE_TOKEN#PRIVATE_FRAGMENT',
+    source: 'other', attribution: analytics().inferVisitAttribution({ currentUrl: 'https://enicoveck.com/shop?gclid=PRIVATE_CLICK' }),
+  }));
+  assert.equal(response.status, 200);
+  assert.equal(analytics().parseVisitMeta(db.row.last_path).path, '/shop');
+  assert.ok(!db.row.last_path.includes('PRIVATE'));
+});
+
 test('new visits persist normalized attribution without changing the legacy source bucket', async () => {
   const db = visitDb(null);
   const attribution = googleAttribution();

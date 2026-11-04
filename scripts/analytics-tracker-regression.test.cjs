@@ -75,7 +75,7 @@ function createBrowser({ url = 'https://enicoveck.com/', referrer = '', storageD
     }).outputText;
     vm.runInContext(`(function(require,module,exports){${compiled}\n})`, context, { filename: absolute })(name => {
       if (name === 'react') return { useEffect: callback => { cleanup = callback(); } };
-      if (name === 'next/navigation') return { usePathname: () => pathname };
+      if (name === 'next/navigation') return { usePathname: () => pathname, useSearchParams: () => new URL(browser.location.href).searchParams };
       if (name === '@/lib/analytics/visitSource') return load('src/lib/analytics/visitSource.ts');
       throw new Error(`Unexpected tracker dependency: ${name}`);
     }, mod, mod.exports);
@@ -134,7 +134,7 @@ test('a cancelled idle effect does not mark a visit sent and StrictMode remount 
   await browser.runIdle();
   assert.equal(browser.calls.length, 1);
   assert.equal(browser.calls[0].payload.attribution.source, 'youtube');
-  assert.equal(browser.sessionValues.size, 1);
+  assert.equal(browser.sessionValues.size, 2);
   browser.render();
   await browser.runIdle();
   assert.equal(browser.calls.length, 1, 'successful page views deduplicate after the response');
@@ -203,6 +203,79 @@ test('failed page-view responses remain retryable and successful responses mark 
   browser.render();
   await browser.runIdle();
   assert.equal(browser.calls.length, 2);
-  assert.equal(browser.sessionValues.size, 1);
+  assert.equal(browser.sessionValues.size, 2);
   assert.equal(browser.calls[1].payload.attribution.source, 'naver');
+});
+
+test('memory preserves the first captured campaign when an idle send is cancelled and storage is unavailable', async () => {
+  const browser = createBrowser({ url: 'https://enicoveck.com/?utm_source=instagram&utm_medium=social', storageDisabled: true });
+  const cleanup = browser.render();
+  cleanup();
+  browser.navigate('https://enicoveck.com/apparel');
+  browser.render();
+  await browser.runIdle();
+  assert.equal(browser.calls.length, 1);
+  assert.equal(browser.calls[0].payload.path, '/apparel');
+  assert.equal(browser.calls[0].payload.attribution.source, 'instagram');
+  assert.equal(browser.calls[0].payload.attribution.landingPath, '/');
+  browser.render();
+  await browser.runIdle();
+  assert.equal(browser.calls.length, 1, 'memory acknowledgement deduplicates even without either browser storage');
+});
+
+test('a query-only attribution upgrade sends metadata without a second page hit', async () => {
+  const browser = createBrowser();
+  browser.render();
+  await browser.runIdle();
+  assert.equal(browser.calls[0].payload.attribution.unknownReason, 'no_referrer');
+  assert.equal(browser.calls[0].payload.attributionOnly, undefined);
+  browser.navigate('https://enicoveck.com/?gclid=PRIVATE_CLICK&access_token=PRIVATE_QUERY#PRIVATE_HASH');
+  browser.render();
+  await browser.runIdle();
+  assert.equal(browser.calls.length, 2);
+  assert.equal(browser.calls[1].payload.attributionOnly, true);
+  assert.equal(browser.calls[1].payload.attribution.method, 'click_id');
+  assert.equal(browser.calls[1].payload.attribution.clickIdParameter, 'gclid');
+  assert.equal(browser.calls[1].payload.path, '/');
+  assert.ok(!JSON.stringify(browser.calls).includes('PRIVATE'));
+  assert.ok(!JSON.stringify([...browser.sessionValues.keys(), ...browser.localValues.keys(), ...browser.localValues.values()]).includes('PRIVATE'));
+});
+
+test('a queued query upgrade waits for the first page acknowledgement before deciding whether to increment', async () => {
+  const browser = createBrowser();
+  const first = deferred();
+  browser.queueResponse(first.promise);
+  browser.render();
+  await browser.runIdle();
+  browser.navigate('https://enicoveck.com/?utm_source=youtube&utm_medium=social');
+  browser.render();
+  await browser.runIdle();
+  assert.equal(browser.calls.length, 1);
+  first.resolve({ ok: true });
+  await flush();
+  await flush();
+  assert.equal(browser.calls.length, 2);
+  assert.equal(browser.calls[1].payload.attributionOnly, true);
+});
+
+test('a failed first transport keeps a queued acquisition upgrade eligible to count the actual page', async () => {
+  const browser = createBrowser();
+  browser.queueResponse(Promise.resolve({ ok: false }));
+  browser.render();
+  await browser.runIdle();
+  browser.navigate('https://enicoveck.com/?utm_source=youtube&utm_medium=social');
+  browser.render();
+  await browser.runIdle();
+  assert.equal(browser.calls.length, 2);
+  assert.equal(browser.calls[1].payload.attributionOnly, undefined);
+});
+
+test('unrelated queries and raw click ID changes do not generate extra attributed events', async () => {
+  const browser = createBrowser({ url: 'https://enicoveck.com/?fbclid=PRIVATE_A' });
+  browser.render();
+  await browser.runIdle();
+  browser.navigate('https://enicoveck.com/?fbclid=PRIVATE_B&filter=PRIVATE');
+  browser.render();
+  await browser.runIdle();
+  assert.equal(browser.calls.length, 1);
 });

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "../styles/index.css";
 import { AuthProvider } from "@/app/context/AuthContext";
 import { StorefrontSkulletProvider } from "@/app/components/system/StorefrontSkulletProvider";
@@ -52,7 +53,7 @@ export default function RootLayout({
       <body>
         <StorefrontSkulletProvider>
           <AuthProvider>
-            <VisitTracker />
+            <Suspense fallback={null}><VisitTracker /></Suspense>
             {children}
           </AuthProvider>
         </StorefrontSkulletProvider>

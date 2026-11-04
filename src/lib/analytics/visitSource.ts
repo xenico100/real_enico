@@ -8,13 +8,16 @@ export const VISIT_CHANNELS = [
 ] as const;
 export type VisitChannel = (typeof VISIT_CHANNELS)[number];
 export type VisitAttribution = {
-  version: 1;
+  version: 1 | 2;
   source: string;
   channel: VisitChannel;
-  method: 'utm' | 'referrer' | 'direct';
+  method: 'utm' | 'referrer' | 'direct' | 'click_id' | 'app_referrer';
   landingPath: string;
   referrerHost?: string;
   utm?: { source?: string; medium?: string; campaign?: string; content?: string; term?: string };
+  clickIdParameter?: 'gclid' | 'gbraid' | 'wbraid' | 'msclkid' | 'fbclid';
+  appId?: string;
+  unknownReason?: 'no_referrer' | 'internal_referrer' | 'unrecognized_app' | 'invalid_referrer';
 };
 export type VisitSourceDetail = {
   key: string;
@@ -54,10 +57,33 @@ const SOURCE_DOMAINS: [string, string[]][] = [
 ];
 const SOURCE_ALIASES: Record<string, string> = {
   ig: 'instagram', insta: 'instagram', yt: 'youtube', x: 'twitter',
-  google_ads: 'google', googleads: 'google', naver_ads: 'naver',
+  google_ads: 'google_ads', googleads: 'google_ads', naver_ads: 'naver_ads',
   kakao: 'kakao', kakaotalk: 'kakao', kakao_talk: 'kakao', 카카오: 'kakao', 카카오톡: 'kakao',
-  fb: 'facebook', meta: 'facebook', 네이버: 'naver', 구글: 'google', 다음: 'daum',
+  fb: 'facebook', meta: 'meta', 네이버: 'naver', 구글: 'google', 다음: 'daum',
 };
+
+export const VISIT_CLICK_ID_PARAMETERS = ['gclid', 'gbraid', 'wbraid', 'msclkid', 'fbclid'] as const;
+export const VISIT_APP_SOURCES: Readonly<Record<string, string>> = {
+  'com.instagram.android': 'instagram',
+  'com.google.android.youtube': 'youtube',
+  'com.twitter.android': 'twitter',
+  'com.facebook.katana': 'facebook',
+  'com.kakao.talk': 'kakao',
+  'com.nhn.android.search': 'naver',
+  'com.google.android.googlequicksearchbox': 'google',
+  'org.telegram.messenger': 'telegram',
+  'com.whatsapp': 'whatsapp',
+};
+const UNKNOWN_REASONS = ['no_referrer', 'internal_referrer', 'unrecognized_app', 'invalid_referrer'] as const;
+
+// React may observe query-only navigations. Only acquisition tags and marker
+// presence belong in the dependency key; never retain click IDs or other query data.
+export function visitAcquisitionQueryKey(params: { get: (name: string) => string | null } | null) {
+  const tags = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ref', 'source']
+    .map(key => [key, cleanMarketingValue(params?.get(key)) || '']);
+  const markers = VISIT_CLICK_ID_PARAMETERS.filter(key => Boolean(params?.get(key)?.trim()));
+  return JSON.stringify([tags, markers]);
+}
 
 function cleanMarketingValue(value: unknown, max = 160): string | undefined {
   if (typeof value !== 'string') return undefined;
@@ -94,11 +120,14 @@ function sourceFromTag(value: string) {
   const token = value.toLowerCase().trim();
   const url = tryParseUrl(token);
   const host = url?.hostname || cleanHost(token);
-  return SOURCE_ALIASES[token] || (host ? sourceFromHost(host) || host : token);
+  return Object.hasOwn(SOURCE_ALIASES, token) ? SOURCE_ALIASES[token] : (host ? sourceFromHost(host) || host : token);
 }
 
-function channelForSource(source: string, medium?: string): VisitChannel {
+function channelForSource(source: string, medium?: string, observedReferrer = false): VisitChannel {
   const token = (medium || '').toLowerCase().replace(/[\s-]+/g, '_');
+  const recognizedMedium = /^(email|e_mail|newsletter|referral|social|organic_social|social_media|messenger|messaging|sms|organic|organic_search|cpc|ppc|paid|paid_search|paid_social|paidsearch|paidsocial|display|cpm|cpv|ads|retargeting)$/.test(token);
+  // A supplied source label alone never proves an organic/paid channel.
+  if (!observedReferrer && !recognizedMedium) return 'campaign';
   const paid = /^(cpc|ppc|paid|paid_search|paid_social|paidsearch|paidsocial|display|cpm|cpv|ads|retargeting)$/.test(token);
   if (token === 'email' || token === 'e_mail' || token === 'newsletter') return 'email';
   if (token === 'referral') return 'referral';
@@ -108,7 +137,7 @@ function channelForSource(source: string, medium?: string): VisitChannel {
   if (SOCIAL_SOURCES.has(source)) return paid ? 'paid_social' : 'organic_social';
   if (token === 'paid_search' || token === 'paidsearch' || token === 'cpc' || token === 'ppc') return 'paid_search';
   if (token === 'paid_social' || token === 'paidsocial') return 'paid_social';
-  if (token === 'organic') return 'organic_search';
+  if (token === 'organic' || token === 'organic_search') return 'organic_search';
   return 'campaign';
 }
 
@@ -121,14 +150,15 @@ function channelForReferrer(source: string, host: string): VisitChannel {
     if (source === 'daum' && !['daum.net', 'search.daum.net', 'm.search.daum.net', 'm.daum.net'].includes(host)) return 'referral';
     if (source === 'google' && /^(docs|drive|maps|translate|accounts|calendar|sites)\./.test(host)) return 'referral';
   }
-  return channelForSource(source);
+  return channelForSource(source, undefined, true);
 }
 
 export function normalizeVisitAttribution(raw: unknown): VisitAttribution | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const item = raw as Record<string, unknown>;
-  if (item.version !== 1 || !VISIT_CHANNELS.includes(item.channel as VisitChannel)) return undefined;
-  if (!['utm', 'referrer', 'direct'].includes(String(item.method))) return undefined;
+  if ((item.version !== 1 && item.version !== 2) || !VISIT_CHANNELS.includes(item.channel as VisitChannel)) return undefined;
+  const methods = item.version === 1 ? ['utm', 'referrer', 'direct'] : ['utm', 'referrer', 'direct', 'click_id', 'app_referrer'];
+  if (!methods.includes(String(item.method))) return undefined;
   const source = cleanMarketingValue(item.source);
   if (!source) return undefined;
   const referrerHost = cleanHost(item.referrerHost);
@@ -138,12 +168,22 @@ export function normalizeVisitAttribution(raw: unknown): VisitAttribution | unde
     const value = cleanMarketingValue(rawUtm[key]);
     if (value) utm[key] = value;
   }
+  const clickIdParameter = item.version === 2 && VISIT_CLICK_ID_PARAMETERS.includes(item.clickIdParameter as NonNullable<VisitAttribution['clickIdParameter']>)
+    ? item.clickIdParameter as NonNullable<VisitAttribution['clickIdParameter']> : undefined;
+  const appId = item.version === 2 && typeof item.appId === 'string' && Object.hasOwn(VISIT_APP_SOURCES, item.appId) ? item.appId : undefined;
+  const unknownReason = item.version === 2 && item.method === 'direct' && UNKNOWN_REASONS.includes(item.unknownReason as NonNullable<VisitAttribution['unknownReason']>)
+    ? item.unknownReason as NonNullable<VisitAttribution['unknownReason']> : undefined;
+  if (item.method === 'click_id' && !clickIdParameter) return undefined;
+  if (item.method === 'app_referrer' && !appId) return undefined;
   return {
-    version: 1, source, channel: item.channel as VisitChannel,
+    version: item.version, source, channel: item.channel as VisitChannel,
     method: item.method as VisitAttribution['method'],
     landingPath: cleanLandingPath(item.landingPath),
     ...(referrerHost ? { referrerHost } : {}),
     ...(Object.keys(utm).length ? { utm } : {}),
+    ...(clickIdParameter ? { clickIdParameter } : {}),
+    ...(appId ? { appId } : {}),
+    ...(unknownReason ? { unknownReason } : {}),
   };
 }
 
@@ -153,6 +193,17 @@ export function inferVisitAttribution(params: {
 }): VisitAttribution {
   const currentUrl = tryParseUrl(params.currentUrl);
   const referrer = tryParseUrl(params.referrer);
+  const rawReferrer = (params.referrer || '').trim();
+  let appId: string | undefined;
+  let unknownApp = false;
+  if (/^android-app:/i.test(rawReferrer)) {
+    try {
+      const appReferrer = new URL(rawReferrer);
+      if (appReferrer.protocol === 'android-app:' && !appReferrer.username && !appReferrer.password && !appReferrer.port
+        && Object.hasOwn(VISIT_APP_SOURCES, appReferrer.hostname)) appId = appReferrer.hostname;
+      else unknownApp = true;
+    } catch { unknownApp = true; }
+  }
   const currentHost = cleanHost(currentUrl?.hostname);
   const candidateHost = cleanHost(referrer?.hostname);
   const isInternal = candidateHost && (
@@ -167,22 +218,37 @@ export function inferVisitAttribution(params: {
   }
   const tag = cleanMarketingValue(currentUrl?.searchParams.get('ref')) || cleanMarketingValue(currentUrl?.searchParams.get('source'));
   const landingPath = cleanLandingPath(currentUrl?.pathname);
+  const clickIdParameters = VISIT_CLICK_ID_PARAMETERS.filter(key => Boolean(currentUrl?.searchParams.get(key)?.trim()));
+  const clickIdParameter = clickIdParameters[0];
+  const evidence = { ...(clickIdParameter ? { clickIdParameter } : {}), ...(appId ? { appId } : {}) };
   if (Object.keys(utm).length || tag) {
-    const source = utm.source ? sourceFromTag(utm.source) : tag ? sourceFromTag(tag) : referrerHost ? sourceFromHost(referrerHost) || referrerHost : utm.medium?.toLowerCase() === 'email' ? 'email' : '(campaign)';
+    const source = utm.source ? sourceFromTag(utm.source) : tag ? sourceFromTag(tag) : referrerHost ? sourceFromHost(referrerHost) || referrerHost : appId ? VISIT_APP_SOURCES[appId] : utm.medium?.toLowerCase() === 'email' ? 'email' : '(campaign)';
     return {
-      version: 1, source, channel: channelForSource(source, utm.medium), method: 'utm', landingPath,
+      version: 2, source, channel: channelForSource(source, utm.medium), method: 'utm', landingPath,
       ...(referrerHost ? { referrerHost } : {}), ...(Object.keys(utm).length ? { utm } : {}),
+      ...evidence,
     };
   }
   if (referrerHost) {
     const knownSource = sourceFromHost(referrerHost);
+    const observedChannel = knownSource ? channelForReferrer(knownSource, referrerHost) : 'referral';
     return {
-      version: 1, source: knownSource || referrerHost,
-      channel: knownSource ? channelForReferrer(knownSource, referrerHost) : 'referral',
+      version: 2, source: knownSource || referrerHost,
+      channel: clickIdParameter && ['organic_search', 'organic_social'].includes(observedChannel) ? 'referral' : observedChannel,
       method: 'referrer', landingPath, referrerHost,
+      ...evidence,
     };
   }
-  return { version: 1, source: '(direct)', channel: 'direct_or_unknown', method: 'direct', landingPath };
+  if (appId) return {
+    version: 2, source: VISIT_APP_SOURCES[appId], channel: 'referral', method: 'app_referrer', landingPath, ...evidence,
+  };
+  if (clickIdParameter) {
+    const providers = new Set(clickIdParameters.map(parameter => parameter === 'msclkid' ? 'microsoft_ads' : parameter === 'fbclid' ? 'meta' : 'google_ads'));
+    const markerSource = providers.size > 1 ? '(campaign)' : [...providers][0];
+    return { version: 2, source: markerSource, channel: 'campaign', method: 'click_id', landingPath, clickIdParameter };
+  }
+  const unknownReason = unknownApp ? 'unrecognized_app' : isInternal ? 'internal_referrer' : rawReferrer ? 'invalid_referrer' : 'no_referrer';
+  return { version: 2, source: '(unknown)', channel: 'direct_or_unknown', method: 'direct', landingPath, unknownReason };
 }
 
 export function mergeVisitAttribution(
@@ -334,7 +400,7 @@ export function serializeVisitMeta(
 
   const normalizedAttribution = normalizeVisitAttribution(attribution);
   const payload: VisitMeta = {
-    path,
+    path: cleanLandingPath(path),
     source: normalizeVisitSource(source),
     ...(normalizedEvents.length > 0 ? { events: normalizedEvents } : {}),
     ...(normalizedAttribution ? { attribution: normalizedAttribution } : {}),
