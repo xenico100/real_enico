@@ -95,7 +95,7 @@ test('sweep preserves failed attempts for later retry and emits only safe count 
 test('sweep stops before another slow batch can exceed its remaining runtime budget', async () => {
   let elapsed = 0;
   const f = fixture({ users: Array.from({ length: 10 }, (_, n) => member(`member-${n}`)),
-    elapsed: () => elapsed, notify: async () => { elapsed += 16000; return { ok: true, status: 'sent' }; } });
+    elapsed: () => elapsed, notify: async () => { elapsed += 13000; return { ok: true, status: 'sent' }; } });
   const result = await (await f.handler(f.request())).json();
   assert.equal(result.notified, 2); assert.equal(result.partial, true); assert.equal(result.more, true);
 });

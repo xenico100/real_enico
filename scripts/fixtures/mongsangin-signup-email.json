@@ -1,0 +1,7 @@
+{
+  "from": "Sender <sender@example.com>",
+  "to": ["owner@example.com"],
+  "subject": "[몽상인] 신규 회원가입 알림",
+  "text": "몽상인에 신규 회원이 가입했습니다.\n회원 ID: 11111111-1111-4111-8111-111111111111\n가입 시각: 2026-11-04T09:59:59.000Z\n\n회원 정보 확인: https://enico-mongsangin-admin.vercel.app/?site=mongsangin&view=members",
+  "html": "<div lang=\"ko\" style=\"font-family:Arial,sans-serif;line-height:1.6\"><h2>신규 회원가입</h2><p style=\"white-space:pre-wrap\">몽상인에 신규 회원이 가입했습니다.\n회원 ID: 11111111-1111-4111-8111-111111111111\n가입 시각: 2026-11-04T09:59:59.000Z\n\n회원 정보 확인: https://enico-mongsangin-admin.vercel.app/?site=mongsangin&amp;view=members</p></div>"
+}

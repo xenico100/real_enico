@@ -12,7 +12,7 @@ type Dependencies = {
 };
 
 const PER_PAGE = 1000, MAX_PAGES = 20, MAX_CANDIDATES = 10;
-const SCAN_BUDGET_MS = 8_000, TOTAL_BUDGET_MS = 50_000, BATCH_RESERVE_MS = 20_000;
+const SCAN_BUDGET_MS = 8_000, TOTAL_BUDGET_MS = 50_000, BATCH_RESERVE_MS = 25_000;
 
 /** Bounded, retryable recovery pass. Responses contain counts and completeness only. */
 export function createSignupSweepHandler(dependencies: Dependencies) {
