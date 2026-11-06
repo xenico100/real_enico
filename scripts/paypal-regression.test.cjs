@@ -26,6 +26,7 @@ function loadTypeScript(file, mocks = {}) {
     if (name === '@/lib/orders/paypalPricing') {
       return loadTypeScript('src/lib/orders/paypalPricing.ts');
     }
+    if (name === '@/lib/orders/checkoutValidation') return loadTypeScript('src/lib/orders/checkoutValidation.ts');
     if (name === '@/lib/orders/rawPayload') {
       return loadTypeScript('src/lib/orders/rawPayload.ts');
     }

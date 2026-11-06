@@ -1,3 +1,4 @@
+import { CHECKOUT_ADDRESS_MAX_LENGTH, CHECKOUT_PHONE_MAX_LENGTH, isValidCheckoutEmail, isValidCheckoutPhone } from '@/lib/orders/checkoutValidation';
 import { revalidateTag } from 'next/cache';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
@@ -162,8 +163,14 @@ function parseRequestBody(body: unknown): ParsedPayPalRequest {
   }
 
   const email = normalizeRequiredText(customer.email, '이메일', 320);
-  if (!email.includes('@')) {
+  if (!isValidCheckoutEmail(email)) {
     throw new OrderValidationError('이메일 형식이 올바르지 않습니다.');
+  }
+
+  const phone = normalizeRequiredText(customer.phone, '핸드폰 번호', CHECKOUT_PHONE_MAX_LENGTH);
+  const country = normalizeRequiredText(customer.country, '국가/구역', 100);
+  if (!isValidCheckoutPhone(phone, country)) {
+    throw new OrderValidationError('국가번호를 포함한 올바른 전화번호를 입력해 주세요.');
   }
 
   const clientTotal = Number(pricing.total);
@@ -195,9 +202,9 @@ function parseRequestBody(body: unknown): ParsedPayPalRequest {
     customer: {
       name: normalizeRequiredText(customer.name, '이름', 100),
       email,
-      phone: normalizeRequiredText(customer.phone, '핸드폰 번호', 50),
-      country: normalizeRequiredText(customer.country, '국가/구역', 100),
-      address: normalizeRequiredText(customer.address, '주소', 500),
+      phone,
+      country,
+      address: normalizeRequiredText(customer.address, '주소', CHECKOUT_ADDRESS_MAX_LENGTH),
     },
     clientTotal,
     paypal: { orderId, captureId },
@@ -583,3 +590,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

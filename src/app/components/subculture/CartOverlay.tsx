@@ -7,6 +7,8 @@ import { X, Trash2 } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
 import { shouldBypassImageOptimization } from '@/lib/images';
+import { CHECKOUT_ADDRESS_MAX_LENGTH, CHECKOUT_PHONE_MAX_LENGTH, isValidCheckoutEmail, isValidCheckoutPhone } from '@/lib/orders/checkoutValidation';
+import { clearBankCheckoutAttempt, readBankCheckoutAttempt, saveBankCheckoutAttempt } from '@/lib/orders/bankCheckoutAttempt';
 import { NICEPAY_TEST_PRODUCT_ID } from '@/lib/storefront/productCatalog';
 import {
   getPayPalOrderAmount,
@@ -92,6 +94,7 @@ type PayPalNamespace = {
     createOrder: (_data: unknown, actions: PayPalOrderActions) => Promise<string>;
     onApprove: (data: { orderID: string }, actions: PayPalOrderActions) => Promise<void>;
     onError?: (_error: unknown) => void;
+    onCancel?: () => void;
     style?: {
       layout?: 'vertical' | 'horizontal';
       shape?: 'rect' | 'pill';
@@ -131,13 +134,6 @@ declare global {
   }
 }
 
-function formatUnknownErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message.trim();
-  }
-  return '알 수 없는 오류';
-}
-
 async function diagnosePaypalSdkLoad(scriptUrl: string) {
   try {
     const response = await fetch(scriptUrl, {
@@ -146,12 +142,12 @@ async function diagnosePaypalSdkLoad(scriptUrl: string) {
     });
 
     if (!response.ok) {
-      return `PayPal SDK 응답 오류(${response.status}). Client ID와 PayPal 앱 상태를 확인해 주세요.`;
+      return `PayPal 결제를 불러오지 못했습니다. 잠시 후 다시 시도하거나 다른 결제수단을 선택해 주세요.`;
     }
 
-    return 'PayPal SDK URL 응답은 정상인데 브라우저가 스크립트 실행을 차단했습니다. 광고 차단기, Brave/Safari 추적 차단, 회사/통신사 보안 필터를 확인해 주세요.';
-  } catch (error) {
-    return `PayPal SDK 네트워크 요청 실패: ${formatUnknownErrorMessage(error)}`;
+    return '브라우저에서 PayPal 결제를 불러오지 못했습니다. 다시 시도하거나 다른 결제수단을 선택해 주세요.';
+  } catch {
+    return `PayPal에 연결하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.`;
   }
 }
 
@@ -186,6 +182,10 @@ let paypalSdkPromiseUrl = '';
 // Keep an approved order available if closing the cart unmounts this component.
 // This is intentionally memory-only; checkout passwords are never put in storage.
 let pendingPayPalApprovalInMemory: PendingPayPalApproval | null = null;
+// Retry the exact request across overlay unmounts, without writing personal data to storage.
+let pendingBankRequestInMemory: { requestJson: string; channel: OrderChannel } | null = null;
+let bankSubmissionInFlight = false;
+let providerInteraction: 'paypal' | 'nicepay' | null = null;
 
 function loadExternalSdk(options: {
   scriptId: string;
@@ -331,7 +331,10 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  onCloseRef.current = () => {
+    if (bankSubmissionInFlight || providerInteraction) return;
+    onClose();
+  };
   const paypalContainerRef = useRef<HTMLDivElement | null>(null);
   const paypalButtonsInstanceRef = useRef<PayPalButtonsInstance | null>(null);
   const pendingPayPalApprovalRef = useRef<PendingPayPalApproval | null>(pendingPayPalApprovalInMemory);
@@ -351,7 +354,9 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
   const [checkoutPhone, setCheckoutPhone] = useState('');
   const [guestLookupPassword, setGuestLookupPassword] = useState('');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [pendingBankAttempt, setPendingBankAttempt] = useState(false);
   const [isStartingNicepay, setIsStartingNicepay] = useState(false);
+  const [providerCheckoutOpen, setProviderCheckoutOpen] = useState(Boolean(providerInteraction));
   const [nicepayError, setNicepayError] = useState<string | null>(null);
   const [paypalSdkReady, setPaypalSdkReady] = useState(false);
   const [paypalError, setPaypalError] = useState<string | null>(null);
@@ -372,7 +377,10 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
     }
 
     let savedReceipt: BankOrderReceipt | null = null;
+    const bankAttempt = readBankCheckoutAttempt();
+    setPendingBankAttempt(Boolean(bankAttempt?.pending));
     try {
+      setPendingBankAttempt(Boolean(readBankCheckoutAttempt(window.sessionStorage)?.pending));
       savedReceipt = readBankOrderReceipt(window.sessionStorage.getItem(BANK_RECEIPT_STORAGE_KEY));
       if (!savedReceipt) window.sessionStorage.removeItem(BANK_RECEIPT_STORAGE_KEY);
     } catch { /* Confirmation remains available in memory if browser storage is blocked. */ }
@@ -487,7 +495,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
   useEffect(() => {
     if (!isOpen || mode !== 'checkout' || !shouldShowPaypal) return;
     if (!PAYPAL_CLIENT_ID) {
-      setPaypalError('PayPal Client ID가 설정되지 않았습니다.');
+      setPaypalError('현재 PayPal 결제를 이용할 수 없습니다. 다른 결제수단을 선택해 주세요.');
       return;
     }
 
@@ -572,7 +580,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
       return false;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    if (!isValidCheckoutEmail(normalizedEmail)) {
       announceCheckoutError('안내를 받을 수 있는 이메일 주소를 확인해 주세요.', checkoutEmailInputRef.current);
       return false;
     }
@@ -582,6 +590,11 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         '주문정보를 입력하세요. 핸드폰 번호가 비어 있습니다.',
         checkoutPhoneInputRef.current,
       );
+      return false;
+    }
+
+    if (!isValidCheckoutPhone(normalizedPhone, checkoutCountry)) {
+      announceCheckoutError('국가번호를 포함한 올바른 전화번호를 입력해 주세요.', checkoutPhoneInputRef.current);
       return false;
     }
 
@@ -597,6 +610,11 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
 
     if (!normalizedAddress) {
       announceCheckoutError('주문정보를 입력하세요. 주소가 비어 있습니다.', checkoutAddressInputRef.current);
+      return false;
+    }
+
+    if (normalizedAddress.length > CHECKOUT_ADDRESS_MAX_LENGTH) {
+      announceCheckoutError(`주소는 ${CHECKOUT_ADDRESS_MAX_LENGTH}자 이하로 입력해 주세요.`, checkoutAddressInputRef.current);
       return false;
     }
 
@@ -616,7 +634,14 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
     checkoutPhone,
   ]);
 
-  const submitBankTransferOrder = async (channel: OrderChannel) => {
+  const submitBankTransferOrder = async (requestedChannel: OrderChannel) => {
+    if (bankSubmissionInFlight) return;
+    const retry = pendingBankRequestInMemory;
+    const channel = retry?.channel || readBankCheckoutAttempt()?.channel || requestedChannel;
+    if (providerInteraction) {
+      setCheckoutError('열려 있는 결제창을 완료하거나 취소한 뒤 다시 시도해 주세요.');
+      return;
+    }
     if (pendingPayPalApprovalRef.current) {
       setCheckoutError('확인 중인 PayPal 결제가 있습니다. 새 결제를 시작하지 말고 PayPal 주문을 다시 확인해 주세요.');
       return;
@@ -629,7 +654,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
     setCheckoutMessage(null);
     setCheckoutError(null);
 
-    if (!validateCheckoutFields(normalizedEmail)) return;
+    if (!retry && !validateCheckoutFields(normalizedEmail)) return;
 
     if (channel === 'member' && !isAuthenticated) {
       announceCheckoutError('회원 구매는 로그인 상태에서만 가능합니다.');
@@ -637,7 +662,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
     }
 
     const normalizedGuestLookupPassword = guestLookupPassword.trim();
-    if (channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
+    if (!retry && channel === 'guest' && normalizedGuestLookupPassword.length < 4) {
       announceCheckoutError(
         '비회원 주문조회 비밀번호를 4자 이상 입력해 주세요.',
         guestPasswordInputRef.current,
@@ -645,23 +670,23 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
       return;
     }
 
+    bankSubmissionInFlight = true;
     setIsSubmittingOrder(true);
+    let wasPending = false;
+    let definitiveRejection = false;
     trackStorefrontEvent({
       type: 'order_submit',
       target: `bank_transfer:${channel}`,
       detail: `items:${cart.length},total:${total}`,
     });
     try {
-      const response = await fetch('/api/orders/bank-transfer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(channel === 'member' && session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {}),
-        },
-        body: JSON.stringify({
-          transactionId,
+      let storage: Storage | undefined;
+      try { storage = window.sessionStorage; } catch { /* Memory-only fallback. */ }
+      const existingAttempt = readBankCheckoutAttempt(storage);
+      wasPending = Boolean(existingAttempt?.pending);
+      const attempt = existingAttempt || { transactionId: `bank_${crypto.randomUUID()}`, pending: false, channel };
+      const requestJson = retry?.requestJson || JSON.stringify({
+          transactionId: attempt.transactionId,
           channel,
           customer: {
             name: normalizedName,
@@ -691,11 +716,22 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
               lineTotal: item.price * quantity,
             };
           }),
-        }),
+        });
+      saveBankCheckoutAttempt({ ...attempt, pending: true }, storage);
+      pendingBankRequestInMemory = { requestJson, channel };
+      setPendingBankAttempt(true);
+      const response = await fetch('/api/orders/bank-transfer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(channel === 'member' && session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: requestJson,
       });
 
       const payload = (await response.json()) as {
         message?: string;
+        safeToRestart?: boolean;
         orderCode?: string;
         guestOrderNumber?: string;
         bankAccount: BankAccountDetails;
@@ -704,8 +740,17 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         notifications?: OrderNotificationSummary;
       };
       if (!response.ok) {
-        throw new Error(payload.message || '주문 접수 중 오류가 발생했습니다.');
+        definitiveRejection = !wasPending && (payload.safeToRestart === true || [400, 401, 403, 413, 422, 429].includes(response.status));
+        if (definitiveRejection) {
+          clearBankCheckoutAttempt(storage);
+          pendingBankRequestInMemory = null;
+          setPendingBankAttempt(false);
+        }
+        throw new Error(payload.message || '주문 접수 결과를 확인하지 못했습니다.');
       }
+      clearBankCheckoutAttempt(storage);
+      pendingBankRequestInMemory = null;
+      setPendingBankAttempt(false);
 
       const receipt = readBankOrderReceipt(JSON.stringify({
         orderCode: payload.orderCode || '',
@@ -717,7 +762,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         notifications: payload.notifications,
         savedAt: Date.now(),
       }));
-      if (channel === 'member') {
+      if (channel === 'member' && !retry) {
         syncCheckoutDetailsToAccount(normalizedPhone, normalizedAddress);
       }
       setBankOrderReceipt(receipt);
@@ -727,7 +772,8 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         else window.sessionStorage.removeItem(BANK_RECEIPT_STORAGE_KEY);
       } catch { /* The confirmation is still shown when browser storage is unavailable. */ }
       if (!receipt) setCheckoutMessage('주문은 접수되었습니다. 주문조회에서 입금 계좌와 주문 상태를 확인해 주세요. 다시 주문하지 마세요.');
-      clearCart();
+      const submittedItems = JSON.parse(requestJson).items as Array<{ id: string; selectedSize?: string | null }>;
+      for (const item of submittedItems) removeFromCart(item.id, item.selectedSize);
       setMode('confirmation');
       setCheckoutName('');
       setCheckoutAddress('');
@@ -735,8 +781,10 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
       setGuestLookupPassword('');
       setTransactionId(generateTransactionId());
     } catch (error) {
-      setCheckoutError(error instanceof Error ? error.message : '주문 전송에 실패했습니다.');
+      const message = error instanceof Error ? error.message : '주문 접수 결과를 확인하지 못했습니다.';
+      setCheckoutError(definitiveRejection ? message : `${message} 새 주문을 만들지 말고 같은 주문을 다시 확인하거나 주문조회를 이용해 주세요.`);
     } finally {
+      bankSubmissionInFlight = false;
       setIsSubmittingOrder(false);
     }
   };
@@ -776,6 +824,14 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
   );
 
   const handleNicepayCheckout = useCallback(async () => {
+    if (providerInteraction || bankSubmissionInFlight) {
+      setCheckoutError('진행 중인 결제를 먼저 완료하거나 취소해 주세요.');
+      return;
+    }
+    if (readBankCheckoutAttempt()?.pending) {
+      setCheckoutError('무통장입금 주문 결과를 먼저 확인해 주세요.');
+      return;
+    }
     if (pendingPayPalApprovalRef.current) {
       setCheckoutError('확인 중인 PayPal 결제가 있습니다. 새 결제를 시작하지 말고 PayPal 주문을 다시 확인해 주세요.');
       return;
@@ -812,6 +868,8 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
       return;
     }
 
+    providerInteraction = 'nicepay';
+    setProviderCheckoutOpen(true);
     setIsStartingNicepay(true);
     trackStorefrontEvent({
       type: 'order_submit',
@@ -893,10 +951,14 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         buyerTel: normalizeNicepayBuyerTel(preparePayload.customer?.phone || nicepayBuyerTel),
         buyerEmail: preparePayload.customer?.email || normalizedEmail,
         fnError: (result) => {
+          providerInteraction = null;
+          setProviderCheckoutOpen(false);
           setNicepayError(getNicepayErrorMessage(result));
         },
       });
     } catch (error) {
+      providerInteraction = null;
+      setProviderCheckoutOpen(false);
       setNicepayError(
         error instanceof Error ? error.message : 'NICE Payments 결제 준비 중 오류가 발생했습니다.',
       );
@@ -997,6 +1059,8 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         throw new Error(payload.message || 'PayPal 주문 후처리에 실패했습니다.');
       }
 
+      providerInteraction = null;
+      setProviderCheckoutOpen(false);
       pendingPayPalApprovalRef.current = null;
       pendingPayPalApprovalInMemory = null;
       setPendingPayPalApproval(null);
@@ -1027,7 +1091,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
   useEffect(() => {
     if (!isOpen || mode !== 'checkout') return;
     if (!paypalSdkReady || !window.paypal || !paypalContainerRef.current) return;
-    if (!latestCheckoutRef.current.canCheckout) return;
+    if (!latestCheckoutRef.current.canCheckout || pendingBankAttempt) return;
 
     setPaypalError(null);
     paypalContainerRef.current.innerHTML = '';
@@ -1041,6 +1105,11 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         height: 52,
       },
       onClick: async (_data, actions) => {
+        if (readBankCheckoutAttempt()?.pending || bankSubmissionInFlight || providerInteraction === 'nicepay') {
+          setCheckoutError('진행 중인 주문 결과를 먼저 확인해 주세요.');
+          await actions.reject();
+          return;
+        }
         setCheckoutError(null);
         setCheckoutMessage(null);
         if (pendingPayPalApprovalRef.current) {
@@ -1067,6 +1136,9 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         await actions.resolve();
       },
       createOrder: async (_data, actions) => {
+        if (readBankCheckoutAttempt()?.pending || bankSubmissionInFlight || providerInteraction === 'nicepay') throw new Error('진행 중인 주문 결과를 먼저 확인해 주세요.');
+        providerInteraction = 'paypal';
+        setProviderCheckoutOpen(true);
         if (pendingPayPalApprovalRef.current) {
           throw new Error('이전 PayPal 결제 상태를 먼저 확인해 주세요.');
         }
@@ -1084,6 +1156,14 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         });
       },
       onApprove: async (data) => {
+        providerInteraction = null;
+        setProviderCheckoutOpen(false);
+        if (readBankCheckoutAttempt()?.pending || bankSubmissionInFlight) {
+          setCheckoutError('무통장입금 주문이 확인 중이므로 PayPal 결제를 진행하지 않았습니다. 주문조회에서 확인해 주세요.');
+          providerInteraction = null;
+          setProviderCheckoutOpen(false);
+          return;
+        }
         const pending = pendingPayPalApprovalRef.current;
         if (pending) {
           if (pending.orderId !== data.orderID) {
@@ -1135,7 +1215,17 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
         setPendingPayPalApproval(approval);
         await submitApprovedPayPal(approval);
       },
+      onCancel: () => {
+        if (!pendingPayPalApprovalRef.current) {
+          providerInteraction = null;
+          setProviderCheckoutOpen(false);
+        }
+      },
       onError: (error) => {
+        if (!pendingPayPalApprovalRef.current) {
+          providerInteraction = null;
+          setProviderCheckoutOpen(false);
+        }
         const message =
           error instanceof Error ? error.message : 'PayPal 결제 처리 중 오류가 발생했습니다.';
         setPaypalError(message);
@@ -1154,7 +1244,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
       }
       paypalButtonsInstanceRef.current = null;
     };
-  }, [isOpen, mode, paypalSdkReady, submitApprovedPayPal]);
+  }, [isOpen, mode, paypalSdkReady, submitApprovedPayPal, pendingBankAttempt]);
 
   return (
     <AnimatePresence>
@@ -1192,11 +1282,8 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                   <h2 id="cart-overlay-title" className="font-heading text-[clamp(25px,6.8vw,34px)] font-black leading-[1.08] tracking-[-.05em] text-[#101522] md:text-[38px]">
                     {mode === 'confirmation' ? (isRestoredBankReceipt ? '최근 주문 기록' : '주문 접수') : mode === 'checkout' ? '주문 / 결제' : '장바구니'}
                   </h2>
-                  <p className="mt-1.5 text-[11px] font-medium leading-5 text-[#69707d]">
-                    {mode === 'confirmation' ? 'ORDER RECORD / TRANSFER' : mode === 'checkout' ? 'CHECKOUT / SECURE' : 'SELECTED PIECES'}
-                  </p>
                 </div>
-                <button ref={closeButtonRef} type="button" aria-label="장바구니 닫기" onClick={onClose}
+                <button ref={closeButtonRef} type="button" aria-label="장바구니 닫기" onClick={() => onCloseRef.current()} disabled={isSubmittingOrder || providerCheckoutOpen}
                   className="grid h-11 w-11 shrink-0 place-items-center border border-[#c7ccd3] bg-white text-[#101522] transition-colors hover:border-[#b8001f] hover:text-[#b8001f] focus-visible:outline-2 focus-visible:outline-[#b8001f]">
                   <X size={21} strokeWidth={1.8} />
                 </button>
@@ -1216,6 +1303,15 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                 </div>
               )}
 
+              {providerCheckoutOpen && !pendingPayPalApproval && (
+                <p role="status" className="border border-[#d1d5db] bg-white p-4 text-sm">열려 있는 결제창에서 결제를 완료하거나 취소해 주세요.</p>
+              )}
+              {pendingBankAttempt && mode !== 'confirmation' && (
+                <div role="status" className="border border-amber-500 bg-amber-50 p-4 text-sm leading-6">
+                  <p>무통장입금 접수 결과를 확인 중입니다. 새 주문을 만들지 말고 같은 주문을 다시 확인해 주세요. 새로고침했다면 원래 주문정보와 비밀번호를 입력해 주세요.</p>
+                  {onOpenMyPageOrders && <button type="button" onClick={onOpenMyPageOrders} disabled={isSubmittingOrder} className="mt-2 min-h-11 underline">주문조회</button>}
+                </div>
+              )}
               {(checkoutMessage || checkoutError) && (
                 <div
                   role={checkoutError ? 'alert' : 'status'}
@@ -1381,7 +1477,6 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                   <div className={CHECKOUT_SECTION_CLASS}>
                     <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#d1d5db] pb-3">
                       <h3 className="text-lg font-bold tracking-[-0.03em] text-[#111827] md:text-xl">주문자 정보</h3>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#b8001f]">Customer</p>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className={`${CHECKOUT_FIELD_GROUP_CLASS} sm:col-span-2`}>
@@ -1397,7 +1492,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                             type="email"
                             autoComplete="email"
                             maxLength={320}
-                            readOnly={isAuthenticated}
+                            readOnly={isAuthenticated && !(pendingBankAttempt && readBankCheckoutAttempt()?.channel === 'guest')}
                             value={checkoutEmail}
                             onChange={(e) => setCheckoutEmail(e.target.value)}
                             placeholder="example@email.com"
@@ -1417,7 +1512,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                             ref={checkoutPhoneInputRef}
                             type="tel"
                             autoComplete="tel"
-                            maxLength={30}
+                            maxLength={CHECKOUT_PHONE_MAX_LENGTH}
                             value={checkoutPhone}
                             onChange={(e) => setCheckoutPhone(e.target.value)}
                             placeholder="010-0000-0000"
@@ -1451,7 +1546,6 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                   <div className={CHECKOUT_SECTION_CLASS}>
                     <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#d1d5db] pb-3">
                       <h3 className="text-lg font-bold tracking-[-0.03em] text-[#111827] md:text-xl">배송 정보</h3>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#b8001f]">Shipping</p>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
@@ -1511,7 +1605,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                             onChange={(e) => setCheckoutAddress(e.target.value)}
                             rows={3}
                             autoComplete="shipping street-address"
-                            maxLength={1000}
+                            maxLength={CHECKOUT_ADDRESS_MAX_LENGTH}
                             placeholder="수령지 / 도로명 / 건물명 / 도시 / 우편번호"
                             className={`${CHECKOUT_FIELD_CLASS} resize-none`}
                           />
@@ -1522,12 +1616,11 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
 
                 </div>
               )}
-            {mode !== 'confirmation' && (canCheckout || pendingPayPalApproval) && (
+            {mode !== 'confirmation' && (canCheckout || pendingPayPalApproval || pendingBankAttempt) && (
               <div className="relative z-20 border-t border-[#cbd0d6] bg-[#f7f7f5] px-3 py-3 md:px-4 md:py-4">
                 <div className="mb-3 border border-[#d1d5db] bg-white px-3 py-3 md:px-4 md:py-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b8001f]">Payment Summary</p>
                       <p className="mt-1 text-base font-bold tracking-[0.01em] leading-[1.15] text-[#111827] md:text-lg">
                         결제 예정 금액
                       </p>
@@ -1556,6 +1649,8 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                         target: 'cart:proceed_to_checkout',
                         detail: `items:${cart.length},total:${total}`,
                       });
+                      setCheckoutError(null);
+                      setCheckoutMessage(null);
                       setMode('checkout');
                     }}
                     className="min-h-[52px] w-full bg-[#b8001f] px-4 py-3 text-center font-heading text-[15px] font-black tracking-[.04em] text-white transition-colors hover:bg-[#930018]"
@@ -1564,7 +1659,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                   </button>
                 ) : (
                   <div className="space-y-2.5 md:space-y-3">
-                    {!isAuthenticated && (
+                    {(!isAuthenticated || (pendingBankAttempt && readBankCheckoutAttempt()?.channel === 'guest')) && (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-3 py-3 shadow-sm">
                         <label htmlFor="guest-order-password" className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.2em] text-[#b8001f]">
                           비회원 주문조회 비밀번호
@@ -1592,12 +1687,12 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder(isAuthenticated ? 'member' : 'guest')}
-                        disabled={isSubmittingOrder || isStartingNicepay || Boolean(pendingPayPalApproval)}
+                        disabled={isSubmittingOrder || isStartingNicepay || providerCheckoutOpen || Boolean(pendingPayPalApproval)}
                         className={CHECKOUT_PAYMENT_BUTTON_CLASS}
                       >
                         <span className="flex min-h-[28px] items-center justify-between gap-3 w-full">
                           <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-black">
-                            {isSubmittingOrder ? '접수 중...' : isAuthenticated ? '무통장입금 주문' : '비회원 무통장입금 주문'}
+                            {isSubmittingOrder ? '확인 중...' : pendingBankAttempt ? '같은 무통장입금 주문 다시 확인' : isAuthenticated ? '무통장입금 주문' : '비회원 무통장입금 주문'}
                           </span>
                           <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
                             →
@@ -1615,7 +1710,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                       <button
                         type="button"
                         onClick={() => void handleNicepayCheckout()}
-                        disabled={isSubmittingOrder || isStartingNicepay || Boolean(pendingPayPalApproval)}
+                        disabled={isSubmittingOrder || isStartingNicepay || providerCheckoutOpen || pendingBankAttempt || Boolean(pendingPayPalApproval)}
                         className={CHECKOUT_PAYMENT_BUTTON_CLASS}
                       >
                         <span className="flex min-h-[28px] items-center justify-between gap-3 w-full">
@@ -1645,7 +1740,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                       </p>
                     )}
 
-                    {shouldShowPaypal ? (
+                    {shouldShowPaypal && !pendingBankAttempt ? (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
                         {pendingPayPalApproval && (
                           <div role="alert" className="mb-3 rounded-[14px] border border-amber-500 bg-amber-50 px-3 py-3 text-xs font-semibold leading-relaxed text-amber-950">
@@ -1689,8 +1784,13 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
 
                     <button
                       type="button"
-                      onClick={() => setMode('cart')}
-                      disabled={Boolean(pendingPayPalApproval)}
+                      onClick={() => {
+                        setCheckoutError(null);
+                        setCheckoutMessage(null);
+                        setNicepayError(null);
+                        setMode('cart');
+                      }}
+                      disabled={isSubmittingOrder || providerCheckoutOpen || Boolean(pendingPayPalApproval)}
                       className="w-full rounded-[12px] border border-[#d1d5db] bg-white py-2 text-[13px] font-bold text-[#4b5563] transition-colors hover:border-[#b8001f] hover:text-[#b8001f] shadow-sm"
                     >
                       장바구니로
@@ -1706,3 +1806,4 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
     </AnimatePresence>
   );
 }
+

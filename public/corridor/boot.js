@@ -13,8 +13,8 @@ if (window.parent === window) location.replace('/');
       veil.setAttribute('aria-hidden', String(this.state === 'ready'));
       if (this.state === 'ready') return;
       const failed = this.state === 'failed', slow = this.state === 'slow';
-      title.textContent = failed ? 'CONNECTION LOST' : slow ? 'SIGNAL DELAY' : 'ENTERING THE ARCHIVE';
-      message.textContent = failed || slow ? '연결 상태를 확인한 뒤 다시 시도해 주세요.' : 'ENICO VECK / EXHIBITION';
+      title.textContent = failed ? '전시를 열 수 없습니다' : slow ? '전시 준비 중' : 'ENICO VECK';
+      message.textContent = failed || slow ? '상품 목록에서 쇼핑을 계속할 수 있습니다.' : '전시를 불러오는 중입니다.';
       retry.hidden = !(failed || slow);
     },
     ready() {
@@ -25,6 +25,7 @@ if (window.parent === window) location.replace('/');
     },
     fail() {
       this.state = 'failed';
+      window.parent.postMessage({ channel: 'enico-corridor-v1', type: 'scene-failed' }, location.origin);
       clearTimeout(timer);
       this.render();
     },
@@ -38,5 +39,6 @@ if (window.parent === window) location.replace('/');
   addEventListener('error', event => {
     if (boot.state !== 'ready' && (event.error || event.target?.tagName === 'SCRIPT')) boot.fail();
   }, true);
+  document.addEventListener('webglcontextlost', () => boot.fail(), true);
   addEventListener('unhandledrejection', () => { if (boot.state !== 'ready') boot.fail(); });
 })();

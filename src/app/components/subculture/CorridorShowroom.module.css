@@ -32,3 +32,45 @@
 @keyframes archive-trace { from { left: -36%; } to { left: 100%; } }
 @keyframes hanging-wire { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
 @media (prefers-reduced-motion: reduce) { .loadTrack i,.loadWire { animation: none; } }
+
+
+.scene[hidden] { display: none; }
+.catalogFallback { position: fixed; inset: 0; overflow-y: auto; overscroll-behavior-y: contain; min-height: 100dvh; padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(112px, calc(env(safe-area-inset-bottom) + 96px)) max(20px, env(safe-area-inset-left)); background: #f8f9fa; color: #111827; }
+.catalogHeader { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid #d1d5db; padding-bottom: 16px; }
+.catalogHeader h1 { font-size: clamp(26px, 5vw, 42px); font-weight: 900; letter-spacing: -.05em; }
+.catalogHeader nav, .catalogFooter { display: flex; flex-wrap: wrap; gap: 12px; }
+.catalogFallback button { min-height: 44px; cursor: pointer; text-align: left; }
+.catalogFallback button:focus-visible { outline: 3px solid #b8001f; outline-offset: 4px; }
+.catalogHeader button, .catalogNotice button, .collections button, .catalogFooter button { padding: 10px 12px; border: 1px solid #aeb4bd; background: transparent; }
+.catalogNotice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 24px 0; color: #4b5563; font-size: 13px; }
+.productGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 28px 20px; list-style: none; padding: 0; }
+.productCard { display: flex; flex-direction: column; gap: 8px; width: 100%; background: transparent; border: 0; font-size: 14px; overflow-wrap: anywhere; }
+.productCard img { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; background: #eee; }
+.productCard span:last-child { color: #4b5563; }
+.collections { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.collections h2 { width: 100%; font-weight: 700; }
+.catalogFooter { margin-top: 40px; border-top: 1px solid #d1d5db; padding-top: 20px; font-size: 13px; }
+@media (max-width: 480px) { .productGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; } }
+
+/* A single, persistent control for the actual rendered mode. */
+.viewToggle { position: fixed; z-index: 30; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; min-width: 196px; min-height: 60px; padding: 10px 16px; border: 1px solid #d5d1cb; border-radius: 999px; background: #f7f7f5; color: #171717; box-shadow: 0 4px 24px #00000018; cursor: pointer; touch-action: manipulation; transition: background .3s ease, color .3s ease, border-color .3s ease, box-shadow .3s ease; }
+.viewToggle[hidden] { display: none; }
+.viewToggle[data-active="true"] { background: #171717; color: #f7f7f5; border-color: #383838; box-shadow: 0 4px 24px #00000030; }
+.viewToggle:focus-visible { outline: 3px solid #b8001f; outline-offset: 4px; }
+.viewToggle:disabled { cursor: wait; }
+.toggleLabel { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 68px; }
+.toggleLabel strong { font-size: 12px; line-height: 1.3; letter-spacing: .1em; }
+.toggleLabel > span { font-size: 10px; line-height: 1.4; opacity: .75; }
+.toggleOrb { position: relative; display: block; width: 30px; height: 30px; flex-shrink: 0; perspective: 80px; }
+.toggleOrb span { position: absolute; inset: 5px; display: block; border: 1px solid currentColor; border-radius: 3px; transform: rotate(0); transition: transform .55s cubic-bezier(.2,.8,.2,1), border-color .3s; }
+.toggleOrb span:nth-child(2) { transform: translate(-3px, 3px); }
+.toggleOrb span:nth-child(3) { transform: translate(3px, -3px); }
+.viewToggle[data-active="true"] .toggleOrb span { border-color: #fa3e5e; transform: rotateX(55deg) rotateZ(45deg); }
+.viewToggle[data-active="true"] .toggleOrb span:nth-child(2) { transform: translateY(-6px) rotateX(55deg) rotateZ(45deg); }
+.viewToggle[data-active="true"] .toggleOrb span:nth-child(3) { transform: translateY(6px) rotateX(55deg) rotateZ(45deg); }
+.toggleTrack { display: block; width: 32px; height: 19px; border-radius: 999px; background: #c8c6c1; padding: 3px; transition: background .3s; }
+.toggleTrack > span { display: block; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0003; transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+.viewToggle[data-active="true"] .toggleTrack { background: #b8001f; }
+.viewToggle[data-active="true"] .toggleTrack > span { transform: translateX(13px); }
+@media (hover: hover) { .viewToggle:hover { border-color: #b8001f; box-shadow: 0 6px 28px #00000030; } }
+@media (prefers-reduced-motion: reduce) { .viewToggle, .toggleOrb span, .toggleTrack, .toggleTrack > span { transition: none; animation: none; } }
