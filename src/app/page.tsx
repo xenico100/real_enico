@@ -4,13 +4,11 @@ import {
   getCachedStorefrontCollections,
   getCachedStorefrontProducts,
 } from '@/lib/storefront/server';
-import { resolveInitialCollectionCatalog } from '@/lib/storefront/collectionCatalog';
+import { buildPublicStorefrontCatalog } from '@/lib/storefront/publicCatalog';
 import {
   NICEPAY_TEST_PRODUCT_ID,
-  resolveInitialProductCatalog,
 } from '@/lib/storefront/productCatalog';
 import {
-  isSoldOutDisplayProductId,
   isStorefrontProductVisible,
 } from '@/lib/storefront/productDisplay';
 
@@ -34,8 +32,9 @@ export default async function Home({ searchParams }: HomePageProps) {
     getCachedStorefrontProducts(),
     getCachedStorefrontCollections(),
   ]);
-  const productCatalog = resolveInitialProductCatalog(initialProductRows);
-  const collectionCatalog = resolveInitialCollectionCatalog(initialCollectionRows);
+  const publicCatalog = buildPublicStorefrontCatalog(initialProductRows, initialCollectionRows);
+  const productCatalog = { products: publicCatalog.products, usingFallbackCatalog: publicCatalog.products.length === 0 };
+  const collectionCatalog = { collections: publicCatalog.collections, usingFallbackCatalog: publicCatalog.collections.length === 0 };
   const initialPopup =
     params.popup === 'about' || params.popup === 'contact' || params.popup === 'mypage'
       ? params.popup
@@ -50,9 +49,7 @@ export default async function Home({ searchParams }: HomePageProps) {
             product.id === params.product &&
             visibleProductIds.has(product.id) &&
             product.id !== NICEPAY_TEST_PRODUCT_ID &&
-            (!product.isSoldOut || isSoldOutDisplayProductId(product.id)) &&
-            Number.isSafeInteger(product.price) &&
-            product.price > 0,
+            (product.isSoldOut || (Number.isSafeInteger(product.price) && product.price > 0)),
         )?.id
       : undefined;
   const initialMyPageTab =

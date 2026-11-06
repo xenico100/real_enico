@@ -1,0 +1,395 @@
+{
+  "products": {
+    "f8958fbd-4c5d-47b8-8ff8-f0906710af77": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_00.webp",
+      "attachment": {
+        "aspect": 0.528724,
+        "center": [
+          0.48969,
+          0.03213
+        ],
+        "left": [
+          0.28729,
+          0.01266
+        ],
+        "right": [
+          0.70902,
+          0.02532
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "0bd32ac1-282a-4d1f-bc96-e448e5147975": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_01.webp",
+      "attachment": {
+        "aspect": 0.55675,
+        "center": [
+          0.4882,
+          0.00956
+        ],
+        "left": [
+          0.31116,
+          0.14217
+        ],
+        "right": [
+          0.6867,
+          0.14337
+        ]
+      },
+      "mountStyle": "existing"
+    },
+    "eafac9f0-9d47-42ed-a443-57c361c9fce8": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_02.webp",
+      "attachment": {
+        "aspect": 0.514223,
+        "center": [
+          0.44078,
+          0.02298
+        ],
+        "left": [
+          0.28511,
+          0.01532
+        ],
+        "right": [
+          0.71277,
+          0.0186
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "982b4666-41dd-4002-937f-f49e692721ee": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_03.webp",
+      "attachment": {
+        "aspect": 1.697789,
+        "center": [
+          0.46905,
+          0.02211
+        ],
+        "left": [
+          0.31259,
+          0.11302
+        ],
+        "right": [
+          0.68813,
+          0.14988
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "b9d11133-2e16-44c4-a448-bdfc8943ce27": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_04.webp",
+      "attachment": {
+        "aspect": 0.68,
+        "center": [
+          0.45392,
+          0.01067
+        ],
+        "left": [
+          0.31176,
+          0.276
+        ],
+        "right": [
+          0.68627,
+          0.37733
+        ]
+      },
+      "mountStyle": "ring"
+    },
+    "ae6c5a89-488d-45d7-a0c8-44d4f97f764c": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_05.webp",
+      "attachment": {
+        "aspect": 0.994555,
+        "center": [
+          0.40146,
+          0.11071
+        ],
+        "left": [
+          0.28832,
+          0.03085
+        ],
+        "right": [
+          0.68796,
+          0.23412
+        ]
+      },
+      "mountStyle": "ring"
+    },
+    "a7030caf-c264-4eb7-8c6c-d0ba757f8375": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_06.webp",
+      "attachment": {
+        "aspect": 1.283333,
+        "center": [
+          0.49594,
+          0.02917
+        ],
+        "left": [
+          0.28571,
+          0.03333
+        ],
+        "right": [
+          0.69075,
+          0.01667
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "7d40474b-73ee-4fcc-8748-3b7158ca1675": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_07.webp",
+      "attachment": {
+        "aspect": 0.948127,
+        "center": [
+          0.58435,
+          0.02738
+        ],
+        "left": [
+          0.31307,
+          0.1902
+        ],
+        "right": [
+          0.68541,
+          0.02305
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "f8409fb0-17b2-4fc7-bbbd-0709af5e6509": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_08.webp",
+      "attachment": {
+        "aspect": 0.896499,
+        "center": [
+          0.53735,
+          0.0137
+        ],
+        "left": [
+          0.31239,
+          0.0898
+        ],
+        "right": [
+          0.68676,
+          0.10654
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "420d1626-3b29-467c-9a0a-19b90bd3dcf2": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_09.webp",
+      "attachment": {
+        "aspect": 1.172945,
+        "center": [
+          0.41679,
+          0.01541
+        ],
+        "left": [
+          0.31241,
+          0.10616
+        ],
+        "right": [
+          0.68686,
+          0.11473
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "b3d4d143-c796-4d2d-a20d-82311aec521a": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_10.webp",
+      "attachment": {
+        "aspect": 0.676389,
+        "center": [
+          0.46612,
+          0.02639
+        ],
+        "left": [
+          0.28645,
+          0.02222
+        ],
+        "right": [
+          0.70329,
+          0.01528
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "977f24f1-a254-4bfd-82f7-63f20343bd56": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_11.webp",
+      "attachment": {
+        "aspect": 0.59409,
+        "center": [
+          0.4712,
+          0.01244
+        ],
+        "left": [
+          0.28534,
+          0.10264
+        ],
+        "right": [
+          0.69764,
+          0.09798
+        ]
+      },
+      "mountStyle": "ring"
+    },
+    "7cd29c56-20a4-4677-813e-adbf1043b256": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_12.webp",
+      "attachment": {
+        "aspect": 1.167143,
+        "center": [
+          0.40024,
+          0.17286
+        ],
+        "left": [
+          0.29131,
+          0.01286
+        ],
+        "right": [
+          0.68543,
+          0.05429
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "c0c7696c-c661-492c-924f-9a1bc00dc4e5": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_13.webp",
+      "attachment": {
+        "aspect": 0.893836,
+        "center": [
+          0.4106,
+          0.01027
+        ],
+        "left": [
+          0.31226,
+          0.01826
+        ],
+        "right": [
+          0.68582,
+          0.1621
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "d91ec738-5f18-4514-b989-e6523c22891f": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_14.webp",
+      "attachment": {
+        "aspect": 0.790724,
+        "center": [
+          0.55579,
+          0.02715
+        ],
+        "left": [
+          0.299,
+          0.01131
+        ],
+        "right": [
+          0.68813,
+          0.0181
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "cd00a1ea-38b2-437f-8796-31090b3124c7": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_15.webp",
+      "attachment": {
+        "aspect": 0.658314,
+        "center": [
+          0.55623,
+          0.01139
+        ],
+        "left": [
+          0.31315,
+          0.03531
+        ],
+        "right": [
+          0.68512,
+          0.06378
+        ]
+      },
+      "mountStyle": "clip"
+    },
+    "6be5a729-e02d-4678-9158-12173429021f": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_16.webp",
+      "attachment": {
+        "aspect": 1.552163,
+        "center": [
+          0.50492,
+          0.10687
+        ],
+        "left": [
+          0.31148,
+          0.32824
+        ],
+        "right": [
+          0.69016,
+          0.16285
+        ]
+      },
+      "mountStyle": "ring"
+    },
+    "a75022d3-acae-4321-8b8c-4f896237193a": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_17.webp",
+      "attachment": {
+        "aspect": 0.951667,
+        "center": [
+          0.40105,
+          0.015
+        ],
+        "left": [
+          0.2986,
+          0.215
+        ],
+        "right": [
+          0.70928,
+          0.05167
+        ]
+      },
+      "mountStyle": "ring"
+    },
+    "094e4661-e7e5-4609-8c84-291c35c245d7": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_18.webp",
+      "attachment": {
+        "aspect": 0.836442,
+        "center": [
+          0.48113,
+          0.01291
+        ],
+        "left": [
+          0.28645,
+          0.21521
+        ],
+        "right": [
+          0.69297,
+          0.11191
+        ]
+      },
+      "mountStyle": "ring"
+    },
+    "c162afaf-570f-4e5e-926b-740a7a77aeb8": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_19.webp",
+      "attachment": {
+        "aspect": 1.013831,
+        "center": [
+          0.59004,
+          0.03043
+        ],
+        "left": [
+          0.28581,
+          0.10512
+        ],
+        "right": [
+          0.71351,
+          0.06639
+        ]
+      },
+      "mountStyle": "ring"
+    }
+  },
+  "collections": {
+    "b1b34905-1172-44aa-b3cd-034949848690": {
+      "frameImg": "/corridor/assets/staged/collection_frame_00.webp"
+    },
+    "2cda4ea2-7e3c-46b4-8180-ff3c35e9b4d0": {
+      "frameImg": "/corridor/assets/staged/collection_frame_01.webp"
+    },
+    "b54acf36-2114-46a2-840f-2450c099b3ec": {
+      "frameImg": "/corridor/assets/staged/collection_frame_02.webp"
+    }
+  }
+}

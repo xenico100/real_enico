@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored Three.js r186 preserves the approved isolated corridor renderer.
+    "public/corridor/vendor/**",
   ]),
 ]);
 

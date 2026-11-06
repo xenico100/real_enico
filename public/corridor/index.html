@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>에니코 벡 | 에니코벡 ENICO VECK</title>
+<meta name="robots" content="noindex,follow">
+<meta name="enico-scene-version" content="ceiling-wires-20261106">
+<meta name="enico-interaction-version" content="storefront-connected-20261106-r4">
+<script src="./boot.js"></script>
+<link rel="modulepreload" href="./vendor/three.module.js">
+<link rel="modulepreload" href="./vendor/three.core.js">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="./scene.css">
+</head>
+<body>
+<div id="scroll" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+<canvas id="scene"></canvas>
+
+<!-- Exact enicoveck.com Header -->
+<header class="site-header">
+  <div class="logo-wrap" id="logoHomeBtn" role="button" tabindex="0" aria-label="전시 처음으로">
+    <h1>ENICO VECK<sup>®</sup></h1>
+  </div>
+
+  <!-- Desktop Navigation -->
+  <nav class="desktop-nav" aria-label="메인 메뉴">
+    <button class="nav-btn" type="button" data-modal="about">01 /// 소개</button>
+    <button class="nav-btn" type="button" data-modal="contact">02 /// 의뢰</button>
+    <button class="nav-btn highlight" type="button" data-modal="community">03 /// 커뮤니티</button>
+    <button class="nav-btn highlight" type="button" data-modal="mypage">04 /// 로그인 / 주문조회</button>
+    <button class="nav-btn" type="button" id="navColBtn">05 /// 컬렉션</button>
+
+    <button class="cart-box-btn" type="button" id="desktopCartBtn">
+      <div>
+        <div class="c-label">장바구니</div>
+        <div class="c-act">결제 창 열기</div>
+      </div>
+      <div class="cart-icon-wrap">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span class="cart-badge" id="cartCountDesktop">0</span>
+      </div>
+    </button>
+    <button class="shop-info-btn" type="button" data-modal="shop">사업자 정보</button>
+  </nav>
+
+  <!-- Mobile Hamburger Button -->
+  <button class="mobile-menu-btn" type="button" id="mobileMenuBtn" aria-label="메뉴 열기">
+    <span class="cart-badge" id="cartCountMobile">0</span>
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+</header>
+
+<!-- Mobile Red Fullscreen Menu (Exact SubcultureHeader.tsx style) -->
+<div class="mobile-menu-overlay" id="mobileMenuOverlay" hidden>
+  <button class="mobile-menu-close" type="button" id="mobileMenuClose">✕</button>
+  <nav class="mobile-menu-list">
+    <button type="button" data-m-action="about">소개</button>
+    <button type="button" data-m-action="contact">의뢰</button>
+    <button type="button" data-m-action="community">커뮤니티</button>
+    <button type="button" data-m-action="mypage">로그인 / 주문조회</button>
+    <button type="button" data-m-action="collection">컬렉션</button>
+    <button type="button" data-m-action="cart">장바구니</button>
+    <button type="button" data-m-action="shop">사업자 정보</button>
+  </nav>
+</div>
+
+<div class="hud">
+  <!-- Clean Bottom-Left HUD -->
+  <div class="now" aria-live="polite">
+    <div class="count"><span id="cur">01</span> <em>/ <span id="tot">20</span></em></div>
+    <div class="title-wrap"><h2 class="title" id="title">FILM PANTS</h2></div>
+    <div class="sub-ko" id="subKo">블랙 스트레치 데님 &amp; 헤링본 체크 팬츠</div>
+    <div class="meta"><span id="meta">Pants · 150,000원</span></div>
+  </div>
+
+  <nav class="ticks" id="ticks" aria-label="위치 이동"></nav>
+
+  <!-- Sharp Brutalist Quick Detail Card -->
+  <aside class="detail" id="detail" hidden aria-live="polite">
+    <span class="corner-sq tl"></span><span class="corner-sq tr"></span>
+    <span class="corner-sq bl"></span><span class="corner-sq br"></span>
+    <div class="d-head-row">
+      <span class="d-cat" id="dCat">Pants</span>
+      <button class="d-close-inline" id="closeBtn" type="button" aria-label="닫기">✕</button>
+    </div>
+    <h2 class="d-title" id="dTitle"></h2>
+    <p class="d-sub" id="dSub"></p>
+    <div class="d-price" id="dPrice"></div>
+    <div class="d-thumbs" id="dThumbs"></div>
+    <div class="d-actions">
+      <button class="btn-enico primary" id="dAddCartBtn" type="button">장바구니 담기</button>
+      <button class="btn-enico dark" id="dFullViewBtn" type="button">상세 사진 / 설명 전체 보기 +</button>
+    </div>
+    <div class="d-foot">
+      <button type="button" id="dPrev">← 이전 피스</button>
+      <button type="button" id="dNext">다음 피스 →</button>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast" hidden>장바구니에 담겼습니다.</div>
+<div class="veil" id="veil" role="status" aria-live="polite">
+  <div class="load-card">
+    <div class="load-brand">ENICO VECK</div>
+    <div class="load-line" aria-hidden="true"></div>
+    <h2 class="load-title" id="loadTitle">전시를 불러오는 중</h2>
+    <p class="load-message" id="loadMessage">옷과 공간을 준비하고 있어요.</p>
+    <div class="load-actions">
+      <button class="btn-enico" id="loadRetry" type="button" onclick="window.enicoBoot.retry()" hidden>다시 시도</button>
+    </div>
+    <noscript><p class="load-message">전시를 보려면 JavaScript를 사용할 수 있는 브라우저로 열어주세요.</p></noscript>
+  </div>
+</div>
+<script>window.enicoBoot.render();</script>
+
+<script type="module" src="./scene.js"></script>
+</body>
+</html>

@@ -29,13 +29,15 @@ function getStorefrontServerConfig() {
   return { url, key };
 }
 
-function getStorefrontServerClient() {
+function getStorefrontServerClient(signal?: AbortSignal) {
   const config = getStorefrontServerConfig();
   if (!config) {
     return null;
   }
 
   return createClient(config.url, config.key, {
+    ...(signal ? { global: { fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+      fetch(input, { ...init, cache: 'no-store', signal }) } } : {}),
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -122,8 +124,8 @@ async function fetchRowsWithSchemaFallback<Row extends StorefrontProductRow | St
   return [] as Row[];
 }
 
-async function fetchProductsUncached(throwOnError = false, includeSoldOutDisplay = false) {
-  const client = getStorefrontServerClient();
+async function fetchProductsUncached(throwOnError = false, includeSoldOutDisplay = false, signal?: AbortSignal) {
+  const client = getStorefrontServerClient(signal);
   if (!client) {
     if (throwOnError) throw new Error('Storefront products are unavailable.');
     return [] as StorefrontProductRow[];
@@ -138,9 +140,10 @@ async function fetchProductsUncached(throwOnError = false, includeSoldOutDisplay
   });
 }
 
-async function fetchCollectionsUncached() {
-  const client = getStorefrontServerClient();
+async function fetchCollectionsUncached(throwOnError = false, signal?: AbortSignal) {
+  const client = getStorefrontServerClient(signal);
   if (!client) {
+    if (throwOnError) throw new Error('Storefront collections are unavailable.');
     return [] as StorefrontCollectionRow[];
   }
 
@@ -148,6 +151,7 @@ async function fetchCollectionsUncached() {
     client,
     table: 'collections',
     baseFields: STOREFRONT_COLLECTION_FIELDS,
+    throwOnError,
   });
 }
 
@@ -176,3 +180,13 @@ export const getCachedStorefrontCollections = unstable_cache(
     tags: ['storefront-collections'],
   },
 );
+
+// Fresh public display data; callers must not treat upstream failures as an empty catalog.
+export async function getStorefrontCatalogRows() {
+  const signal = AbortSignal.timeout(8_000);
+  const [productRows, collectionRows] = await Promise.all([
+    fetchProductsUncached(true, true, signal),
+    fetchCollectionsUncached(true, signal),
+  ]);
+  return { productRows, collectionRows };
+}

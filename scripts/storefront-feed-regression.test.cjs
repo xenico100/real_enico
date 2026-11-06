@@ -4,9 +4,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { fileURLToPath, pathToFileURL } = require('node:url');
-const { registerHooks, stripTypeScriptTypes } = require('node:module');
+const { registerHooks } = require('node:module');
+const ts = require('typescript');
 
-// Node 24 runs the real server/catalog/route sources without installing packages.
+// Use the installed TypeScript compiler for syntax supported across Node 24+.
 // Supabase and Next's cache are the only service stubs; no network or writes occur.
 const fixture = {
   result: { data: [], error: null },
@@ -64,7 +65,7 @@ const hooks = registerHooks({
     if (url.startsWith(sourceRoot) && url.endsWith('.ts')) {
       return {
         format: 'module',
-        source: stripTypeScriptTypes(fs.readFileSync(fileURLToPath(url), 'utf8'), { mode: 'transform' }),
+        source: ts.transpileModule(fs.readFileSync(fileURLToPath(url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText,
         shortCircuit: true,
       };
     }

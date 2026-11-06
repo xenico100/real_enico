@@ -1,370 +1,197 @@
 'use client';
 
-import Image from 'next/image';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState, type TouchEventHandler } from 'react';
+import { StorefrontImage as Image } from './StorefrontImage';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type TouchEventHandler } from 'react';
 import { shouldBypassImageOptimization } from '@/lib/images';
 import type { Collection } from '@/lib/storefront/collectionCatalog';
+import styles from './DetailPopup.module.css';
 
 interface CollectionDetailPopupProps {
   collection: Collection;
   onClose: () => void;
+  initialImageIndex?: number;
 }
 
-export function CollectionDetailPopup({ collection, onClose }: CollectionDetailPopupProps) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
-  const touchStartX = useRef<number | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
+export function CollectionDetailPopup(props: CollectionDetailPopupProps) {
+  return <CollectionDetailContent key={props.collection.id + ':' + (props.initialImageIndex ?? 0)} {...props} />;
+}
 
-  const imageList =
-    Array.isArray(collection.images) && collection.images.length > 0
-      ? collection.images
-      : collection.image
-        ? [collection.image]
-        : [];
-
-  const hasImages = imageList.length > 0;
-  const hasMultipleImages = imageList.length > 1;
-  const safeImageIndex = hasImages ? ((currentImageIndex % imageList.length) + imageList.length) % imageList.length : 0;
+function CollectionDetailContent({ collection, onClose, initialImageIndex = 0 }: CollectionDetailPopupProps) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const pointerStartedOutside = useRef(false);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [imageIndex, setImageIndex] = useState(() => Math.max(0, Math.floor(initialImageIndex) || 0));
+  const images = useMemo(() => {
+    const sources = Array.isArray(collection.images) && collection.images.length ? collection.images : [collection.image];
+    return Array.from(new Set(sources.filter((url): url is string => typeof url === 'string' && Boolean(url.trim())).map((url) => url.trim())));
+  }, [collection.image, collection.images]);
+  const activeIndex = images.length ? Math.min(imageIndex, images.length - 1) : 0;
+  const activeImage = images[activeIndex] || '';
+  const canSlide = images.length > 1;
   const season = collection.season?.trim() || '';
-  const showSeason = season.length > 0 && season !== '-';
-  const fullDescription = collection.fullDescription?.trim() || '';
-  const showDescription = fullDescription.length > 0 && fullDescription !== '상세 설명 없음';
   const releaseDate = collection.releaseDate?.trim() || '';
-  const showReleaseDate = releaseDate.length > 0 && releaseDate !== '-';
+  const fullDescription = collection.fullDescription?.trim() || '';
+  const description = fullDescription && fullDescription !== '상세 설명 없음' ? collection.fullDescription : collection.description;
   const showItems = Number.isFinite(collection.items) && collection.items > 0;
 
-  const nextImage = () => {
-    if (!hasMultipleImages) return;
-    setDirection(1);
-    setCurrentImageIndex((prev) => prev + 1);
-  };
-
-  const prevImage = () => {
-    if (!hasMultipleImages) return;
-    setDirection(-1);
-    setCurrentImageIndex((prev) => prev - 1);
-  };
-
-  const jumpToImage = (index: number) => {
-    if (!hasImages || index === safeImageIndex) return;
-    setDirection(index > safeImageIndex ? 1 : -1);
-    setCurrentImageIndex(index);
-  };
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus({ preventScroll: true });
-
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const dialog = dialogRef.current;
+    const overlay = overlayRef.current;
+    if (!dialog || !overlay) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    let outsideTouch: { x: number; y: number } | null = null;
+    const focusFrame = requestAnimationFrame(() => dialog.focus({ preventScroll: true }));
+    const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        event.stopPropagation();
+        closeRef.current();
         return;
       }
-
-      if (!hasMultipleImages) return;
-      if (event.key === 'ArrowLeft') {
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+        .filter((element) => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true');
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) {
         event.preventDefault();
-        setDirection(-1);
-        setCurrentImageIndex((previous) => previous - 1);
-      }
-
-      if (event.key === 'ArrowRight') {
+        dialog.focus({ preventScroll: true });
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
         event.preventDefault();
-        setDirection(1);
-        setCurrentImageIndex((previous) => previous + 1);
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) {
+        event.preventDefault();
+        first.focus();
       }
     };
-
-    window.addEventListener('keydown', handleKeyDown);
+    const keepFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !dialog.contains(event.target)) dialog.focus({ preventScroll: true });
+    };
+    const outsideWheel = (event: WheelEvent) => {
+      const isVerticalScroll = !event.ctrlKey && Math.abs(event.deltaY) > 1 && Math.abs(event.deltaY) > Math.abs(event.deltaX);
+      if (isVerticalScroll && event.target instanceof Node && !dialog.contains(event.target)) {
+        event.preventDefault();
+        closeRef.current();
+      }
+    };
+    const startTouch = (event: TouchEvent) => {
+      const point = event.touches.length === 1 ? event.touches[0] : undefined;
+      outsideTouch = point && event.target instanceof Node && !dialog.contains(event.target)
+        ? { x: point.clientX, y: point.clientY } : null;
+    };
+    const moveTouch = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        outsideTouch = null;
+        return;
+      }
+      const point = event.touches[0];
+      if (!outsideTouch || !point) return;
+      const dx = Math.abs(point.clientX - outsideTouch.x);
+      const dy = Math.abs(point.clientY - outsideTouch.y);
+      if (dy > 14 && dy > dx * 1.2) {
+        event.preventDefault();
+        outsideTouch = null;
+        closeRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    document.addEventListener('focusin', keepFocus);
+    overlay.addEventListener('wheel', outsideWheel, { passive: false });
+    overlay.addEventListener('touchstart', startTouch, { passive: true });
+    overlay.addEventListener('touchmove', moveTouch, { passive: false });
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus({ preventScroll: true });
+      cancelAnimationFrame(focusFrame);
+      window.removeEventListener('keydown', handleKey);
+      document.removeEventListener('focusin', keepFocus);
+      overlay.removeEventListener('wheel', outsideWheel);
+      overlay.removeEventListener('touchstart', startTouch);
+      overlay.removeEventListener('touchmove', moveTouch);
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
-  }, [hasMultipleImages, onClose]);
+  }, []);
 
-  const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
-    touchStartX.current = event.changedTouches[0]?.clientX ?? null;
+  const moveImage = (delta: number) => {
+    if (canSlide) setImageIndex((current) => (Math.min(current, images.length - 1) + delta + images.length) % images.length);
   };
-
+  const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
+    const point = event.touches.length === 1 ? event.touches[0] : undefined;
+    touchStart.current = point ? { x: point.clientX, y: point.clientY } : null;
+  };
   const handleTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!hasImages || imageList.length <= 1 || touchStartX.current === null) return;
-    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
-    const deltaX = endX - touchStartX.current;
-
-    if (Math.abs(deltaX) < 36) return;
-    if (deltaX < 0) {
-      nextImage();
-    } else {
-      prevImage();
-    }
-    touchStartX.current = null;
+    const start = touchStart.current;
+    touchStart.current = null;
+    const point = event.changedTouches[0];
+    if (!start || !point || !canSlide) return;
+    const dx = point.clientX - start.x;
+    const dy = point.clientY - start.y;
+    if (Math.abs(dx) >= 45 && Math.abs(dx) > Math.abs(dy) * 1.25) moveImage(dx < 0 ? 1 : -1);
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[70] flex items-center justify-center overflow-hidden bg-white/90 backdrop-blur-md px-2 pt-[calc(env(safe-area-inset-top)+8px)] pb-[calc(env(safe-area-inset-bottom)+8px)] md:p-5"
-        data-lenis-prevent
-        onClick={onClose}
-      >
-        <motion.div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="collection-detail-title"
-          tabIndex={-1}
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 30, opacity: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="relative flex h-full w-full max-w-[1480px] flex-col overflow-hidden rounded-[20px] border border-[#d1d5db] bg-white text-[#111827] shadow-[0_40px_120px_rgba(184,0,31,0.15)] md:h-[min(940px,calc(100dvh-2.5rem))] md:w-[min(1480px,calc(100vw-2.5rem))] md:rounded-[24px]"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="absolute left-0 top-0 h-[2px] w-full bg-gradient-to-r from-[#b8001f]/60 via-[#b8001f]/20 to-transparent" />
-
-          <header className="relative z-10 shrink-0 border-b border-[#d1d5db] bg-[#f8f9fa]/95 px-4 py-3 md:px-7 md:py-5">
-            <div className="pr-12 md:pr-14">
-              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.28em] text-[#4b5563] md:tracking-[0.32em]">
-                <span className="rounded-full border border-[#d1d5db] bg-white px-2.5 py-0.5 text-[#111827] font-bold shadow-sm md:px-3 md:py-1">
-                  Collection Lookbook
-                </span>
-                {showSeason ? <span className="font-semibold">{season}</span> : null}
-                <span className="font-semibold">{hasImages ? `${imageList.length} pages` : '0 pages'}</span>
-              </div>
-              <div className="mt-2 flex flex-wrap items-end justify-between gap-2 md:mt-3 xl:flex-row xl:items-end xl:justify-between">
-                <div className="min-w-0 flex-1 max-w-5xl">
-                  <h2
-                    id="collection-detail-title"
-                    className="font-heading text-[1.75rem] uppercase leading-[0.9] tracking-[-0.04em] text-[#111827] md:text-[3.3rem] font-black break-words"
-                  >
-                    {collection.title}
-                  </h2>
-                  {showDescription ? (
-                    <p className="mt-1 max-w-3xl font-mono text-[11px] leading-snug text-[#4b5563] line-clamp-2 md:mt-2 md:text-[13px] md:leading-relaxed md:line-clamp-none font-medium">
-                      {fullDescription}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="shrink-0 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-[#4b5563] font-bold md:gap-3 md:tracking-[0.25em]">
-                  <button
-                    type="button"
-                    onClick={prevImage}
-                    disabled={!hasMultipleImages}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-30 md:h-10 md:w-10"
-                    aria-label="이전 페이지"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <span className="min-w-[68px] text-center text-[#111827] font-bold md:min-w-[80px]">
-                    {hasImages
-                      ? `${String(safeImageIndex + 1).padStart(2, '0')} / ${String(imageList.length).padStart(2, '0')}`
-                      : '00 / 00'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={nextImage}
-                    disabled={!hasMultipleImages}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-30 md:h-10 md:w-10"
-                    aria-label="다음 페이지"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d5db] bg-white text-[#111827] shadow-sm transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white md:right-6 md:top-5"
-              aria-label="컬렉션 닫기"
-            >
-              <X size={18} />
-            </button>
-          </header>
-
-          <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="h-full min-h-0 p-2.5 md:p-5 flex flex-col items-center justify-center">
-              <div
-                className="relative flex flex-1 h-full w-full min-h-[36vh] md:min-h-[46vh] items-center justify-center overflow-hidden rounded-[20px] border border-[#d1d5db] bg-[#f8f9fa] p-3 md:p-8 shadow-inner"
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-              >
-                {hasImages ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={prevImage}
-                      disabled={!hasMultipleImages}
-                      className="absolute left-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/15 bg-white/90 text-[#111827] shadow-md backdrop-blur transition-all hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-25 md:left-6 md:h-12 md:w-12"
-                      aria-label="이전 페이지 보기"
-                    >
-                      <ChevronLeft size={22} />
-                    </button>
-
-                    <motion.div
-                      key={imageList[safeImageIndex]}
-                      custom={direction}
-                      initial={{ opacity: 0.85, scale: 0.99 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.16, ease: 'easeOut' }}
-                      className="relative h-full w-full max-w-4xl flex items-center justify-center"
-                    >
-                      <Image
-                        src={imageList[safeImageIndex]}
-                        alt={`${collection.title} 컬렉션 이미지 ${safeImageIndex + 1}`}
-                        fill
-                        priority
-                        unoptimized={shouldBypassImageOptimization(imageList[safeImageIndex] || '')}
-                        sizes="(max-width: 1280px) 100vw, 75vw"
-                        className="object-contain"
-                      />
-                    </motion.div>
-
-                    {hasMultipleImages ? (
-                      <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0"
-                      >
-                        {[
-                          imageList[(safeImageIndex + 1) % imageList.length],
-                          imageList[(safeImageIndex - 1 + imageList.length) % imageList.length],
-                        ]
-                          .filter((url): url is string => Boolean(url && url !== imageList[safeImageIndex]))
-                          .map((url) => (
-                            <Image
-                              key={`preload-${url}`}
-                              src={url}
-                              alt=""
-                              width={640}
-                              height={800}
-                              priority
-                              unoptimized={shouldBypassImageOptimization(url)}
-                              sizes="(max-width: 1280px) 100vw, 75vw"
-                            />
-                          ))}
-                      </div>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={nextImage}
-                      disabled={!hasMultipleImages}
-                      className="absolute right-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/15 bg-white/90 text-[#111827] shadow-md backdrop-blur transition-all hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white disabled:cursor-not-allowed disabled:opacity-25 md:right-6 md:h-12 md:w-12"
-                      aria-label="다음 페이지 보기"
-                    >
-                      <ChevronRight size={22} />
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center font-mono text-xs uppercase tracking-[0.3em] text-[#4b5563] font-bold">
-                    Image Missing
-                  </div>
-                )}
-
-                <div className="pointer-events-none absolute bottom-3 left-3 rounded-full border border-black/15 bg-white/90 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-[#111827] font-bold shadow-sm backdrop-blur md:bottom-6 md:left-6 md:px-3.5 md:py-1.5 md:text-[11px] md:tracking-[0.25em]">
-                  Page {hasImages ? String(safeImageIndex + 1).padStart(2, '0') : '00'}
-                </div>
-              </div>
-            </div>
-
-            <aside className="hidden min-h-0 overflow-y-auto border-l border-[#d1d5db] bg-[#f8f9fa] xl:block">
-              <div className="space-y-4 p-5">
-                <section className="rounded-[16px] border border-[#d1d5db] bg-white p-4 shadow-sm">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.34em] text-[#b8001f] font-bold">
-                    Editorial Note
-                  </p>
-                  <p className="mt-3 text-sm leading-7 text-[#111827] font-medium">
-                    {showDescription
-                      ? fullDescription
-                      : '실제 디자이너 브랜드 컬렉션을 보는 것처럼, 한 장씩 넘기며 룩을 확인하는 뷰어 모드입니다.'}
-                  </p>
-                </section>
-
-                <section className="rounded-[16px] border border-[#d1d5db] bg-white p-4 font-mono text-[11px] uppercase tracking-[0.22em] text-[#4b5563] shadow-sm font-semibold">
-                  <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-3">
-                    <span className="font-bold">Title</span>
-                    <span className="break-words text-[#111827] font-bold">{collection.title}</span>
-                  </div>
-                  {showSeason ? (
-                    <div className="mt-4 grid grid-cols-[92px_minmax(0,1fr)] gap-3">
-                      <span className="font-bold">Season</span>
-                      <span className="text-[#111827] font-bold">{season}</span>
-                    </div>
-                  ) : null}
-                  {showReleaseDate ? (
-                    <div className="mt-4 grid grid-cols-[92px_minmax(0,1fr)] gap-3">
-                      <span className="font-bold">Release</span>
-                      <span className="text-[#111827] font-bold">{releaseDate}</span>
-                    </div>
-                  ) : null}
-                  {showItems ? (
-                    <div className="mt-4 grid grid-cols-[92px_minmax(0,1fr)] gap-3">
-                      <span className="font-bold">Looks</span>
-                      <span className="text-[#111827] font-bold">{collection.items}</span>
-                    </div>
-                  ) : null}
-                  <div className="mt-4 grid grid-cols-[92px_minmax(0,1fr)] gap-3">
-                    <span className="font-bold">Frames</span>
-                    <span className="text-[#111827] font-bold">{imageList.length}</span>
-                  </div>
-                </section>
-              </div>
-            </aside>
+    <div
+      ref={overlayRef}
+      className={styles.backdrop}
+      onPointerDown={(event) => { pointerStartedOutside.current = event.target === event.currentTarget; }}
+      onClick={(event) => { if (event.target === event.currentTarget && pointerStartedOutside.current) closeRef.current(); }}
+    >
+      <div ref={dialogRef} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="collection-detail-title" tabIndex={-1}>
+        <header className={styles.header}>
+          <div className={styles.headerTitle}>
+            <p className={styles.eyebrow}>ENICO VECK / COLLECTION</p>
+            <h2 id="collection-detail-title" className={styles.title}>{collection.title}</h2>
           </div>
-
-          {hasImages ? (
-            <footer className="relative z-10 shrink-0 border-t border-[#d1d5db] bg-[#f8f9fa] px-3 py-2.5 md:px-5 md:py-4">
-              <div className="mb-1.5 flex items-center justify-between gap-3 md:mb-2">
-                <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#b8001f] font-bold">
-                  Thumbnail Strip
-                </p>
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#4b5563] font-semibold">
-                  아래 사진을 클릭해 바로 이동
-                </p>
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto px-1 py-1 md:gap-3">
-                {imageList.map((image, index) => (
-                  <button
-                    key={`${image}-${index}`}
-                    type="button"
-                    onClick={() => jumpToImage(index)}
-                    className={`group relative h-20 w-14 shrink-0 overflow-hidden rounded-[12px] border transition-all md:h-24 md:w-16 ${
-                      index === safeImageIndex
-                        ? 'border-[#b8001f] bg-white ring-2 ring-[#b8001f] shadow-sm'
-                        : 'border-[#d1d5db] bg-white hover:border-[#b8001f]/60'
-                    }`}
-                    aria-label={`컬렉션 이미지 ${index + 1} 보기`}
-                  >
-                    <Image
-                      src={image}
-                      alt={`컬렉션 썸네일 ${index + 1}`}
-                      fill
-                      unoptimized={shouldBypassImageOptimization(image)}
-                      sizes="96px"
-                      className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-2 pb-2 pt-6 text-left">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-white font-bold">
-                        {String(index + 1).padStart(2, '0')}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </footer>
-          ) : null}
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          <button type="button" className={styles.iconButton} onClick={() => closeRef.current()} aria-label="컬렉션 상세 닫기"><X size={20} /></button>
+        </header>
+        <div className={styles.overview}>
+          <section className={styles.gallery} aria-label="컬렉션 이미지">
+            <div
+              className={styles.mainImage}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={() => { touchStart.current = null; }}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                  event.preventDefault();
+                  moveImage(event.key === 'ArrowLeft' ? -1 : 1);
+                }
+              }}
+              tabIndex={canSlide ? 0 : undefined}
+              role="group"
+              aria-label="컬렉션 사진, 좌우 방향키로 이동"
+            >
+              {activeImage ? (
+                <Image key={activeImage} src={activeImage} alt={collection.title + ' — ' + (activeIndex + 1)} fill priority sizes="(max-width: 820px) 100vw, 540px" unoptimized={shouldBypassImageOptimization(activeImage)} draggable={false} />
+              ) : <p className={styles.empty}>등록된 컬렉션 이미지가 없습니다.</p>}
+              {canSlide && <>
+                <button type="button" className={styles.arrow + ' ' + styles.previous} onClick={() => moveImage(-1)} aria-label="이전 컬렉션 사진"><ChevronLeft size={21} /></button>
+                <button type="button" className={styles.arrow + ' ' + styles.next} onClick={() => moveImage(1)} aria-label="다음 컬렉션 사진"><ChevronRight size={21} /></button>
+              </>}
+              {images.length > 0 && <p className={styles.imageCount} aria-live="polite">{activeIndex + 1} / {images.length}</p>}
+            </div>
+            {canSlide && <div className={styles.thumbnails} aria-label="컬렉션 사진 선택">
+              {images.map((src, index) => <button type="button" key={src} className={styles.thumbnail} onClick={() => setImageIndex(index)} aria-label={(index + 1) + '번 컬렉션 사진'} aria-current={index === activeIndex ? 'true' : undefined}>
+                <Image src={src} alt="" fill sizes="72px" unoptimized={shouldBypassImageOptimization(src)} />
+              </button>)}
+            </div>}
+          </section>
+          <section className={styles.info} aria-label="컬렉션 정보">
+            <p className={styles.eyebrow}>COLLECTION {season && season !== '-' ? '/ ' + season : ''}</p>
+            <h3 className={styles.productName}>{collection.title}</h3>
+            {description && <p className={styles.description}>{description}</p>}
+            <dl className={styles.metadata}>
+              {season && season !== '-' && <><dt>SEASON</dt><dd>{season}</dd></>}
+              {releaseDate && releaseDate !== '-' && <><dt>RELEASE</dt><dd>{releaseDate}</dd></>}
+              {showItems && <><dt>LOOKS</dt><dd>{collection.items}</dd></>}
+              <dt>FRAMES</dt><dd>{images.length}</dd>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,602 +1,304 @@
 'use client';
 
-import Image from 'next/image';
-import { ChevronLeft, ChevronRight, X, Box } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  getFashionCartItemKey,
-  useFashionCart,
-} from '@/app/context/FashionCartContext';
-import { shouldBypassImageOptimization } from '@/lib/images';
-import { useEffect, useMemo, useRef, useState, type TouchEventHandler } from 'react';
-import type { Product } from '@/lib/storefront/productCatalog';
+import { StorefrontImage as Image } from './StorefrontImage';
 import dynamic from 'next/dynamic';
+import { Box, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type TouchEventHandler } from 'react';
+import { getFashionCartItemKey, useFashionCart } from '@/app/context/FashionCartContext';
+import { shouldBypassImageOptimization } from '@/lib/images';
+import type { Product } from '@/lib/storefront/productCatalog';
+import styles from './DetailPopup.module.css';
 
-const Viewer3D = dynamic(() => import('@/components/common/Viewer3D').then((m) => m.Viewer3D), {
-  ssr: false,
-});
+const Viewer3D = dynamic(() => import('@/components/common/Viewer3D').then((module) => module.Viewer3D), { ssr: false });
+const SMARTSTORE_HOME_URL = 'https://smartstore.naver.com/xenicolack';
 
 interface ProductDetailPopupProps {
   product: Product;
   onClose: () => void;
+  initialImageIndex?: number;
+  onAddToCart?: () => Promise<boolean>;
+  onCheckout?: () => Promise<void> | void;
 }
 
-const SMARTSTORE_HOME_URL = 'https://smartstore.naver.com/xenicolack';
-
-function NaverIcon() {
-  return (
-    <span className="inline-flex h-5 w-5 items-center justify-center rounded-sm bg-[#03c75a] text-[11px] font-black text-white">
-      N
-    </span>
-  );
+export function ProductDetailPopup(props: ProductDetailPopupProps) {
+  return <ProductDetailContent key={props.product.id + ':' + (props.initialImageIndex ?? 0)} {...props} />;
 }
 
-export function ProductDetailPopup({ product, onClose }: ProductDetailPopupProps) {
+function ProductDetailContent({ product, onClose, initialImageIndex = 0, onAddToCart, onCheckout }: ProductDetailPopupProps) {
   const { cart, addToCart, lastAddedItem } = useFashionCart();
-  const [imageState, setImageState] = useState(() => ({
-    productId: product.id,
-    index: 0,
-  }));
-  const itemKey = getFashionCartItemKey(product.id, null);
-  const feedbackSequence =
-    lastAddedItem?.itemKey === itemKey ? lastAddedItem.sequence : null;
-  const isCartBurstVisible = feedbackSequence !== null;
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const pointerStartedOutside = useRef(false);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const [pending, setPending] = useState<'add' | 'checkout' | null>(null);
+  const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<'photo' | '3d'>('photo');
-  const touchStartX = useRef<number | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
-  const isInCart = cart.some(
-    (item) => getFashionCartItemKey(item.id, item.selectedSize) === itemKey,
-  );
-  const isSoldOut = Boolean(product.isSoldOut);
-  const smartstoreUrl = SMARTSTORE_HOME_URL;
-  const has3DModel = Boolean(product.modelUrl);
-  const activeViewMode = has3DModel ? viewMode : 'photo';
-
+  const [imageIndex, setImageIndex] = useState(() => Math.max(0, Math.floor(initialImageIndex) || 0));
   const allImages = useMemo(() => {
-    const normalized = Array.isArray(product.images)
-      ? product.images.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-      : [];
-
-    if (normalized.length > 0) {
-      return Array.from(new Set(normalized.map((item) => item.trim())));
-    }
-
-    if (typeof product.image === 'string' && product.image.trim().length > 0) {
-      return [product.image.trim()];
-    }
-
-    return [];
+    const sources = Array.isArray(product.images) && product.images.length ? product.images : [product.image];
+    return Array.from(new Set(sources.filter((url): url is string => typeof url === 'string' && Boolean(url.trim())).map((url) => url.trim())));
   }, [product.image, product.images]);
+  const detailImage = useMemo(() => product.detailImageUrl?.trim() || allImages.find((url) => {
+    const lower = url.toLowerCase();
+    return lower.includes('상세페이지') || lower.includes('/detail_') || lower.includes('_detail_') || lower.includes('detail-page');
+  }) || '', [allImages, product.detailImageUrl]);
+  const images = useMemo(() => {
+    const photos = allImages.filter((url) => url !== detailImage);
+    return photos.length ? photos : allImages;
+  }, [allImages, detailImage]);
+  const activeIndex = images.length ? Math.min(imageIndex, images.length - 1) : 0;
+  const activeImage = images[activeIndex] || '';
+  const canSlide = images.length > 1;
+  const modelUrl = product.modelUrl || Object.values(product.modelVariants || {}).find(Boolean);
+  const activeViewMode = modelUrl ? viewMode : 'photo';
+  const itemKey = getFashionCartItemKey(product.id, null);
+  const isInCart = cart.some((item) => getFashionCartItemKey(item.id, item.selectedSize) === itemKey);
+  const isSoldOut = Boolean(product.isSoldOut);
+  const wasAdded = lastAddedItem?.itemKey === itemKey;
+  const productStoreUrl = product.smartstoreUrl?.trim() || '';
+  const hasProductStoreUrl = /^https?:\/\//i.test(productStoreUrl);
+  const smartstoreUrl = hasProductStoreUrl ? productStoreUrl : SMARTSTORE_HOME_URL;
 
-  // 통 상세페이지 이미지: product.detailImageUrl 우선 참조, 없으면 allImages 중 감지
-  const detailPageImage = useMemo(() => {
-    if (product.detailImageUrl?.trim()) {
-      return product.detailImageUrl.trim();
-    }
-    return (
-      allImages.find((url) => {
-        const lower = url.toLowerCase();
-        return (
-          lower.includes('상세페이지') ||
-          lower.includes('/detail_') ||
-          lower.includes('_detail_') ||
-          lower.includes('detail-page')
-        );
-      }) || null
-    );
-  }, [allImages, product.detailImageUrl]);
-
-  // 상단 슬라이더용 이미지 (통 상세페이지는 슬라이더에서 제외하여 썸네일들만 슬라이드)
-  const productImages = useMemo(() => {
-    if (!detailPageImage) return allImages;
-    const filtered = allImages.filter((url) => url !== detailPageImage);
-    return filtered.length > 0 ? filtered : allImages;
-  }, [allImages, detailPageImage]);
-
-  const canSlide = productImages.length > 1;
-  const defaultActiveImageIndex = 0;
-  const activeImageIndex =
-    imageState.productId === product.id ? imageState.index : defaultActiveImageIndex;
-  const activeImage = productImages[activeImageIndex] || '';
-  const detailImages = productImages
-    .map((image, index) => ({ image, index }))
-    .filter(({ index }) => index > 0);
-  const shouldUseDirectActiveImage = shouldBypassImageOptimization(activeImage);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = 0;
-    }
-    if (dialogRef.current) {
-      dialogRef.current.scrollTop = 0;
-      dialogRef.current.focus({ preventScroll: true });
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
+    mountedRef.current = true;
+    const dialog = dialogRef.current;
+    const overlay = overlayRef.current;
+    if (!dialog || !overlay) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    let outsideTouch: { x: number; y: number } | null = null;
+    const focusFrame = requestAnimationFrame(() => dialog.focus({ preventScroll: true }));
+    const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        event.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+        .filter((element) => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true');
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus({ preventScroll: true });
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog)) {
+        event.preventDefault();
+        first.focus();
       }
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus({ preventScroll: true });
+    const keepFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !dialog.contains(event.target)) dialog.focus({ preventScroll: true });
     };
-  }, [onClose]);
+    const outsideWheel = (event: WheelEvent) => {
+      const isVerticalScroll = !event.ctrlKey && Math.abs(event.deltaY) > 1 && Math.abs(event.deltaY) > Math.abs(event.deltaX);
+      if (isVerticalScroll && event.target instanceof Node && !dialog.contains(event.target)) {
+        event.preventDefault();
+        closeRef.current();
+      }
+    };
+    const startTouch = (event: TouchEvent) => {
+      const point = event.touches.length === 1 ? event.touches[0] : undefined;
+      outsideTouch = point && event.target instanceof Node && !dialog.contains(event.target)
+        ? { x: point.clientX, y: point.clientY } : null;
+    };
+    const moveTouch = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        outsideTouch = null;
+        return;
+      }
+      const point = event.touches[0];
+      if (!outsideTouch || !point) return;
+      const dx = Math.abs(point.clientX - outsideTouch.x);
+      const dy = Math.abs(point.clientY - outsideTouch.y);
+      if (dy > 14 && dy > dx * 1.2) {
+        event.preventDefault();
+        outsideTouch = null;
+        closeRef.current();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    document.addEventListener('focusin', keepFocus);
+    overlay.addEventListener('wheel', outsideWheel, { passive: false });
+    overlay.addEventListener('touchstart', startTouch, { passive: true });
+    overlay.addEventListener('touchmove', moveTouch, { passive: false });
+    return () => {
+      mountedRef.current = false;
+      cancelAnimationFrame(focusFrame);
+      window.removeEventListener('keydown', handleKey);
+      document.removeEventListener('focusin', keepFocus);
+      overlay.removeEventListener('wheel', outsideWheel);
+      overlay.removeEventListener('touchstart', startTouch);
+      overlay.removeEventListener('touchmove', moveTouch);
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, []);
 
-  const moveImage = (direction: 'next' | 'prev') => {
-    if (!canSlide) return;
-    const delta = direction === 'next' ? 1 : -1;
-    setImageState((prev) => {
-      const currentIndex = prev.productId === product.id ? prev.index : 0;
-      return {
-        productId: product.id,
-        index: (currentIndex + delta + productImages.length) % productImages.length,
-      };
-    });
+  const moveImage = (delta: number) => {
+    if (canSlide) setImageIndex((current) => (Math.min(current, images.length - 1) + delta + images.length) % images.length);
   };
-
   const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
-    touchStartX.current = event.changedTouches[0]?.clientX ?? null;
+    const point = event.touches.length === 1 ? event.touches[0] : undefined;
+    touchStart.current = point ? { x: point.clientX, y: point.clientY } : null;
   };
-
   const handleTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!canSlide || touchStartX.current === null) return;
-    const endX = event.changedTouches[0]?.clientX ?? touchStartX.current;
-    const deltaX = endX - touchStartX.current;
-    const threshold = 40;
-    if (Math.abs(deltaX) < threshold) return;
-    moveImage(deltaX < 0 ? 'next' : 'prev');
-    touchStartX.current = null;
+    const start = touchStart.current;
+    touchStart.current = null;
+    const point = event.changedTouches[0];
+    if (!start || !point || !canSlide) return;
+    const dx = point.clientX - start.x;
+    const dy = point.clientY - start.y;
+    if (Math.abs(dx) >= 45 && Math.abs(dx) > Math.abs(dy) * 1.25) moveImage(dx < 0 ? 1 : -1);
   };
-
-  const handleAddToCart = () => {
-    if (isSoldOut) {
-      return;
+  const handleAdd = async () => {
+    if (isSoldOut || busyRef.current) return;
+    busyRef.current = true;
+    setPending('add');
+    setError('');
+    try {
+      if (onAddToCart) {
+        const added = await onAddToCart();
+        if (!added) return;
+      } else if (isInCart) {
+        closeRef.current();
+      } else {
+        addToCart({ id: product.id, name: product.name, price: product.price, quantity: 1, image: product.image, category: product.category });
+      }
+    } catch {
+      if (mountedRef.current) setError('장바구니에 담지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setPending(null);
     }
-    if (isInCart) {
-      onClose();
-      return;
-    }
-    addToCart({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      quantity: 1,
-      image: product.image,
-      category: product.category,
-    });
   };
-
-  const handleSmartstorePurchase = () => {
-    if (isSoldOut || !smartstoreUrl) return;
-    window.open(smartstoreUrl, '_blank', 'noopener,noreferrer');
+  const handleCheckout = async () => {
+    if (isSoldOut || busyRef.current || !onCheckout) return;
+    busyRef.current = true;
+    setPending('checkout');
+    setError('');
+    try {
+      // The parent verifies current inventory, adds the current product, and opens the real cart.
+      await onCheckout();
+    } catch {
+      if (mountedRef.current) setError('주문 화면을 열지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setPending(null);
+    }
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        ref={overlayRef}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        className="fixed inset-0 bg-black/55 z-[60] flex items-start md:items-center justify-center p-0 md:p-8 overflow-y-auto md:overflow-hidden"
-        data-lenis-prevent
-        onClick={onClose}
-      >
-        {/* 모바일 닫기 버튼: transform/overflow 컨테이너 외부에 독립 배치하여 스크롤 및 렌더링 지연 없이 즉시 고정 노출 */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          style={{
-            top: 'max(14px, calc(env(safe-area-inset-top, 0px) + 14px))',
-            borderRadius: '9999px',
-            backgroundColor: 'rgba(17, 24, 39, 0.92)',
-            color: '#ffffff',
-          }}
-          className="fixed right-3.5 z-[100] inline-flex h-11 w-11 cursor-pointer items-center justify-center border border-white/20 shadow-[0_4px_16px_rgba(0,0,0,0.4)] backdrop-blur-md transition-all active:scale-90 hover:border-[#b8001f] hover:text-[#b8001f] md:hidden"
-          aria-label="상품 상세 닫기"
-        >
-          <X size={20} strokeWidth={2.2} />
-        </button>
-
-        <motion.div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="product-detail-title"
-          tabIndex={-1}
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-          style={{ willChange: 'transform, opacity' }}
-          className="relative w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] bg-white border border-[#d1d5db] overflow-visible md:overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-[#b8001f]/10"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* 데스크톱 닫기 버튼 */}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="상품 상세 닫기"
-            className="absolute top-4 right-4 z-50 hidden bg-white p-2 text-[#111827] transition-all hover:border-[#b8001f] hover:text-[#b8001f] md:block md:border md:border-[#d1d5db] shadow-sm cursor-pointer"
-          >
-            <X size={24} />
-          </button>
-
-          {/* Left: Images (Shopping Gallery) + 3D Viewer */}
-          <div className="w-full md:w-1/2 shrink-0 md:h-full md:min-h-0 relative bg-[#f8f9fa] border-b md:border-b-0 md:border-r border-[#d1d5db] flex flex-col md:overflow-y-auto md:overscroll-contain">
-            {/* Photo / 3D Toggle Tab */}
-            <div className="shrink-0 flex border-b border-[#d1d5db] bg-white" role="tablist" aria-label="상품 미디어 보기">
-              <button
-                type="button"
-                role="tab"
-                id="product-photo-tab"
-                aria-selected={activeViewMode === 'photo'}
-                aria-controls="product-photo-panel"
-                onClick={() => setViewMode('photo')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-mono text-xs uppercase tracking-widest transition-all border-b-2 ${
-                  activeViewMode === 'photo'
-                    ? 'border-[#b8001f] text-[#b8001f] font-bold bg-white'
-                    : 'border-transparent text-[#4b5563] hover:text-[#b8001f] bg-[#f8f9fa]'
-                }`}
-              >
-                <span aria-hidden="true">사진</span>
-                <span className="sr-only">상품 사진 보기</span>
-              </button>
-              {has3DModel ? (
-                <button
-                  type="button"
-                  role="tab"
-                  id="product-3d-tab"
-                  aria-selected={activeViewMode === '3d'}
-                  aria-controls="product-3d-panel"
-                  onClick={() => setViewMode('3d')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-mono text-xs uppercase tracking-widest transition-all border-b-2 ${
-                    activeViewMode === '3d'
-                      ? 'border-[#b8001f] text-[#b8001f] font-bold bg-white'
-                      : 'border-transparent text-[#4b5563] hover:text-[#b8001f] bg-[#f8f9fa]'
-                  }`}
-                >
-                  <Box size={14} aria-hidden="true" />
-                  3D 뷰어
-                </button>
-              ) : null}
-            </div>
-
-            {activeViewMode === '3d' && product.modelUrl ? (
-              /* 3D Viewer Mode */
-              <div
-                id="product-3d-panel"
-                role="tabpanel"
-                aria-labelledby="product-3d-tab"
-                className="flex-1 min-h-[400px] md:min-h-0"
-              >
-                <Viewer3D
-                  key={`${product.id}-${product.modelUrl}`}
-                  modelUrl={product.modelUrl}
-                  variants={product.modelVariants}
-                  fallbackImageUrl={product.image}
-                  title={product.name}
-                  embedded
-                />
+    <div
+      ref={overlayRef}
+      className={styles.backdrop}
+      onPointerDown={(event) => { pointerStartedOutside.current = event.target === event.currentTarget; }}
+      onClick={(event) => { if (event.target === event.currentTarget && pointerStartedOutside.current) closeRef.current(); }}
+    >
+      <div ref={dialogRef} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="product-detail-title" tabIndex={-1}>
+        <header className={styles.header}>
+          <div className={styles.headerTitle}>
+            <p className={styles.eyebrow}>ENICO VECK / {product.category}</p>
+            <h2 id="product-detail-title" className={styles.title}>{product.name}</h2>
+          </div>
+          <button type="button" className={styles.iconButton} onClick={() => closeRef.current()} aria-label="상품 상세 닫기"><X size={20} /></button>
+        </header>
+        <div className={styles.overview}>
+          <section className={styles.gallery} aria-label="상품 이미지">
+            {modelUrl && (
+              <div className={styles.tabs} role="tablist" aria-label="상품 보기 방식">
+                <button type="button" className={styles.tab} role="tab" aria-selected={activeViewMode === 'photo'} aria-controls="product-photo-panel" onClick={() => setViewMode('photo')}>상품 사진</button>
+                <button type="button" className={styles.tab} role="tab" aria-selected={activeViewMode === '3d'} aria-controls="product-model-panel" onClick={() => setViewMode('3d')}><Box size={15} />3D VIEW</button>
+              </div>
+            )}
+            {activeViewMode === '3d' && modelUrl ? (
+              <div id="product-model-panel" className={styles.viewer} role="tabpanel" aria-label="3D 상품 보기">
+                <Viewer3D key={product.id + '-' + modelUrl} modelUrl={modelUrl} variants={product.modelVariants} fallbackImageUrl={product.image} title={product.name} embedded />
               </div>
             ) : (
-              /* Photo Gallery Mode */
-              <>
-            <div
-              className="relative w-full shrink-0 aspect-[1080/1350] md:aspect-[4/5] group"
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-            >
-              <div className="absolute inset-0 z-10 opacity-15 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.12)_1px,transparent_0)] bg-[size:14px_14px]" />
-              {activeImage ? (
-                <Image
-                  key={activeImage}
-                  src={activeImage}
-                  alt={`${product.name} 상세 이미지 ${activeImageIndex + 1}`}
-                  fill
-                  priority
-                  unoptimized={shouldUseDirectActiveImage}
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-contain bg-[#f8f9fa]"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-[#f3f4f6] text-[#4b5563] font-mono text-xs font-semibold">
-                  이미지 없음
+              <div id="product-photo-panel">
+                <div
+                  className={styles.mainImage}
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchCancel={() => { touchStart.current = null; }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                      event.preventDefault();
+                      moveImage(event.key === 'ArrowLeft' ? -1 : 1);
+                    }
+                  }}
+                  tabIndex={canSlide ? 0 : undefined}
+                  role="group"
+                  aria-label="상품 사진, 좌우 방향키로 이동"
+                >
+                  {activeImage ? (
+                    <Image key={activeImage} src={activeImage} alt={product.name + ' — ' + (activeIndex + 1)} fill priority sizes="(max-width: 820px) 100vw, 540px" unoptimized={shouldBypassImageOptimization(activeImage)} draggable={false} />
+                  ) : <p className={styles.empty}>등록된 상품 이미지가 없습니다.</p>}
+                  {canSlide && <>
+                    <button type="button" className={styles.arrow + ' ' + styles.previous} onClick={() => moveImage(-1)} aria-label="이전 상품 사진"><ChevronLeft size={21} /></button>
+                    <button type="button" className={styles.arrow + ' ' + styles.next} onClick={() => moveImage(1)} aria-label="다음 상품 사진"><ChevronRight size={21} /></button>
+                  </>}
+                  {images.length > 0 && <p className={styles.imageCount} aria-live="polite">{activeIndex + 1} / {images.length}</p>}
                 </div>
-              )}
-
-              {canSlide && (
-                <>
-                  <button
-                    type="button"
-                    aria-label="이전 이미지"
-                    onClick={() => moveImage('prev')}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 border border-[#d1d5db] bg-white/90 text-[#111827] hover:border-[#b8001f] hover:text-[#b8001f] shadow-sm transition-colors flex items-center justify-center"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="다음 이미지"
-                    onClick={() => moveImage('next')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 border border-[#d1d5db] bg-white/90 text-[#111827] hover:border-[#b8001f] hover:text-[#b8001f] shadow-sm transition-colors flex items-center justify-center"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div className="shrink-0 p-4 border-t border-[#d1d5db] bg-white">
-              <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-[#4b5563] mb-3 font-bold">
-                상세 사진 {Math.max(productImages.length, 1)}장
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {(productImages.length > 0 ? productImages : ['']).map((image, index) => {
-                  const active = index === activeImageIndex;
-                  return (
-                    <button
-                      key={`${product.id}-thumb-${index}`}
-                      type="button"
-                      onClick={() => setImageState({ productId: product.id, index })}
-                      className={`relative h-20 md:h-auto md:aspect-[4/5] overflow-hidden border ${
-                        active ? 'border-[#b8001f] shadow-sm' : 'border-[#d1d5db] hover:border-[#b8001f]/70'
-                      } transition-all`}
-                    >
-                      {image ? (
-                        <Image
-                          src={image}
-                          alt={`${product.name} 썸네일 ${index + 1}`}
-                          fill
-                          loading="lazy"
-                          unoptimized={shouldBypassImageOptimization(image)}
-                          sizes="(max-width: 768px) 25vw, 12vw"
-                          className="object-contain bg-[#f8f9fa]"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-[#f3f4f6] flex items-center justify-center text-[10px] text-[#4b5563] font-mono">
-                          없음
-                        </div>
-                      )}
-                      <span
-                        className={`absolute left-1 top-1 text-[10px] font-mono px-1 border ${
-                          active
-                            ? 'bg-[#b8001f] text-white border-[#b8001f] font-bold'
-                            : 'bg-white/90 text-[#4b5563] border-[#d1d5db] font-semibold'
-                        }`}
-                      >
-                        {index + 1}
-                      </span>
-                    </button>
-                  );
-                })}
+                {canSlide && <div className={styles.thumbnails} aria-label="상품 사진 선택">
+                  {images.map((src, index) => <button type="button" key={src} className={styles.thumbnail} onClick={() => setImageIndex(index)} aria-label={(index + 1) + '번 상품 사진'} aria-current={index === activeIndex ? 'true' : undefined}>
+                    <Image src={src} alt="" fill sizes="72px" unoptimized={shouldBypassImageOptimization(src)} />
+                  </button>)}
+                </div>}
               </div>
-            </div>
-              </>
             )}
-          </div>
-
-          {/* Right: Info (Terminal) */}
-          <div className="w-full md:w-1/2 min-h-0 px-5 py-7 md:px-10 md:py-10 lg:px-12 lg:py-12 flex flex-col bg-white text-[#111827] relative overflow-visible md:overflow-y-auto md:overscroll-contain">
-            {/* Background Grid */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.4] pointer-events-none" />
-
-            <div className="relative z-10 px-1 md:px-2">
-              <div className="flex justify-between items-start mb-8 border-b border-[#d1d5db] pb-4">
-                <span className="font-mono text-xs text-[#4b5563] font-bold">{'/// 분류_문서'}</span>
-                <span className="font-mono text-xs text-[#b8001f] animate-pulse font-bold">● 활성</span>
-              </div>
-
-              <h2
-                id="product-detail-title"
-                className="max-w-[calc(100%-3.5rem)] pr-6 text-[2rem] md:text-[2.75rem] lg:text-5xl font-heading font-black uppercase leading-[0.92] mb-6 text-[#111827] tracking-[-0.03em] break-words"
-              >
-                {product.name}
-              </h2>
-
-              {/* Top Actions */}
-              <div className="relative z-10 mb-8 border border-[#d1d5db] bg-[#f8f9fa] p-4 md:p-5 shadow-sm">
-                <div className="flex justify-between items-end mb-5">
-                  <span className="font-mono text-xs text-[#4b5563] uppercase tracking-widest font-bold">가격</span>
-                  <span className="pl-4 text-right font-heading text-3xl md:text-4xl leading-none text-[#111827] break-keep font-black">
-                    {product.price.toLocaleString('ko-KR')}원
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="relative">
-                    <AnimatePresence>
-                      {isCartBurstVisible ? (
-                        <>
-                          <motion.div
-                            key={`${itemKey}-detail-burst`}
-                            initial={{ opacity: 0.82, scale: 0.9 }}
-                            animate={{ opacity: 0, scale: 1.16 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.7, ease: 'easeOut' }}
-                            className="pointer-events-none absolute inset-0 z-10 rounded-none bg-[radial-gradient(circle_at_50%_50%,rgba(184,0,31,0.32)_0%,rgba(184,0,31,0.14)_36%,rgba(184,0,31,0)_74%)]"
-                          />
-                          <motion.span
-                            key={`${itemKey}-detail-plus`}
-                            initial={{ opacity: 0, y: 8, scale: 0.84 }}
-                            animate={{ opacity: 1, y: -14, scale: 1 }}
-                            exit={{ opacity: 0, y: -24, scale: 0.92 }}
-                            transition={{ duration: 0.55, ease: 'easeOut' }}
-                            className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-[#d93853] bg-[#ffe6eb] px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.2em] text-[#6e0013] shadow-[0_12px_26px_rgba(184,0,31,0.25)]"
-                          >
-                            +1
-                          </motion.span>
-                        </>
-                      ) : null}
-                    </AnimatePresence>
-
-                    <motion.button
-                      type="button"
-                      onClick={handleAddToCart}
-                      disabled={isSoldOut}
-                      animate={
-                        isCartBurstVisible
-                          ? {
-                              scale: [1, 0.97, 1.03, 1],
-                              boxShadow: [
-                                '0 0 0 rgba(184,0,31,0)',
-                                '0 0 0 rgba(184,0,31,0)',
-                                '0 0 34px rgba(184,0,31,0.32)',
-                                '0 0 0 rgba(184,0,31,0)',
-                              ],
-                            }
-                          : { scale: 1, boxShadow: '0 0 0 rgba(184,0,31,0)' }
-                      }
-                      transition={{ duration: 0.72, ease: 'easeOut' }}
-                      className={`min-h-[88px] w-full px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-all duration-300 relative overflow-hidden group text-left ${
-                        isSoldOut
-                          ? 'bg-[#fef2f2] text-[#991b1b] border-[#f87171] cursor-not-allowed'
-                          : isInCart
-                            ? 'bg-[#fff1f2] text-[#8f0018] border-[#d93853]'
-                            : 'bg-transparent text-[#b8001f] border-[#b8001f] hover:text-white'
-                      }`}
-                    >
-                      {!isInCart && !isSoldOut ? (
-                        <div className="absolute inset-0 bg-[#b8001f] translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                      ) : null}
-                      <AnimatePresence>
-                        {isCartBurstVisible ? (
-                          <motion.span
-                            key={`${itemKey}-detail-sweep`}
-                            initial={{ opacity: 0.95, x: '-100%' }}
-                            animate={{ opacity: 0, x: '115%' }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.55, ease: 'easeOut' }}
-                            className="pointer-events-none absolute inset-y-0 left-[-25%] w-[45%] bg-[linear-gradient(90deg,transparent,rgba(255,224,235,0.95),transparent)]"
-                          />
-                        ) : null}
-                      </AnimatePresence>
-                      <span className="relative z-10 flex h-full items-center justify-between gap-3">
-                        <span className="leading-tight">
-                          {isSoldOut
-                            ? '품절'
-                            : isInCart
-                              ? '장바구니 담김'
-                              : '장바구니 담기'}
-                        </span>
-                        <span className="text-xl">{isSoldOut ? 'X' : isInCart ? '✓' : '+'}</span>
-                      </span>
-                    </motion.button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSmartstorePurchase}
-                    disabled={isSoldOut}
-                    aria-label={isSoldOut ? '네이버 구매 불가: 품절' : undefined}
-                    className={`min-h-[88px] px-5 py-4 font-mono font-bold text-base uppercase tracking-wider border transition-colors text-left shadow-sm ${
-                      isSoldOut
-                        ? 'cursor-not-allowed border-[#f87171] bg-[#fef2f2] text-[#991b1b]'
-                        : 'border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a] hover:text-white'
-                    }`}
-                  >
-                    <span className="flex h-full items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-2 leading-tight">
-                        <NaverIcon />
-                        네이버 구매
-                      </span>
-                      <span className="text-xl">↗</span>
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Extended Detail Sections (scrollable) */}
-              <div className="mb-10 space-y-6 border-t border-[#d1d5db] pt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-[11px]">
-                  <div className="border border-[#d1d5db] bg-[#f8f9fa] p-3 shadow-sm">
-                    <p className="text-[#4b5563] mb-1 font-bold">항목 식별값</p>
-                    <p className="text-[#111827] font-semibold">{product.id}</p>
-                  </div>
-                  <div className="border border-[#d1d5db] bg-[#f8f9fa] p-3 shadow-sm">
-                    <p className="text-[#4b5563] mb-1 font-bold">카테고리</p>
-                    <p className="text-[#111827] font-semibold">{product.category}</p>
-                  </div>
-                </div>
-
-                <section className="border border-[#d1d5db] bg-white shadow-sm">
-                  <div className="px-4 py-2 border-b border-[#d1d5db] bg-[#f8f9fa]">
-                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#b8001f] font-bold">
-                      상세설명
-                    </h3>
-                  </div>
-                  <div className="p-4 font-mono text-xs md:text-sm text-[#374151] leading-relaxed whitespace-pre-wrap font-medium">
-                    {product.description || '상세 설명이 없습니다.'}
-                  </div>
-                </section>
-
-                <section className="border border-[#d1d5db] bg-white shadow-sm">
-                  <div className="px-4 py-2 border-b border-[#d1d5db] bg-[#f8f9fa]">
-                    <h3 className="font-mono text-[11px] tracking-widest uppercase text-[#b8001f] font-bold">
-                      상세보기 사진
-                    </h3>
-                  </div>
-                  <div className="p-3 space-y-3">
-                    {detailPageImage ? (
-                      <div className="relative w-full border border-[#d1d5db] bg-white overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={detailPageImage}
-                          alt={`${product.name} 상세페이지`}
-                          loading="lazy"
-                          className="w-full h-auto object-contain block"
-                        />
-                      </div>
-                    ) : detailImages.length > 0 ? (
-                      detailImages.map(({ image, index }) => (
-                        <button
-                          key={`${product.id}-detail-list-${index}`}
-                          type="button"
-                          onClick={() => setImageState({ productId: product.id, index })}
-                          className={`w-full border p-2 text-left transition-colors ${
-                            activeImageIndex === index
-                              ? 'border-[#b8001f] bg-[#fff1f2]'
-                              : 'border-[#d1d5db] bg-[#f8f9fa] hover:border-[#b8001f]/70'
-                          }`}
-                        >
-                          <div className="relative border border-[#d1d5db] bg-white aspect-[1080/1350]">
-                            <Image
-                              src={image}
-                              alt={`${product.name} 상세보기 ${index + 1}`}
-                              fill
-                              loading="lazy"
-                              unoptimized={shouldBypassImageOptimization(image)}
-                              sizes="(max-width: 768px) 100vw, 50vw"
-                              className="object-contain bg-white"
-                            />
-                          </div>
-                          <p className="mt-2 font-mono text-[10px] text-[#4b5563] font-semibold">
-                            상세 {index + 1} / 총 {productImages.length}장
-                          </p>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="font-mono text-xs text-[#4b5563] font-semibold">추가 상세 이미지가 없습니다.</p>
-                    )}
-                  </div>
-                </section>
-              </div>
+          </section>
+          <section className={styles.info} aria-label="상품 정보">
+            <p className={styles.eyebrow}>{product.category}</p>
+            <h3 className={styles.productName}>{product.name}</h3>
+            <div className={styles.priceRow}>
+              <p className={styles.price}>₩{product.price.toLocaleString('ko-KR')}</p>
+              {isSoldOut && <span className={styles.soldOut}>SOLD OUT</span>}
             </div>
-
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+            <p className={styles.description}>{product.description}</p>
+            <div className={styles.actions}>
+              <button type="button" className={styles.action + ' ' + styles.primary} onClick={handleAdd} disabled={isSoldOut || pending !== null}>
+                {isSoldOut ? '품절' : pending === 'add' ? '재고 확인 중…' : isInCart ? '장바구니 담김' : '장바구니 담기'}
+              </button>
+              {onCheckout && <button type="button" className={styles.action + ' ' + styles.checkout} onClick={handleCheckout} disabled={isSoldOut || pending !== null}>
+                {isSoldOut ? '품절' : pending === 'checkout' ? '주문 준비 중…' : '바로 구매'}
+              </button>}
+              <button type="button" className={styles.action} disabled={isSoldOut || pending !== null} onClick={() => {
+                if (!isSoldOut && !busyRef.current) window.open(smartstoreUrl, '_blank', 'noopener,noreferrer');
+              }}>
+                <span className={styles.naverIcon} aria-hidden="true">N</span>
+                {hasProductStoreUrl ? '네이버에서 구매' : '스마트스토어 방문'}
+              </button>
+              <p className={styles.feedback} role="status" aria-live="polite">{error || (wasAdded && !isSoldOut ? '장바구니에 담았습니다.' : '')}</p>
+            </div>
+            <dl className={styles.metadata}><dt>CATEGORY</dt><dd>{product.category}</dd></dl>
+          </section>
+        </div>
+        {detailImage && <section className={styles.details} aria-label="상품 상세 이미지">
+          <h3 className={styles.sectionTitle}>PRODUCT DETAILS</h3>
+          {/* The original long image keeps its natural ratio and full width. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={detailImage} alt={product.name + ' 상세 정보'} className={styles.longImage} loading="lazy" decoding="async" />
+        </section>}
+        {images.length > 1 && <section className={styles.details} aria-label="상품 추가 사진">
+          <h3 className={styles.sectionTitle}>MORE PHOTOS</h3>
+          <div className={styles.additionalImages}>{images.slice(1).map((src, offset) => <button type="button" key={src} className={styles.additionalImage} onClick={() => {
+            setImageIndex(offset + 1);
+            setViewMode('photo');
+            dialogRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+          }} aria-label={(offset + 2) + '번 상품 사진 크게 보기'}>
+            <Image src={src} alt={product.name + ' 추가 사진 ' + (offset + 1)} fill sizes="(max-width: 820px) 50vw, 540px" unoptimized={shouldBypassImageOptimization(src)} />
+          </button>)}</div>
+        </section>}
+      </div>
+    </div>
   );
 }

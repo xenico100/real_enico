@@ -31,6 +31,9 @@ function load(file) {
   }).outputText;
 
   function mockRequire(name) {
+    if (name.endsWith('.module.css')) {
+      return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
+    }
     if (name === 'next/image') {
       return {
         __esModule: true,
@@ -120,8 +123,8 @@ function renderShowcase(initialProducts) {
   }));
 }
 
-function renderDetail(product) {
-  return render(React.createElement(ProductDetailPopup, { product, onClose() {} }));
+function renderDetail(product, props = {}) {
+  return render(React.createElement(ProductDetailPopup, { product, onClose() {}, ...props }));
 }
 
 function buttons(markup) {
@@ -177,21 +180,39 @@ test('the sold jacket detail remains viewable while both purchase buttons are di
   const markup = renderDetail(jacket);
   assert.match(markup, /role="dialog"/);
   assert.match(markup, /Re: flower of evil jacket/);
-  assert.match(markup, /220,000원/);
-  assert.doesNotMatch(markup, />0원</);
-  assert.equal(findButton(markup, button => button.text === '품절X', 'jacket cart').disabled, true);
-  const naver = findButton(markup, button => button.text.includes('네이버구매'), 'jacket Naver purchase');
+  assert.match(markup, /₩220,000/);
+  assert.match(markup, /SOLD OUT/);
+  assert.doesNotMatch(markup, />₩0<|>0원</);
+  assert.doesNotMatch(markup, new RegExp(JACKET_ID));
+  assert.equal(findButton(markup, button => button.text === '품절', 'jacket cart').disabled, true);
+  const naver = findButton(markup, button => /네이버에서구매|스마트스토어방문/.test(button.text), 'jacket Naver purchase');
   assert.equal(naver.disabled, true);
-  assert.match(naver.attributes, /aria-label="네이버 구매 불가: 품절"/);
 });
 
 test('Night Kitty detail keeps its original price and both purchase buttons enabled', () => {
   const markup = renderDetail(kitty);
   assert.match(markup, /role="dialog"/);
   assert.match(markup, /Night Kitty/);
-  assert.match(markup, /28,000원/);
-  assert.equal(findButton(markup, button => button.text === '장바구니담기+', 'Night Kitty cart').disabled, false);
-  const naver = findButton(markup, button => button.text.includes('네이버구매'), 'Night Kitty Naver purchase');
+  assert.match(markup, /₩28,000/);
+  assert.doesNotMatch(markup, /SOLD OUT/);
+  assert.equal(findButton(markup, button => button.text === '장바구니담기', 'Night Kitty cart').disabled, false);
+  const naver = findButton(markup, button => /네이버에서구매|스마트스토어방문/.test(button.text), 'Night Kitty Naver purchase');
   assert.equal(naver.disabled, false);
-  assert.doesNotMatch(naver.attributes, /구매 불가|품절/);
+});
+
+test('parent-owned checkout is enabled only for available products', () => {
+  const checkout = { onCheckout: async () => {} };
+  const available = renderDetail(kitty, checkout);
+  assert.equal(findButton(available, button => button.text === '바로구매', 'available checkout').disabled, false);
+  const sold = renderDetail(jacket, checkout);
+  const blocked = buttons(sold).filter(button => button.text === '품절');
+  assert.equal(blocked.length, 2, 'Both cart and direct checkout must be blocked');
+  assert.ok(blocked.every(button => button.disabled));
+});
+
+test('the detail labels a product Smartstore link separately from the store-home fallback', () => {
+  const productLink = renderDetail({ ...kitty, smartstoreUrl: 'https://smartstore.naver.com/xenicolack/products/1234567890' });
+  assert.equal(findButton(productLink, button => button.text.includes('네이버에서구매'), 'product Smartstore link').disabled, false);
+  const storeHome = renderDetail({ ...kitty, smartstoreUrl: undefined });
+  assert.equal(findButton(storeHome, button => button.text.includes('스마트스토어방문'), 'store-home link').disabled, false);
 });

@@ -12,7 +12,6 @@ import {
 import type { StorefrontProductRow } from '@/lib/storefront/shared';
 import {
   isArchivedSoldOutProduct,
-  isSoldOutDisplayProductId,
   isStorefrontProductVisible,
 } from '@/lib/storefront/productDisplay';
 
@@ -574,7 +573,7 @@ function mapDbRowToProduct(row: StorefrontProductRow): Product | null {
     (isProductTitleMarkedSoldOut(title) && !isProductMarkedAvailable(row.raw));
   const numericPrice = Number(row.price);
   const basePrice = Number.isFinite(numericPrice) ? numericPrice : 0;
-  const price = isSoldOut && !isSoldOutDisplayProductId(row.id) ? 0 : basePrice;
+  const price = basePrice;
   const rawSpecsString = typeof row.specs === 'string' ? row.specs.trim() : '';
   const isSpecsUrl = rawSpecsString.startsWith('https://');
   const storedSpecs = !isSpecsUrl ? rawSpecsString : '';
@@ -650,9 +649,6 @@ function buildDbBackedProductCatalog(rows: StorefrontProductRow[]) {
       .map(mapDbRowToProduct)
       .filter((item): item is Product => Boolean(item)),
   ).filter((product) => {
-    if (product.isSoldOut && !isSoldOutDisplayProductId(product.id)) {
-      return false;
-    }
     const key = normalizeCategoryHintKey(product.name);
     if (seen.has(key)) {
       return false;
