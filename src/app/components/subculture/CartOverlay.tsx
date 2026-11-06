@@ -299,6 +299,30 @@ function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
+function CartItemThumbnail({ src, alt }: { src: string; alt: string }) {
+  const [forceOriginal, setForceOriginal] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const bypass = shouldBypassImageOptimization(src);
+  if (failed) {
+    return <span role="img" aria-label={alt} className="absolute inset-0 flex items-center justify-center px-1 text-center text-[9px] font-bold tracking-wider text-[#6b7280]">NO PREVIEW</span>;
+  }
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      loading="eager"
+      sizes="80px"
+      unoptimized={forceOriginal || bypass}
+      className="object-contain bg-white"
+      onError={() => {
+        if (forceOriginal || bypass) setFailed(true);
+        else setForceOriginal(true);
+      }}
+    />
+  );
+}
+
 export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }: CartOverlayProps) {
   const { cart, removeFromCart, clearCart } = useFashionCart();
   const { session, isAuthenticated, user, profile, updateAccountProfile } = useAuth();
@@ -1308,14 +1332,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                         <div key={`${item.id}-${item.selectedSize ?? 'na'}`} className="border border-[#d1d5db] bg-white p-3 md:p-4">
                           <div className="flex gap-4">
                             <div className="relative aspect-[4/5] w-[76px] shrink-0 overflow-hidden border border-[#d1d5db] bg-[#f7f7f5] md:w-20">
-                              <Image
-                                src={item.image}
-                                alt=""
-                                fill
-                                unoptimized={shouldBypassImageOptimization(item.image)}
-                                sizes="80px"
-                                className="object-contain bg-white"
-                              />
+                              <CartItemThumbnail key={item.image} src={item.image} alt={item.name} />
                               <div className="absolute inset-0 bg-[#b8001f] mix-blend-color opacity-0 hover:opacity-15 transition-opacity" />
                             </div>
 
