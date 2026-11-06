@@ -162,7 +162,7 @@ function Storefront({ initialProducts = [], initialCollections = [], initialPopu
         ) : (
           <section className={styles.loading} role="status">
             <h1>ENICO VECK</h1>
-            <p>{isLoading ? '판매 상품을 불러오는 중이에요.' : error ? '상품을 불러오지 못했어요. 연결을 확인하고 다시 시도해 주세요.' : '현재 전시 중인 상품이 없습니다.'}</p>
+            <p>{isLoading ? 'ARCHIVE / INDEXING' : error ? '상품을 불러오지 못했어요. 연결을 확인하고 다시 시도해 주세요.' : '현재 전시 중인 상품이 없습니다.'}</p>
             {!isLoading && <button type="button" onClick={() => void refresh()}>다시 시도</button>}
           </section>
         )}
@@ -196,8 +196,10 @@ function OverlayLoading({ onClose }: { onClose: () => void }) {
   return (
     <div className={styles.overlayLoading} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-label="화면 준비 중" className={styles.overlayLoadingPanel}>
-        <p role="status" aria-live="polite">화면을 준비하고 있어요.</p>
-        <button type="button" onClick={onClose}>닫기</button>
+        <span className={styles.overlayBrand}>ENICO VECK<span>®</span></span>
+        <span className={styles.loadTrack} aria-hidden="true"><i /></span>
+        <p role="status" aria-live="polite" className={styles.overlayLabel}>ACCESSING / ARCHIVE</p>
+        <button type="button" onClick={onClose}>닫기 ×</button>
       </section>
     </div>
   );

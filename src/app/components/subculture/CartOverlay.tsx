@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { useFashionCart } from '@/app/context/FashionCartContext';
 import { useAuth } from '@/app/context/AuthContext';
@@ -49,17 +49,17 @@ const DOMESTIC_SHIPPING_FEE = 3000;
 const INTERNATIONAL_SHIPPING_FEE = 40000;
 const CHECKOUT_REGIONS = [DOMESTIC_REGION, '미국', '일본', '캐나다', '호주', '그 외'] as const;
 const CHECKOUT_SECTION_CLASS =
-  'overflow-hidden rounded-[18px] border border-[#d1d5db] bg-white px-4 py-4 shadow-sm md:px-6 md:py-6';
+  'min-w-0 border border-[#d1d5db] bg-white px-4 py-4 md:px-6 md:py-6';
 const CHECKOUT_FIELD_GROUP_CLASS =
-  'rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-3.5 py-3.5 shadow-sm md:px-5 md:py-5';
+  'min-w-0 border-b border-[#e5e7eb] bg-white px-0 py-3 md:px-0 md:py-4';
 const CHECKOUT_FIELD_CLASS =
-  'w-full rounded-[12px] border border-[#d1d5db] bg-white px-3.5 py-3 text-[15px] leading-[1.45] text-[#111827] placeholder:text-[#9ca3af] focus:border-[#b8001f] focus:outline-none focus:ring-2 focus:ring-[#b8001f]/15 font-medium';
+  'w-full min-w-0 rounded-none border border-[#cbd0d6] bg-[#f7f7f5] px-3.5 py-3 text-[15px] leading-[1.45] text-[#111827] placeholder:text-[#8b929d] focus:border-[#b8001f] focus:outline-none focus:ring-2 focus:ring-[#b8001f]/15 font-medium';
 const CHECKOUT_FIELD_HEADER_CLASS = 'mb-2.5';
 const CHECKOUT_FIELD_BODY_CLASS = '';
 const CHECKOUT_PAYMENT_PANEL_CLASS =
-  'rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm';
+  'border border-[#d1d5db] bg-white p-1.5';
 const CHECKOUT_PAYMENT_BUTTON_CLASS =
-  'group flex h-[52px] min-h-[52px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-[8px] border border-[#d1d5db] bg-white px-4 text-left text-[#111827] shadow-sm transition-all duration-200 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b8001f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+  'group flex h-[52px] min-h-[52px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-none border border-[#d1d5db] bg-white px-4 text-left text-[#111827] transition-colors duration-200 hover:bg-[#f7f7f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b8001f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -355,14 +355,17 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
     setBankOrderReceipt(savedReceipt);
     setIsRestoredBankReceipt(Boolean(savedReceipt));
     setTransactionId(generateTransactionId());
-    setMode(savedReceipt && cart.length === 0 ? 'confirmation' : 'cart');
+    setMode('cart');
     setNicepayError(null);
     setCheckoutMessage(null);
     setCheckoutError(null);
     setGuestLookupPassword('');
   // Restore only when opening; cart mutations during submission must not reset the receipt.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  useLayoutEffect(() => {
+    if (isOpen && checkoutScrollRef.current) checkoutScrollRef.current.scrollTop = 0;
+  }, [isOpen, mode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1152,69 +1155,42 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'tween', ease: 'circOut', duration: 0.45 }}
-            className="fixed left-3 right-3 top-[calc(env(safe-area-inset-top)+18px)] bottom-[calc(env(safe-area-inset-bottom)+14px)] z-[90] flex h-auto flex-col overflow-hidden rounded-[18px] border border-[#d1d5db] bg-white font-mono text-[#111827] shadow-2xl md:left-auto md:right-0 md:top-0 md:bottom-0 md:w-[580px] md:rounded-none md:border-l md:border-t-0 md:border-r-0 md:border-b-0 md:shadow-none"
+            className="fixed inset-0 z-[90] flex min-h-0 flex-col overflow-hidden bg-[#f7f7f5] font-mono text-[#111827] shadow-2xl md:inset-y-0 md:left-auto md:right-0 md:w-[560px] md:border-l md:border-[#c9cdd3] md:shadow-[-16px_0_65px_rgba(0,0,0,.16)]"
           >
-            <div className="border-b border-[#d1d5db] bg-[#f8f9fa] px-5 pb-5 pt-5 md:px-7 md:pb-6 md:pt-7">
-              <div className="flex items-start justify-between gap-3">
-                <div className="max-w-[25rem]">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#b8001f]">
-                    Secure Checkout
-                  </p>
-                  <h2
-                    id="cart-overlay-title"
-                    className="mt-3 text-[1.85rem] font-heading font-black uppercase tracking-[0.01em] leading-[1.08] text-[#111827] md:text-[2.45rem]"
-                  >
-                    {mode === 'confirmation' ? isRestoredBankReceipt ? '최근 주문 접수 내역' : '주문 접수 · 입금 대기' : mode === 'checkout' ? '결제' : '장바구니'}
+            <header className="relative z-10 shrink-0 border-b border-[#ced2d8] bg-[#f7f7f5] px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))] md:px-8 md:pb-6 md:pt-8">
+              <div className="mb-3 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.16em] text-[#737883]">
+                <span className="text-[#b8001f]">ENICO VECK / STORE</span>
+                <span className="h-px flex-1 bg-[#d1d5db]" aria-hidden="true" />
+                <span>{mode === 'cart' ? '01 / BAG' : mode === 'checkout' ? '02 / CHECKOUT' : '03 / ORDER'}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 id="cart-overlay-title" className="font-heading text-[clamp(25px,6.8vw,34px)] font-black leading-[1.08] tracking-[-.05em] text-[#101522] md:text-[38px]">
+                    {mode === 'confirmation' ? (isRestoredBankReceipt ? '최근 주문 기록' : '주문 접수') : mode === 'checkout' ? '주문 / 결제' : '장바구니'}
                   </h2>
+                  <p className="mt-1.5 text-[11px] font-medium leading-5 text-[#69707d]">
+                    {mode === 'confirmation' ? 'ORDER RECORD / TRANSFER' : mode === 'checkout' ? 'CHECKOUT / SECURE' : 'SELECTED PIECES'}
+                  </p>
                 </div>
-                <button
-                  ref={closeButtonRef}
-                  type="button"
-                  aria-label="장바구니 닫기"
-                  onClick={onClose}
-                  className="rounded-full border border-[#d1d5db] bg-white p-2.5 text-[#111827] transition-colors hover:border-[#b8001f] hover:bg-[#b8001f] hover:text-white shadow-sm"
-                >
-                  <X size={20} />
+                <button ref={closeButtonRef} type="button" aria-label="장바구니 닫기" onClick={onClose}
+                  className="grid h-11 w-11 shrink-0 place-items-center border border-[#c7ccd3] bg-white text-[#101522] transition-colors hover:border-[#b8001f] hover:text-[#b8001f] focus-visible:outline-2 focus-visible:outline-[#b8001f]">
+                  <X size={21} strokeWidth={1.8} />
                 </button>
               </div>
-            </div>
+            </header>
 
             <div
               ref={checkoutScrollRef}
-              className="checkout-scroll-area flex-1 min-h-0 space-y-4 overflow-y-auto px-4 py-4 pr-2 pb-6 md:space-y-5 md:px-7 md:py-6 md:pr-4 md:pb-8"
+              className="checkout-scroll-area min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-[max(24px,env(safe-area-inset-bottom))] pt-4 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch] md:space-y-5 md:px-8 md:py-6"
             >
-              {mode !== 'confirmation' && <div className="sticky top-0 z-10 rounded-[16px] border border-[#d1d5db] bg-white/95 px-4 py-3 shadow-sm backdrop-blur-xl md:py-4">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-lg font-bold text-[#111827]">{itemCount}개 상품</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#b8001f]">Total</p>
-                    <p className="mt-2 text-xl font-black tracking-[-0.03em] text-[#111827]">{formatKrw(total)}</p>
-                  </div>
+              {mode !== 'confirmation' && (
+                <div className="sticky top-0 z-10 flex min-h-[62px] items-center justify-between gap-4 border border-[#d1d5db] bg-[#f7f7f5]/95 px-4 py-3 backdrop-blur-lg">
+                  <span className="text-[11px] font-semibold uppercase tracking-[.09em] text-[#737883]">
+                    {mode === 'checkout' ? 'ORDER TOTAL' : 'PIECES / ' + String(itemCount).padStart(2, '0')}
+                  </span>
+                  <strong className="text-right font-heading text-lg font-black tracking-[-.04em] tabular-nums text-[#111827] md:text-xl">{formatKrw(total)}</strong>
                 </div>
-
-                <div className="mt-3 space-y-2 rounded-[12px] border border-[#e5e7eb] bg-[#f8f9fa] px-4 py-2.5 md:py-3">
-                  {canCheckout ? (
-                    cart.map((item) => {
-                      const quantity = item.quantity || 1;
-                      return (
-                        <div
-                          key={`summary-${item.id}-${item.selectedSize ?? 'na'}`}
-                          className="text-[11px]"
-                        >
-                          <p className="line-clamp-2 leading-snug text-[#374151] font-medium">
-                            {item.name}
-                            {quantity > 1 ? ` x${quantity}` : ''}
-                          </p>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-[11px] text-[#6b7280] font-medium">주문할 상품이 없습니다.</p>
-                  )}
-                </div>
-              </div>}
+              )}
 
               {(checkoutMessage || checkoutError) && (
                 <div
@@ -1232,102 +1208,106 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
 
               {mode === 'confirmation' ? (
                 <div className="space-y-4">
-                  {bankOrderReceipt && <>
-                    <section className={CHECKOUT_SECTION_CLASS}>
-                      <h3 className="font-bold">주문 접수 내역</h3>
-                      <p className="mt-3 break-all text-sm">주문번호: <strong>{bankOrderReceipt.orderCode}</strong></p>
-                      {bankOrderReceipt.guestOrderNumber && <p className="mt-2 break-all text-sm">비회원 조회번호: <strong>{bankOrderReceipt.guestOrderNumber}</strong></p>}
-                      <ul className="mt-4 space-y-2 border-t border-[#e5e7eb] pt-3 text-sm">
-                        {bankOrderReceipt.items.map((item, index) => <li key={`${item.id}-${index}`} className="flex justify-between gap-3"><span>{item.name}{item.selectedSize ? ` / ${item.selectedSize}` : ''} × {item.quantity}</span><span className="shrink-0">{formatKrw(item.lineTotal)}</span></li>)}
-                      </ul>
-                      <p className="mt-4 text-sm font-bold">배송비 포함 {isRestoredBankReceipt ? '접수 당시 주문금액' : '입금액'}: {formatKrw(bankOrderReceipt.total)}</p>
-                    </section>
-                    {isRestoredBankReceipt ? (
-                      <>
-                        <p className="rounded-xl border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">저장된 접수 내역입니다. 이후 취소되거나 입금 확인되었을 수 있으니, 주문조회에서 현재 상태와 입금 안내를 확인해 주세요.</p>
-                        <BankTransferInstructions bankAccount={bankOrderReceipt.bankAccount} amount={bankOrderReceipt.total} />
-                      </>
-                    ) : (
-                      <>
-                        <BankTransferInstructions bankAccount={bankOrderReceipt.bankAccount} amount={bankOrderReceipt.total} />
-                        <CustomerOrderNotifications notifications={bankOrderReceipt.notifications} />
-                      </>
-                    )}
-                    <p className="text-xs leading-relaxed text-[#4b5563]">접수 시점의 안내입니다. 이후 입금 확인·취소·배송 상태는 주문조회에서 확인해 주세요.{bankOrderReceipt.channel === 'guest' ? ' 비회원은 주문한 핸드폰 번호와 설정한 주문조회 비밀번호가 필요합니다.' : ''}</p>
-                  </>}
+                  <div className="border-l-[3px] border-[#b8001f] bg-[#f0f1ef] px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#b8001f]">ORDER RECORDED</p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-[#111827]">
+                      {isRestoredBankReceipt ? '저장된 주문 기록입니다.' : '무통장입금 주문이 접수됐습니다.'}
+                    </p>
+                    <p className="text-xs leading-5 text-[#59616d]">입금이 확인되어야 결제가 완료됩니다.</p>
+                  </div>
+                  {bankOrderReceipt ? (
+                    <>
+                      <section className="border border-[#d1d5db] bg-white p-4 md:p-5" aria-label="주문 접수 내역">
+                        <div className="mb-3 flex items-center justify-between border-b border-[#e5e7eb] pb-3">
+                          <h3 className="text-xs font-bold tracking-[.08em]">ORDER SUMMARY</h3>
+                          <span className="text-[10px] text-[#757c87]">{bankOrderReceipt.items.length} ITEMS</span>
+                        </div>
+                        <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-[12px] leading-5">
+                          <dt className="text-[#69707d]">주문번호</dt>
+                          <dd className="min-w-0 break-all text-right font-bold tabular-nums">{bankOrderReceipt.orderCode}</dd>
+                          {bankOrderReceipt.guestOrderNumber && <>
+                            <dt className="text-[#69707d]">비회원 조회번호</dt>
+                            <dd className="min-w-0 break-all text-right font-bold tabular-nums">{bankOrderReceipt.guestOrderNumber}</dd>
+                          </>}
+                        </dl>
+                        <ul className="mt-4 space-y-2 border-t border-[#e5e7eb] pt-3">
+                          {bankOrderReceipt.items.map((item, index) => (
+                            <li key={String(item.id) + String(index)} className="flex items-start justify-between gap-3 text-[12px] leading-5">
+                              <span className="min-w-0 break-words text-[#4b5563]">{item.name}{item.selectedSize ? ' / ' + item.selectedSize : ''} × {item.quantity}</span>
+                              <strong className="shrink-0 whitespace-nowrap tabular-nums text-[#111827]">{formatKrw(item.lineTotal)}</strong>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-4 flex items-center justify-between gap-4 border-t border-[#111827] pt-3">
+                          <span className="text-xs font-semibold">입금 안내 금액</span>
+                          <strong className="font-heading text-xl font-black tabular-nums text-[#111827]">{formatKrw(bankOrderReceipt.total)}</strong>
+                        </div>
+                      </section>
+                      {isRestoredBankReceipt && <p className="border-l-2 border-[#9ca3af] bg-[#f0f1ef] px-3 py-2.5 text-xs leading-5 text-[#4b5563]">저장 당시의 안내입니다. 실제 입금·취소·배송 상태는 주문조회에서 확인하세요.</p>}
+                      <BankTransferInstructions bankAccount={bankOrderReceipt.bankAccount} amount={bankOrderReceipt.total} tone="receipt" />
+                      {!isRestoredBankReceipt && <CustomerOrderNotifications notifications={bankOrderReceipt.notifications} />}
+                      <p className="text-xs leading-5 text-[#646b75]">계좌이체만으로 주문이 자동 확정되지는 않습니다. 입금 확인 후 상태가 변경됩니다.{bankOrderReceipt.channel === 'guest' ? ' 비회원 주문조회에는 주문 시 지정한 비밀번호가 필요합니다.' : ''}</p>
+                    </>
+                  ) : <p className="text-sm leading-6 text-[#4b5563]">접수된 주문의 자세한 상태는 주문조회에서 확인해 주세요. 같은 주문을 다시 접수하지 마세요.</p>}
                   {onOpenMyPageOrders ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        trackStorefrontEvent({
-                          type: 'tab_click',
-                          target: 'cart_confirmation:open_mypage_orders',
-                          detail: '내 주문내역(마이페이지) 바로가기',
-                        });
-                        onOpenMyPageOrders();
-                      }}
-                      className="block w-full rounded-xl bg-[#b8001f] px-4 py-3 text-center text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9a0019]"
-                    >
-                      내 주문내역(마이페이지) 바로가기
+                    <button type="button" onClick={() => {
+                      trackStorefrontEvent({ type: 'tab_click', target: 'cart_confirmation:open_mypage_orders', detail: '주문 상태 확인' });
+                      onOpenMyPageOrders();
+                    }} className="flex min-h-12 w-full items-center justify-between bg-[#b8001f] px-4 py-3 text-left text-sm font-bold text-white transition-colors hover:bg-[#930018]">
+                      주문 상태 확인 <span aria-hidden="true">↗</span>
                     </button>
-                  ) : null}
-                  <Link
-                    href="/orders"
-                    className={`block rounded-xl px-4 py-3 text-center text-sm font-bold ${
-                      onOpenMyPageOrders
-                        ? 'border border-[#111827] bg-white text-[#111827] hover:border-[#b8001f] hover:text-[#b8001f]'
-                        : 'bg-[#b8001f] text-white'
-                    }`}
-                  >
-                    주문·입금·배송 조회 페이지 열기
-                  </Link>
-                  <button type="button" onClick={onClose} className="w-full rounded-xl border border-[#d1d5db] px-4 py-3 text-sm font-bold">쇼핑 계속하기</button>
+                  ) : <Link href="/orders" className="flex min-h-12 w-full items-center justify-between bg-[#b8001f] px-4 py-3 text-sm font-bold text-white">주문 상태 확인 <span aria-hidden="true">↗</span></Link>}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setMode('cart')} className="min-h-11 border border-[#b8bec6] bg-white px-3 py-2 text-xs font-semibold text-[#111827]">장바구니 보기</button>
+                    <button type="button" onClick={onClose} className="min-h-11 border border-[#b8bec6] bg-white px-3 py-2 text-xs font-semibold text-[#111827]">전시로 돌아가기</button>
+                  </div>
                 </div>
               ) : mode === 'cart' ? (
                 <>
                   {bankOrderReceipt && (
-                    <div className="rounded-xl border border-[#b8001f]/35 bg-[#fff1f2] p-3.5 text-xs text-[#8f0018]">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-bold">최근 접수한 무통장입금 주문({bankOrderReceipt.orderCode})이 있습니다.</span>
+                    <div className="border-l-[3px] border-[#b8001f] bg-[#f0f1ef] px-3 py-3 text-xs text-[#111827]">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="min-w-0 break-words font-semibold leading-5">최근 접수 기록 <span className="font-normal text-[#6b7280]">/ {bankOrderReceipt.orderCode}</span></span>
                         <button
                           type="button"
                           onClick={() => setMode('confirmation')}
-                          className="rounded-lg bg-[#b8001f] px-3 py-1.5 text-xs font-bold text-white"
+                          className="min-h-11 shrink-0 border border-[#b8001f] px-3 py-2 text-[11px] font-bold text-[#b8001f]"
                         >
-                          계좌번호 · 접수내역 보기
+                          내역 보기
                         </button>
                       </div>
                     </div>
                   )}
                   {!canCheckout ? (
-                    <div className="border border-dashed border-[#d1d5db] bg-[#f8f9fa] p-8 text-center rounded-2xl space-y-4">
+                    <div className="grid min-h-[220px] place-content-center gap-4 border border-[#d1d5db] bg-white p-6 text-center">
                       <div>
-                        <p className="font-heading text-2xl uppercase mb-2 text-[#111827] font-black">비어 있음</p>
-                        <p className="text-xs text-[#6b7280] font-medium">선택된 항목이 없습니다. 의류 섹션에서 담아주세요.</p>
+                        <p className="mb-2 font-heading text-3xl font-black uppercase tracking-[-.07em] text-[#111827]">비어 있음</p>
+                        <p className="text-xs text-[#6b7280] font-medium">아직 선택한 피스가 없습니다.</p>
                       </div>
-                      {onOpenMyPageOrders ? (
+                      {onOpenMyPageOrders && !bankOrderReceipt ? (
                         <button
                           type="button"
                           onClick={() => {
                             trackStorefrontEvent({
                               type: 'tab_click',
                               target: 'empty_cart:open_mypage_orders',
-                              detail: '내 주문내역(마이페이지) 바로가기',
+                              detail: '주문 조회',
                             });
                             onOpenMyPageOrders();
                           }}
                           className="inline-flex items-center justify-center rounded-xl border border-[#111827] bg-white px-4 py-2.5 text-xs font-bold text-[#111827] transition-colors hover:border-[#b8001f] hover:text-[#b8001f]"
                         >
-                          내 주문내역(마이페이지) 바로가기
+                          주문 조회
                         </button>
                       ) : null}
+                      <button type="button" onClick={onClose} className="min-h-11 border border-[#111827] px-5 py-2 text-xs font-bold uppercase tracking-wider">전시 계속 보기 →</button>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {cart.map((item) => (
-                        <div key={`${item.id}-${item.selectedSize ?? 'na'}`} className="border border-[#d1d5db] bg-[#f8f9fa] p-4 rounded-2xl shadow-sm">
+                        <div key={`${item.id}-${item.selectedSize ?? 'na'}`} className="border border-[#d1d5db] bg-white p-3 md:p-4">
                           <div className="flex gap-4">
-                            <div className="w-20 aspect-[4/5] bg-white border border-[#d1d5db] rounded-lg shrink-0 relative overflow-hidden">
+                            <div className="relative aspect-[4/5] w-[76px] shrink-0 overflow-hidden border border-[#d1d5db] bg-[#f7f7f5] md:w-20">
                               <Image
                                 src={item.image}
                                 alt=""
@@ -1346,9 +1326,9 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                                     {item.name}
                                   </h3>
                                   <p className="text-[10px] text-[#4b5563] font-semibold mt-2 uppercase">
-                                    {[item.category || '항목', item.id, item.selectedSize ? `사이즈 ${item.selectedSize}` : null]
+                                    {[item.category || '항목', item.selectedSize ? 'SIZE ' + item.selectedSize : null]
                                       .filter(Boolean)
-                                      .join(' | ')}
+                                      .join(' / ')}
                                   </p>
                                 </div>
                                 <button
@@ -1362,7 +1342,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                               </div>
 
                               <div className="mt-4 flex items-center justify-between gap-3">
-                                <div className="flex items-center bg-white border border-[#d1d5db] rounded-md px-3 py-2 shadow-sm">
+                                <div className="flex items-center border border-[#e1e4e8] bg-[#f7f7f5] px-2.5 py-1.5">
                                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#b8001f]">
                                     수량 1 (재고 1개)
                                   </span>
@@ -1386,8 +1366,8 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                       <h3 className="text-lg font-bold tracking-[-0.03em] text-[#111827] md:text-xl">주문자 정보</h3>
                       <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#b8001f]">Customer</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className={`${CHECKOUT_FIELD_GROUP_CLASS} col-span-2`}>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className={`${CHECKOUT_FIELD_GROUP_CLASS} sm:col-span-2`}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
                           <label htmlFor="checkout-email" className="block text-[13px] font-semibold tracking-[0.01em] text-[#111827]">
                             이메일
@@ -1456,7 +1436,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                       <h3 className="text-lg font-bold tracking-[-0.03em] text-[#111827] md:text-xl">배송 정보</h3>
                       <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#b8001f]">Shipping</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className={CHECKOUT_FIELD_GROUP_CLASS}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
                           <label htmlFor="checkout-country" className="block text-[13px] font-bold tracking-[0.01em] text-[#111827]">
@@ -1497,7 +1477,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                           {formatKrw(shipping)}
                         </p>
                       </div>
-                      <div className={`${CHECKOUT_FIELD_GROUP_CLASS} col-span-2`}>
+                      <div className={`${CHECKOUT_FIELD_GROUP_CLASS} sm:col-span-2`}>
                         <div className={CHECKOUT_FIELD_HEADER_CLASS}>
                           <label htmlFor="checkout-address" className="block text-[13px] font-bold tracking-[0.01em] text-[#111827]">
                             상세 주소
@@ -1526,8 +1506,8 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                 </div>
               )}
             {mode !== 'confirmation' && (canCheckout || pendingPayPalApproval) && (
-              <div className="relative z-20 border-t border-[#d1d5db] bg-white px-4 py-3 md:px-7 md:py-5 shadow-lg">
-                <div className="mb-3 rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-3 py-3 md:px-4 md:py-4 shadow-sm">
+              <div className="relative z-20 border-t border-[#cbd0d6] bg-[#f7f7f5] px-3 py-3 md:px-4 md:py-4">
+                <div className="mb-3 border border-[#d1d5db] bg-white px-3 py-3 md:px-4 md:py-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b8001f]">Payment Summary</p>
@@ -1561,7 +1541,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
                       });
                       setMode('checkout');
                     }}
-                    className="w-full rounded-[12px] bg-[#b8001f] px-4 py-3 text-center font-heading text-base font-black uppercase tracking-[0.08em] leading-[1.1] text-white transition-all hover:bg-[#9a0019] md:text-lg shadow-md"
+                    className="min-h-[52px] w-full bg-[#b8001f] px-4 py-3 text-center font-heading text-[15px] font-black tracking-[.04em] text-white transition-colors hover:bg-[#930018]"
                   >
                     결제로 이동
                   </button>

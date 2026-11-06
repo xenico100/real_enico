@@ -58,7 +58,7 @@ export function CorridorShowroom({ products, collections, overlayOpen, onCommand
       key={identity}
       ref={iframeRef}
       className={styles.scene}
-      src="/corridor/index.html?v=20261106-r5"
+      src="/corridor/index.html?v=20261106-r6"
       title="ENICO VECK — 천장 와이어 의류 전시"
       onLoad={synchronize}
       inert={overlayOpen}

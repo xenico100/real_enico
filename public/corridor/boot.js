@@ -13,8 +13,8 @@ if (window.parent === window) location.replace('/');
       veil.setAttribute('aria-hidden', String(this.state === 'ready'));
       if (this.state === 'ready') return;
       const failed = this.state === 'failed', slow = this.state === 'slow';
-      title.textContent = failed ? '전시를 열지 못했어요' : slow ? '연결이 조금 늦어지고 있어요' : '전시를 불러오는 중';
-      message.textContent = failed || slow ? '연결 상태를 확인한 뒤 다시 시도해 주세요.' : '옷과 공간을 준비하고 있어요.';
+      title.textContent = failed ? 'CONNECTION LOST' : slow ? 'SIGNAL DELAY' : 'ENTERING THE ARCHIVE';
+      message.textContent = failed || slow ? '연결 상태를 확인한 뒤 다시 시도해 주세요.' : 'ENICO VECK / EXHIBITION';
       retry.hidden = !(failed || slow);
     },
     ready() {

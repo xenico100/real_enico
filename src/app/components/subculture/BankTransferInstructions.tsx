@@ -29,7 +29,7 @@ export function BankTransferInstructions({
 }: {
   bankAccount?: BankAccountDetails;
   amount: number;
-  tone?: 'light' | 'brand';
+  tone?: 'light' | 'brand' | 'receipt';
 }) {
   const [copyStatus, setCopyStatus] = useState('');
   const [isCopied, setIsCopied] = useState(false);
@@ -72,7 +72,7 @@ export function BankTransferInstructions({
   };
 
   return (
-    <section className={tone === 'brand' ? styles.brand : "rounded-xl border border-[#d1d5db] bg-white p-4 text-[#111827]"}>
+    <section className={tone === 'brand' ? styles.brand : tone === 'receipt' ? styles.receipt : "rounded-xl border border-[#d1d5db] bg-white p-4 text-[#111827]"}>
       <h3 className="text-sm font-bold">무통장입금 안내</h3>
       <p className="mt-2 text-sm leading-relaxed">주문이 접수되었으며 아직 입금 대기 상태입니다. 아래 계좌로 직접 송금해 주세요.</p>
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
@@ -92,7 +92,7 @@ export function BankTransferInstructions({
         type="button"
         onClick={() => void copyAccount()}
         className={
-          tone === 'brand'
+          tone === 'brand' || tone === 'receipt'
             ? undefined
             : `mt-4 w-full rounded-lg border px-3 py-2.5 text-sm font-bold transition-colors ${
                 isCopied

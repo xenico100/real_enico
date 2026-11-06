@@ -402,8 +402,17 @@ function syncScrollLock() {
   }
 }
 
-function setOverlayVisible(element, show) {
+function setOverlayVisible(element, show, instant = false) {
   const previous = overlayTransitions.get(element);
+  if (instant) {
+    previous?.animations.forEach(animation => animation.cancel());
+    const promise = Promise.resolve(true);
+    overlayTransitions.set(element, { show, done: true, animations: [], promise });
+    element.hidden = !show;
+    element.style.pointerEvents = '';
+    syncScrollLock();
+    return promise;
+  }
   if (previous?.show === show && !previous.done) return previous.promise;
   if (show && !element.hidden && previous?.show && previous.done) { syncScrollLock(); return Promise.resolve(true); }
   previous?.animations.forEach(animation => animation.cancel());
@@ -778,7 +787,7 @@ function applyBridgeState() {
   const wasOpen = parentOverlayOpen;
   parentOverlayOpen = Boolean(bridgeState.overlayOpen);
   if (!wasOpen && parentOverlayOpen && !$('mobileMenuOverlay').hidden) {
-    void setOverlayVisible($('mobileMenuOverlay'), false);
+    void setOverlayVisible($('mobileMenuOverlay'), false, true);
   }
   updateCartBadge();
   document.querySelector('[data-modal="mypage"]').textContent = '04 /// ' + bridgeState.myPageLabel;

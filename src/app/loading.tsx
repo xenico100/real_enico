@@ -1,13 +1,18 @@
+import styles from '@/app/components/subculture/CorridorShowroom.module.css';
+
 export default function StorefrontLoading() {
   return (
-    <div
-      className="fixed inset-0 grid place-content-center gap-4 bg-[#f8f9fa] p-6 text-center font-mono text-[#111827]"
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-    >
-      <p className="font-heading text-4xl font-black tracking-tighter">ENICO VECK</p>
-      <p className="text-sm text-[#4b5563]">화면을 준비하고 있어요.</p>
+    <div className={styles.routeLoading} role="status" aria-live="polite" aria-busy="true" aria-label="ENICO VECK 전시 입장 중">
+      <div className={styles.loadFrame}>
+        <span className={styles.loadTop}>ENICO VECK <span>®</span> <span>ARCHIVE / 001</span></span>
+        <span className={styles.loadWire} aria-hidden="true"><i /></span>
+        <strong className={styles.loadBrand}>ENICO<br />VECK<span>®</span></strong>
+        <div className={styles.loadFooter}>
+          <span className={styles.loadTrack} aria-hidden="true"><i /></span>
+          <span>ENTERING THE ARCHIVE</span>
+          <span>{'/////'}</span>
+        </div>
+      </div>
     </div>
   );
 }

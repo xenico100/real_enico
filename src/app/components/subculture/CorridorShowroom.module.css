@@ -8,6 +8,27 @@
 .shopHeader { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #d1d5db; background: #f8f9fa; font-weight: 800; }
 .shopHeader button { width: 44px; height: 44px; border: 1px solid #d1d5db; font-size: 24px; }
 
-.overlayLoading { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: rgba(248,249,250,.96); backdrop-filter: blur(16px); }
-.overlayLoadingPanel { display: grid; gap: 18px; width: min(360px, 100%); padding: 28px; border: 1px solid #d1d5db; background: #fff; text-align: center; font-size: 14px; color: #111827; }
-.overlayLoadingPanel button { justify-self: center; min-width: 88px; min-height: 44px; padding: 10px 20px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+
+.routeLoading { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; min-height: 100dvh; background: #f7f7f5; color: #101522; font-family: "IBM Plex Mono", monospace; overflow: hidden; }
+.routeLoading::before { content: ""; position: absolute; inset: 0; opacity: .43; background-image: linear-gradient(#d1d5db77 1px,transparent 1px),linear-gradient(90deg,#d1d5db77 1px,transparent 1px); background-size: 40px 40px; pointer-events: none; }
+.loadFrame { position: relative; display: flex; flex-direction: column; width: min(560px,calc(100% - 56px)); min-height: 320px; padding: 0 0 14px; }
+.loadTop { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; border-top: 2px solid #101522; padding-top: 14px; font-size: 10px; font-weight: 700; letter-spacing: .13em; white-space: nowrap; }
+.loadTop > span:first-child { color: #b8001f; }
+.loadTop > span:last-child { margin-left: auto; color: #767d88; }
+.loadWire { position: absolute; top: 43px; right: 23%; height: 118px; width: 1px; background: #80868e; transform-origin: top; animation: hanging-wire 3.2s ease-in-out infinite alternate; }
+.loadWire i { position: absolute; bottom: -5px; left: -5px; width: 11px; height: 11px; border: 1px solid #b8001f; background: #f7f7f5; transform: rotate(45deg); }
+.loadBrand { position: relative; margin-top: 102px; font-family: Impact, "Arial Black", sans-serif; font-size: clamp(65px,15vw,126px); line-height: .77; letter-spacing: -.075em; font-weight: 900; }
+.loadBrand span { color: #b8001f; font: 700 16px/1 monospace; letter-spacing: 0; margin-left: 5px; vertical-align: top; }
+.loadFooter { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; margin-top: 47px; color: #555c66; font-size: 10px; font-weight: 700; letter-spacing: .11em; white-space: nowrap; }
+.loadFooter > span:last-child { color: #b8001f; }
+.loadTrack { position: relative; display: block; height: 2px; min-width: 48px; background: #c9cdd3; overflow: hidden; }
+.loadTrack i { position: absolute; left: -36%; top: 0; display: block; width: 36%; height: 100%; background: #b8001f; animation: archive-trace 1.7s cubic-bezier(.45,0,.1,1) infinite; }
+.overlayLoading { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: rgba(247,247,245,.96); backdrop-filter: blur(16px); }
+.overlayLoadingPanel { display: flex; flex-direction: column; gap: 13px; width: min(360px,100%); padding: 26px 28px; border-top: 2px solid #101522; border-bottom: 1px solid #d1d5db; background: #f7f7f5; color: #101522; text-align: left; }
+.overlayBrand { font-family: Impact, "Arial Black", sans-serif; font-size: clamp(38px,9vw,56px); line-height: .9; font-weight: 900; letter-spacing: -.055em; white-space: nowrap; }
+.overlayBrand span { color: #b8001f; font: 700 11px/1 monospace; vertical-align: top; margin-left: 3px; }
+.overlayLabel { font: 700 10px/1.5 monospace; letter-spacing: .16em; color: #69707d; }
+.overlayLoadingPanel button { align-self: flex-end; min-width: 72px; min-height: 44px; padding: 10px 16px; border: 1px solid #aeb4bd; background: transparent; color: #111827; font-size: 12px; cursor: pointer; }
+@keyframes archive-trace { from { left: -36%; } to { left: 100%; } }
+@keyframes hanging-wire { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .loadTrack i,.loadWire { animation: none; } }
