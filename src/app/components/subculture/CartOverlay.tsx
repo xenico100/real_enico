@@ -23,6 +23,7 @@ interface CartOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenMyPageOrders?: () => void;
+  onOpenLogin?: () => void;
 }
 
 type CheckoutMode = 'cart' | 'checkout' | 'confirmation';
@@ -55,6 +56,10 @@ const CHECKOUT_FIELD_CLASS =
   'w-full rounded-[12px] border border-[#d1d5db] bg-white px-3.5 py-3 text-[15px] leading-[1.45] text-[#111827] placeholder:text-[#9ca3af] focus:border-[#b8001f] focus:outline-none focus:ring-2 focus:ring-[#b8001f]/15 font-medium';
 const CHECKOUT_FIELD_HEADER_CLASS = 'mb-2.5';
 const CHECKOUT_FIELD_BODY_CLASS = '';
+const CHECKOUT_PAYMENT_PANEL_CLASS =
+  'rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm';
+const CHECKOUT_PAYMENT_BUTTON_CLASS =
+  'group flex h-[52px] min-h-[52px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-[8px] border border-[#d1d5db] bg-white px-4 text-left text-[#111827] shadow-sm transition-all duration-200 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b8001f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 type PayPalClickActions = {
   resolve: () => Promise<void>;
@@ -294,7 +299,7 @@ function formatKrw(value: number) {
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
-export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders }: CartOverlayProps) {
+export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }: CartOverlayProps) {
   const { cart, removeFromCart, clearCart } = useFashionCart();
   const { session, isAuthenticated, user, profile, updateAccountProfile } = useAuth();
   const checkoutScrollRef = useRef<HTMLDivElement | null>(null);
@@ -875,6 +880,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders }: CartOverlay
     announceCheckoutError,
     buildOrderItemsPayload,
     canUseNicepayCheckout,
+    cart.length,
     checkoutAddress,
     checkoutCountry,
     checkoutEmail,
@@ -1129,7 +1135,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders }: CartOverlay
         <>
           <motion.div
             aria-hidden="true"
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/85 backdrop-blur-md z-[80]"
@@ -1585,30 +1591,27 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders }: CartOverlay
                     )}
 
                     {/* Choose the authenticated route once; do not expose duplicate member/guest actions. */}
-                    <div className="flex items-center justify-start">
+                    <div className={CHECKOUT_PAYMENT_PANEL_CLASS}>
                       <button
                         type="button"
                         onClick={() => void submitBankTransferOrder(isAuthenticated ? 'member' : 'guest')}
                         disabled={isSubmittingOrder || isStartingNicepay || Boolean(pendingPayPalApproval)}
-                        style={{
-                          backgroundColor: '#ffffff',
-                          color: '#111827',
-                          borderRadius: '10px',
-                        }}
-                        className="group relative inline-flex min-h-[44px] items-center justify-between gap-3 overflow-hidden border border-gray-300 px-3.5 py-2 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
+                        className={CHECKOUT_PAYMENT_BUTTON_CLASS}
                       >
-                        <span className="text-[0.88rem] font-bold tracking-[-0.02em] leading-snug text-black">
-                          {isSubmittingOrder ? '접수 중...' : isAuthenticated ? '무통장입금 주문' : '비회원 무통장입금 주문'}
-                        </span>
-                        <span className="text-sm font-black text-black transition-transform duration-200 group-hover:translate-x-1">
-                          →
+                        <span className="flex min-h-[28px] items-center justify-between gap-3 w-full">
+                          <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-black">
+                            {isSubmittingOrder ? '접수 중...' : isAuthenticated ? '무통장입금 주문' : '비회원 무통장입금 주문'}
+                          </span>
+                          <span className="shrink-0 text-base font-black text-black transition-transform duration-200 group-hover:translate-x-1">
+                            →
+                          </span>
                         </span>
                       </button>
                     </div>
 
                     <p className="text-xs leading-relaxed text-[#4b5563]">주문 접수 후 안내되는 계좌로 직접 송금하는 방식입니다. 접수만으로 결제가 완료되지 않습니다.</p>
                     {canUseNicepayCheckout ? (
-                    <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">
+                    <div className={CHECKOUT_PAYMENT_PANEL_CLASS}>
                       {nicepayError && (
                         <p role="alert" className="mb-3 rounded-[16px] border border-red-500 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800">{nicepayError}</p>
                       )}
@@ -1616,16 +1619,7 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders }: CartOverlay
                         type="button"
                         onClick={() => void handleNicepayCheckout()}
                         disabled={isSubmittingOrder || isStartingNicepay || Boolean(pendingPayPalApproval)}
-                        style={{
-                          width: '100%',
-                          height: '52px',
-                          minHeight: '52px',
-                          backgroundColor: '#ffffff',
-                          color: '#111827',
-                          borderRadius: '8px',
-                          border: '1px solid #d1d5db',
-                        }}
-                        className="group flex w-full cursor-pointer items-center justify-between overflow-hidden px-4 text-left shadow-sm transition-all duration-200 hover:bg-gray-100 disabled:opacity-50"
+                        className={CHECKOUT_PAYMENT_BUTTON_CLASS}
                       >
                         <span className="flex min-h-[28px] items-center justify-between gap-3 w-full">
                           <span className="text-[0.92rem] font-bold tracking-[-0.02em] leading-snug text-black">
@@ -1641,7 +1635,18 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders }: CartOverlay
                         </span>
                       </button>
                     </div>
-                    ) : <p className="rounded-xl border border-[#d1d5db] bg-[#f8f9fa] p-3 text-xs text-[#4b5563]">카드결제는 회원 로그인 후 이용할 수 있습니다. <Link href="/?popup=mypage" className="font-bold underline">로그인하기</Link></p>}
+                    ) : (
+                      <p className="rounded-xl border border-[#d1d5db] bg-[#f8f9fa] p-3 text-xs text-[#4b5563]">
+                        카드결제는 회원 로그인 후 이용할 수 있습니다.{' '}
+                        {onOpenLogin ? (
+                          <button type="button" onClick={onOpenLogin} className="font-bold underline">
+                            로그인하기
+                          </button>
+                        ) : (
+                          <Link href="/?popup=mypage" className="font-bold underline">로그인하기</Link>
+                        )}
+                      </p>
+                    )}
 
                     {shouldShowPaypal ? (
                       <div className="rounded-[14px] border border-[#e5e7eb] bg-[#f8f9fa] px-2.5 py-2.5 shadow-sm">

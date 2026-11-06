@@ -45,7 +45,7 @@ type CancelState = { visible: boolean; enabled: boolean; title: string; label: s
 const STEPS = ['결제 확인', '배송 준비', '배송중', '배송 완료'];
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling = false, onCancel, isRequestingReturn = false, onReturn }: {
+export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling = false, onCancel, isRequestingReturn = false, onReturn, onOpenContact }: {
   order: CustomerOrderCardData;
   index?: number;
   cancelState?: CancelState;
@@ -53,6 +53,7 @@ export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling 
   onCancel?: () => void;
   isRequestingReturn?: boolean;
   onReturn?: (reason: string) => Promise<boolean>;
+  onOpenContact?: () => void;
 }) {
   const [expanded, setExpanded] = useState(() => Boolean(order.shippingNote.trim()));
   const [copyStatus, setCopyStatus] = useState<{ trackingNumber: string; message: string } | null>(null);
@@ -169,7 +170,7 @@ export function CustomerOrderCard({ order, index = 0, cancelState, isCancelling 
           </form>}
         </> : <>
           <p>{order.returnEligibility.reason === 'window_elapsed' ? '온라인 반품 신청 기간이 지났습니다.' : '배송 완료일 확인이 필요합니다.'} 상품 하자·오배송 등 반품 상담은 고객센터로 문의해 주세요.</p>
-          <Link className={styles.action} href="/?popup=contact">반품 문의</Link>
+          {onOpenContact ? <button type="button" className={styles.action} onClick={onOpenContact}>반품 문의</button> : <Link className={styles.action} href="/?popup=contact">반품 문의</Link>}
         </>}
       </section>}
 

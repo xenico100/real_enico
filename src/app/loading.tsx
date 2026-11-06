@@ -1,30 +1,13 @@
-'use client';
-
-import { SubcultureHeader } from '@/app/components/subculture/SubcultureHeader';
-import { HeroSection } from '@/app/components/subculture/HeroSection';
-import { ProductShowcase } from '@/app/components/subculture/ProductShowcase';
-import { CollectionSection } from '@/app/components/subculture/CollectionSection';
-import { SubcultureFooter } from '@/app/components/subculture/SubcultureFooter';
-import { FashionCartProvider } from '@/app/context/FashionCartContext';
-
-const noop = () => {};
-
 export default function StorefrontLoading() {
   return (
-    <FashionCartProvider>
-      <div className="relative min-h-screen w-full overflow-x-hidden bg-[#f8f9fa] font-mono text-[#111827]">
-        <SubcultureHeader
-          onCartClick={noop}
-          onInfoClick={noop}
-          onRandomChatClick={noop}
-        />
-        <main className="relative z-10" aria-busy="true">
-          <HeroSection />
-          <ProductShowcase loading onProductClick={noop} />
-          <CollectionSection loading onCollectionClick={noop} />
-        </main>
-        <SubcultureFooter />
-      </div>
-    </FashionCartProvider>
+    <div
+      className="fixed inset-0 grid place-content-center gap-4 bg-[#f8f9fa] p-6 text-center font-mono text-[#111827]"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <p className="font-heading text-4xl font-black tracking-tighter">ENICO VECK</p>
+      <p className="text-sm text-[#4b5563]">화면을 준비하고 있어요.</p>
+    </div>
   );
 }

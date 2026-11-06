@@ -1,8 +1,6 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CorridorShowroom } from '@/app/components/subculture/CorridorShowroom';
 import { CollectionDetailPopup } from '@/app/components/subculture/CollectionDetailPopup';
 import { SubcultureFooter } from '@/app/components/subculture/SubcultureFooter';
@@ -14,10 +12,10 @@ import type { Collection } from '@/lib/storefront/collectionCatalog';
 import type { Product } from '@/lib/storefront/productCatalog';
 import styles from '@/app/components/subculture/CorridorShowroom.module.css';
 
-const CartOverlay = dynamic(() => import('@/app/components/subculture/CartOverlay').then(mod => mod.CartOverlay));
-const InfoPopup = dynamic(() => import('@/app/components/subculture/InfoPopup').then(mod => mod.InfoPopup));
-const ProductDetailPopup = dynamic(() => import('@/app/components/subculture/ProductDetailPopup').then(mod => mod.ProductDetailPopup));
-const RandomChatModal = dynamic(() => import('@/features/randomChat/RandomChatModal').then(mod => mod.RandomChatModal));
+const CartOverlay = lazy(() => import('@/app/components/subculture/CartOverlay').then(mod => ({ default: mod.CartOverlay })));
+const InfoPopup = lazy(() => import('@/app/components/subculture/InfoPopup').then(mod => ({ default: mod.InfoPopup })));
+const ProductDetailPopup = lazy(() => import('@/app/components/subculture/ProductDetailPopup').then(mod => ({ default: mod.ProductDetailPopup })));
+const RandomChatModal = lazy(() => import('@/features/randomChat/RandomChatModal').then(mod => ({ default: mod.RandomChatModal })));
 
 type MyPageTab = 'overview' | 'orders' | 'saved' | 'cart' | 'profile' | 'dailyStats' | 'members' | 'adminOrders';
 interface AppProps {
@@ -40,8 +38,6 @@ export default function App(props: AppProps) {
 }
 
 function Storefront({ initialProducts = [], initialCollections = [], initialPopup, initialProductId, initialMyPageTab }: AppProps) {
-  const router = useRouter();
-  const pathname = usePathname();
   const { products, collections, isLoading, error, refresh } = useStorefrontCatalog(initialProducts, initialCollections);
   const { cart, addToCart, removeFromCart } = useFashionCart();
   const [activeOverlay, setActiveOverlay] = useState<Overlay | null>(null);
@@ -68,8 +64,9 @@ function Storefront({ initialProducts = [], initialCollections = [], initialPopu
     url.searchParams.delete('popup');
     url.searchParams.delete('product');
     url.searchParams.delete('tab');
-    if (hadPopup) router.replace(`${pathname || '/'}${url.search}${url.hash}`, { scroll: false });
-  }, [pathname, router]);
+    // Closing a panel only changes its query; a route transition would replace the scene.
+    if (hadPopup) window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   const openOverlay = useCallback((next: Overlay) => {
     overlayIntent.current += 1;
@@ -171,8 +168,9 @@ function Storefront({ initialProducts = [], initialCollections = [], initialPopu
         )}
       </main>
       {notice && <div role="status" className="fixed bottom-6 left-1/2 z-[120] max-w-[calc(100%_-_32px)] -translate-x-1/2 border border-[#d1d5db] bg-white px-5 py-3 text-center text-sm shadow-lg">{notice}</div>}
-      {overlay?.type === 'cart' && <CartOverlay isOpen onClose={closeOverlay} onOpenMyPageOrders={() => openOverlay({ type: 'info', info: 'mypage', tab: 'orders' })} />}
-      {overlay?.type === 'info' && <InfoPopup type={overlay.info} initialMyPageTab={overlay.tab} onClose={closeOverlay} />}
+      <Suspense fallback={<OverlayLoading onClose={closeOverlay} />}>
+      {overlay?.type === 'cart' && <CartOverlay isOpen onClose={closeOverlay} onOpenLogin={() => openOverlay({ type: 'info', info: 'mypage' })} onOpenMyPageOrders={() => openOverlay({ type: 'info', info: 'mypage', tab: 'orders' })} />}
+      {overlay?.type === 'info' && <InfoPopup key={overlay.info} type={overlay.info} initialMyPageTab={overlay.tab} onClose={closeOverlay} onOpenContact={() => openOverlay({ type: 'info', info: 'contact' })} onOpenCart={openCart} />}
       {shownProduct && overlay?.type === 'product' && (
         <ProductDetailPopup key={shownProduct.id} product={shownProduct} initialImageIndex={overlay.imageIndex} onClose={closeOverlay}
           onAddToCart={() => addCurrentProduct(shownProduct.id)}
@@ -184,6 +182,23 @@ function Storefront({ initialProducts = [], initialCollections = [], initialPopu
       {shownCollection && overlay?.type === 'collection' && <CollectionDetailPopup key={shownCollection.id} collection={shownCollection} initialImageIndex={overlay.imageIndex} onClose={closeOverlay} />}
       {overlay?.type === 'community' && <RandomChatModal open onClose={closeOverlay} />}
       {overlay?.type === 'shop' && <ShopInfo onClose={closeOverlay} />}
+      </Suspense>
+    </div>
+  );
+}
+
+function OverlayLoading({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className={styles.overlayLoading} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-label="화면 준비 중" className={styles.overlayLoadingPanel}>
+        <p role="status" aria-live="polite">화면을 준비하고 있어요.</p>
+        <button type="button" onClick={onClose}>닫기</button>
+      </section>
     </div>
   );
 }

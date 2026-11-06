@@ -715,10 +715,12 @@ function normalizeInitialTab(initialTab: MyPageTab | undefined): MyPageTab {
 
 type MyPagePanelProps = {
   onBack?: () => void;
+  onOpenContact?: () => void;
+  onOpenCart?: () => void;
   initialTab?: MyPageTab;
 };
 
-export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
+export function MyPagePanel({ onBack, onOpenContact, onOpenCart, initialTab }: MyPagePanelProps = {}) {
   const {
     session,
     isAuthenticated,
@@ -1821,7 +1823,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
         )}
 
-        {legacyLinkRequired && <div role="status" className="rounded-lg border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">이전 주문은 계정 연결 확인이 필요합니다. 주문번호와 함께 고객센터로 문의해 주세요. <Link href="/?popup=contact" className="font-bold underline">문의하기</Link></div>}
+        {legacyLinkRequired && <div role="status" className="rounded-lg border border-amber-500 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">이전 주문은 계정 연결 확인이 필요합니다. 주문번호와 함께 고객센터로 문의해 주세요. {onOpenContact ? <button type="button" onClick={onOpenContact} className="font-bold underline">문의하기</button> : <Link href="/?popup=contact" className="font-bold underline">문의하기</Link>}</div>}
 
         {!isLoadingMemberOrders && memberOrders.length === 0 ? (
           <CustomerOrderListState state={memberOrderError ? 'error' : 'empty'} legacyLinkRequired={legacyLinkRequired} onRetry={() => void loadMemberOrders()} />
@@ -1839,6 +1841,7 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
                 <CustomerOrderCard
                   key={order.id}
                   order={order}
+                  onOpenContact={onOpenContact}
                   index={index}
                   cancelState={
                     isLoadingMemberOrders && memberOrders.length === 0
@@ -1897,7 +1900,11 @@ export function MyPagePanel({ onBack, initialTab }: MyPagePanelProps = {}) {
           </div>
           <div className="border border-[#333] bg-[#111] p-4">
             <p className="text-[#9b9b9b] mb-1">결제 안내</p>
-            <p className="text-[#00ffd1]">화면 상단 장바구니에서 결제를 진행할 수 있습니다.</p>
+            {onOpenCart ? (
+              <button type="button" onClick={onOpenCart} className="mt-2 min-h-11 w-full border border-[#00ffd1]/40 px-4 py-3 text-[#00ffd1] transition-colors hover:bg-[#00ffd1]/10">
+                결제 창 열기
+              </button>
+            ) : <p className="text-[#00ffd1]">화면 상단 장바구니에서 결제를 진행할 수 있습니다.</p>}
           </div>
         </div>
 

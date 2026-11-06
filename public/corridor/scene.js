@@ -732,8 +732,8 @@ document.querySelectorAll('[data-m-action]').forEach(button => {
     if (act === 'collection') {
       if (await closeMenu()) goTo(PIECES.length);
     } else {
+      // Keep the menu in place until the parent has mounted a panel or its loading shell.
       openModal(act);
-      closeMenu();
     }
   };
 });
@@ -777,6 +777,9 @@ bindOutsideScroll(canvas, () => opened !== null && !parentOverlayOpen && $('mobi
 function applyBridgeState() {
   const wasOpen = parentOverlayOpen;
   parentOverlayOpen = Boolean(bridgeState.overlayOpen);
+  if (!wasOpen && parentOverlayOpen && !$('mobileMenuOverlay').hidden) {
+    void setOverlayVisible($('mobileMenuOverlay'), false);
+  }
   updateCartBadge();
   document.querySelector('[data-modal="mypage"]').textContent = '04 /// ' + bridgeState.myPageLabel;
   document.querySelector('[data-m-action="mypage"]').textContent = bridgeState.myPageLabel;

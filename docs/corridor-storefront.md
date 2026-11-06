@@ -29,3 +29,17 @@ The independent loading guard displays retry controls on failure or a delayed co
 - Mobile WebKit at 402x780 against the production build: real 21-product/3-collection scene, empty initial cart, 44px modal controls/backdrop, contained gallery, original full description, 1080x21153 long image rendered at 402x7874, backdrop exit, sold-out controls and product deep links passed without page errors.
 
 Browser checks intercept non-read requests so validation does not create orders, charge a payment, send contact/chat messages or pollute analytics. Real payment-provider authorization and physical iPhone hardware were not exercised.
+
+
+## Follow-up: panel navigation and payment layout
+
+The route loading component no longer renders the retired header, hero or product/collection grids. Lazy panels have an immediately visible, cancellable Suspense fallback, and the mobile menu remains present until the parent acknowledges a mounted panel. Info and cart backdrops are visible from their first frame. The scene remains mounted outside the panel boundary.
+
+Closing a query-opened panel uses Next-compatible native history replacement instead of a route request. Cart login, account checkout and account order/contact actions use callbacks to switch panels in place; standalone order-page links retain their routing behavior. Bank-transfer and card-payment controls share the same 52px height, full width, padding and typography without changing payment handlers.
+
+Verification on 2026-11-06:
+
+- Final production build and changed-file ESLint passed; storefront 37/37 and payment 96/96 tests passed.
+- Mobile WebKit exercised a 900ms cold-chunk delay, all main menu panels, login/signup/recovery/guest-order tabs, cart-to-login, and query-opened login dismissal. The scene node remained mounted, with zero unintended document/RSC navigations and zero runtime errors.
+- Isolated member sessions in mobile WebKit (402x780) and desktop Chromium (1440x900) passed 12 geometry/navigation checks. Bank and card controls measured 298x52px on mobile and 457x52px on desktop, with matching 16px horizontal padding, 14.72px text and 8px radius; horizontal overflow was zero.
+- Member summary/account/orders/cart tabs, account-to-checkout and the previous-order contact link kept the current showroom and cart intact. Authentication/profile/order reads used fixtures; HTTP writes were intercepted, and no payment or order was submitted.

@@ -14,13 +14,15 @@ const MyPagePanel = dynamic(
 interface InfoPopupProps {
   type: 'about' | 'contact' | 'mypage';
   onClose: () => void;
+  onOpenContact?: () => void;
+  onOpenCart?: () => void;
   initialMyPageTab?: 'overview' | 'orders' | 'saved' | 'cart' | 'profile' | 'dailyStats' | 'members' | 'adminOrders';
 }
 
 const CONTACT_EMAIL = 'morba9850@gmail.com';
 const DEFAULT_CONTACT_CATEGORY = '멤버십/맞춤제작';
 
-export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
+export function InfoPopup({ type, onClose, onOpenContact, onOpenCart, initialMyPageTab }: InfoPopupProps) {
   const { isAuthenticated, isAuthReady } = useAuth();
   const [contactCategory, setContactCategory] = useState(DEFAULT_CONTACT_CATEGORY);
   const [contactName, setContactName] = useState('');
@@ -271,14 +273,14 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
       </div>
     ),
     mypage: (
-      <MyPagePanel onBack={onClose} initialTab={initialMyPageTab} />
+      <MyPagePanel onBack={onClose} onOpenContact={onOpenContact} onOpenCart={onOpenCart} initialTab={initialMyPageTab} />
     )
   };
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0 }}
+        initial={false}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className={`fixed inset-0 z-[100] flex bg-white/90 backdrop-blur-xl ${
@@ -294,9 +296,10 @@ export function InfoPopup({ type, onClose, initialMyPageTab }: InfoPopupProps) {
           aria-modal="true"
           aria-labelledby="info-popup-title"
           tabIndex={-1}
-          initial={{ scale: 0.9, opacity: 0, y: 50 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, y: 50 }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 8 }}
+          transition={{ duration: 0.16, ease: 'easeOut' }}
           className={`relative w-full ${
             type === 'mypage'
               ? isAuthenticated
