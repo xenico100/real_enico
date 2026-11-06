@@ -1151,10 +1151,10 @@ export function CartOverlay({ isOpen, onClose, onOpenMyPageOrders, onOpenLogin }
             aria-modal="true"
             aria-labelledby="cart-overlay-title"
             tabIndex={-1}
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'tween', ease: 'circOut', duration: 0.45 }}
+            initial={false}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 16, opacity: 0 }}
+            transition={{ type: 'tween', ease: 'easeOut', duration: 0.22 }}
             className="fixed inset-0 z-[90] flex min-h-0 flex-col overflow-hidden bg-[#f7f7f5] font-mono text-[#111827] shadow-2xl md:inset-y-0 md:left-auto md:right-0 md:w-[560px] md:border-l md:border-[#c9cdd3] md:shadow-[-16px_0_65px_rgba(0,0,0,.16)]"
           >
             <header className="relative z-10 shrink-0 border-b border-[#ced2d8] bg-[#f7f7f5] px-5 pb-4 pt-[max(20px,env(safe-area-inset-top))] md:px-8 md:pb-6 md:pt-8">
