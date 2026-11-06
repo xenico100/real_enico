@@ -15,6 +15,19 @@ function harness({ savedMode, storageBlocked = false } = {}) {
   let cursor = 0, timerId = 0, tree, lastFrameRef;
   const storage = new Map(savedMode ? [['enico-storefront-view', savedMode]] : []);
   const frameWindow = { postMessage() {} };
+  const observers = [];
+  class Observer {
+    constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this); }
+    observe() {}
+    disconnect() { this.disconnected = true; }
+  }
+  const toggleElement = { style: {}, dataset: {} };
+  const desktop = { getBoundingClientRect: () => ({ width: 210, right: 1244, bottom: 310 }) };
+  const mobile = { getBoundingClientRect: () => ({ width: 0, right: 0, bottom: 0 }) };
+  const menu = { hidden: true }, detail = { hidden: true };
+  const doc = { querySelector: () => desktop, getElementById: id => ({ mobileMenuBtn: mobile, mobileMenuOverlay: menu, detail })[id], body: { classList: { contains: () => false } }, documentElement: {} };
+  frameWindow.addEventListener = () => {};
+  frameWindow.removeEventListener = () => {};
   const commands = [];
   const cart = [];
   const hooks = {
@@ -52,7 +65,7 @@ function harness({ savedMode, storageBlocked = false } = {}) {
   const mod = { exports: {} };
   const source = fs.readFileSync(path.join(root, 'src/app/components/subculture/CorridorShowroom.tsx'), 'utf8');
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(compiled, { module: mod, exports: mod.exports, require: name => { assert.ok(imports[name], name); return imports[name]; }, setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id), window: { localStorage: { getItem: key => { if (storageBlocked) throw new Error('blocked'); return storage.get(key); }, setItem: (key, value) => { if (storageBlocked) throw new Error('blocked'); storage.set(key, value); } }, location: { origin: 'https://shop.test' }, addEventListener: (type, fn) => listeners.set(type, fn), removeEventListener: type => listeners.delete(type) } });
+  vm.runInNewContext(compiled, { ResizeObserver: Observer, MutationObserver: Observer, module: mod, exports: mod.exports, require: name => { assert.ok(imports[name], name); return imports[name]; }, setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id), window: { innerWidth: 1280, localStorage: { getItem: key => { if (storageBlocked) throw new Error('blocked'); return storage.get(key); }, setItem: (key, value) => { if (storageBlocked) throw new Error('blocked'); storage.set(key, value); } }, location: { origin: 'https://shop.test' }, addEventListener: (type, fn) => listeners.set(type, fn), removeEventListener: type => listeners.delete(type) } });
   function all(node = tree) {
     if (!node || typeof node !== 'object') return [];
     if (Array.isArray(node)) return node.flatMap(all);
@@ -62,14 +75,18 @@ function harness({ savedMode, storageBlocked = false } = {}) {
     cursor = 0;
     tree = mod.exports.CorridorShowroom(props);
     const frame = all().find(node => node.type === 'iframe');
-    if (frame) { lastFrameRef = frame.props.ref; lastFrameRef.current = { contentWindow: frameWindow }; }
+    if (frame) { lastFrameRef = frame.props.ref; lastFrameRef.current = { contentWindow: frameWindow, contentDocument: doc, getBoundingClientRect: () => ({ top: 0, left: 0 }) }; }
     else if (lastFrameRef) lastFrameRef.current = null;
+    const toggle = all().find(n => n.props?.['aria-label'] === '3D 전시');
+    if (toggle) toggle.props.ref.current = toggleElement;
     effects.splice(0).forEach(fn => fn());
     return tree;
   }
   render();
   return {
-    props, commands, cart, render, all, storage,
+    props, commands, cart, render, all, storage, toggleElement, desktop, mobile, menu, detail, observers,
+    loadFrame() { all().find(n => n.type === 'iframe').props.onLoad(); },
+    updateLayout() { observers.filter(o => !o.disconnected).forEach(o => o.callback()); },
     toggle() { all().find(n => n.props?.['aria-label'] === '3D 전시').props.onClick(); render(); },
     fallback: () => all().find(node => node.props?.['aria-label'] === '상품 목록'),
     message(type, overrides = {}) { listeners.get('message')({ origin: 'https://shop.test', source: frameWindow, data: { channel, type }, ...overrides }); render(); },
@@ -239,7 +256,50 @@ test('automatic rendering failures do not overwrite the saved user preference', 
 
 test('toggle has touch dimensions, visible keyboard focus and reduced-motion styling', () => {
   const css = fs.readFileSync(path.join(root, 'src/app/components/subculture/CorridorShowroom.module.css'), 'utf8');
-  assert.match(css, /\.viewToggle \{[^}]*min-height: 60px/);
+  assert.match(css, /\.viewToggle \{[^}]*min-height: 46px/);
   assert.match(css, /\.viewToggle:focus-visible/);
   assert.match(css, /prefers-reduced-motion: reduce[^@]*\.toggleOrb span[^}]*transition: none/);
+});
+
+
+test('3D control measures the actual menu bounds and follows desktop/mobile layout changes', () => {
+  const h = harness();
+  h.loadFrame();
+  assert.equal(h.toggleElement.style.top, 'max(318px, env(safe-area-inset-top))');
+  assert.equal(h.toggleElement.style.right, 'max(36px, env(safe-area-inset-right))');
+  assert.equal(h.toggleElement.style.width, '210px');
+  assert.equal(h.toggleElement.dataset.anchored, 'true');
+  h.desktop.getBoundingClientRect = () => ({ width: 0 });
+  h.mobile.getBoundingClientRect = () => ({ width: 46, bottom: 60, right: 1264 });
+  h.updateLayout();
+  assert.equal(h.toggleElement.style.top, 'max(68px, env(safe-area-inset-top))');
+  assert.equal(h.toggleElement.style.right, 'max(16px, env(safe-area-inset-right))');
+  assert.equal(h.toggleElement.style.width, '46px');
+  h.menu.hidden = false;
+  h.updateLayout();
+  assert.equal(h.toggleElement.dataset.sceneBlocked, 'true');
+  h.menu.hidden = true;
+  h.detail.hidden = false;
+  h.updateLayout();
+  assert.equal(h.toggleElement.dataset.sceneBlocked, 'true');
+  h.detail.hidden = true;
+  h.updateLayout();
+  assert.equal(h.toggleElement.dataset.sceneBlocked, 'false');
+  h.toggle();
+  assert.ok(h.observers.every(o => o.disconnected));
+});
+
+test('2D toggle belongs to the header menu column, not a floating bottom overlay', () => {
+  const h = harness({ savedMode: '2d' });
+  const actions = h.all().find(n => n.props?.className === 'catalogActions');
+  assert.ok(actions);
+  const children = h.all(actions);
+  const navIndex = children.findIndex(n => n.type === 'nav');
+  const toggleIndex = children.findIndex(n => n.props?.['aria-label'] === '3D 전시');
+  assert.ok(navIndex >= 0 && toggleIndex > navIndex);
+  const css = fs.readFileSync(path.join(root, 'src/app/components/subculture/CorridorShowroom.module.css'), 'utf8');
+  const rule = css.match(/^\.viewToggle \{([^}]+)\}/m)[1];
+  assert.match(rule, /position: relative/);
+  assert.doesNotMatch(rule, /bottom:|left: 50%|translateX/);
+  assert.match(css, /\.catalogActions \{[^}]*flex-direction: column/);
 });

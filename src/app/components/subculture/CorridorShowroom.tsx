@@ -36,6 +36,8 @@ export function CorridorShowroom({ products, collections, overlayOpen, onCommand
   const sceneEnabled = preferredMode === '3d' && !fallback;
   const showCatalog = preferredMode !== null && !sceneEnabled;
   const readyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const sceneMenuCleanup = useRef<(() => void) | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { cart } = useFashionCart();
   const { isAuthenticated, isAuthReady } = useAuth();
@@ -54,6 +56,53 @@ export function CorridorShowroom({ products, collections, overlayOpen, onCommand
     post('catalog', catalog);
     post('state', state);
   }, [catalog, post, state]);
+
+  const observeSceneMenu = useCallback(() => {
+    sceneMenuCleanup.current?.();
+    const frame = iframeRef.current;
+    const doc = frame?.contentDocument;
+    const frameWindow = frame?.contentWindow;
+    const toggle = toggleRef.current;
+    if (!frame || !doc || !frameWindow || !toggle) return;
+    const desktop = doc.querySelector<HTMLElement>('.desktop-nav');
+    const mobile = doc.getElementById('mobileMenuBtn');
+    const menu = doc.getElementById('mobileMenuOverlay');
+    const detail = doc.getElementById('detail');
+    const update = () => {
+      const anchor = [desktop, mobile].find(element => element && element.getBoundingClientRect().width > 0);
+      if (!anchor) { delete toggle.dataset.anchored; return; }
+      const rect = anchor.getBoundingClientRect();
+      const frameRect = frame.getBoundingClientRect();
+      toggle.style.top = `max(${frameRect.top + rect.bottom + 8}px, env(safe-area-inset-top))`;
+      toggle.style.right = `max(${window.innerWidth - frameRect.left - rect.right}px, env(safe-area-inset-right))`;
+      toggle.style.width = `${rect.width}px`;
+      toggle.dataset.anchored = 'true';
+      // The iframe's own menus/details also need to stay above this parent control.
+      toggle.dataset.sceneBlocked = String(Boolean(
+        (menu && !menu.hidden) || (detail && !detail.hidden) || doc.body.classList.contains('open')
+      ));
+    };
+    const resize = new ResizeObserver(update);
+    [desktop, mobile, doc.documentElement].forEach(element => { if (element) resize.observe(element); });
+    const mutation = new MutationObserver(update);
+    [menu, detail, doc.body].forEach(element => {
+      if (element) mutation.observe(element, { attributes: true, attributeFilter: ['hidden', 'class'] });
+    });
+    window.addEventListener('resize', update);
+    frameWindow.addEventListener('resize', update);
+    update();
+    sceneMenuCleanup.current = () => {
+      resize.disconnect();
+      mutation.disconnect();
+      window.removeEventListener('resize', update);
+      frameWindow.removeEventListener('resize', update);
+    };
+  }, []);
+
+  useEffect(() => () => {
+    sceneMenuCleanup.current?.();
+    sceneMenuCleanup.current = null;
+  }, [sceneEnabled, identity, attempt]);
 
   useEffect(() => {
     if (!sceneEnabled) return;
@@ -95,6 +144,25 @@ export function CorridorShowroom({ products, collections, overlayOpen, onCommand
 
   const command = (event: CorridorEvent) => onCommand(event, setNotice);
 
+  const viewToggle = (
+      <button
+        ref={toggleRef}
+        type="button"
+        className={styles.viewToggle}
+        aria-label="3D 전시"
+        aria-pressed={sceneEnabled}
+        data-active={sceneEnabled}
+        data-scene={sceneEnabled}
+        disabled={preferredMode === null}
+        hidden={overlayOpen}
+        onClick={() => changeMode(sceneEnabled ? '2d' : '3d')}
+      >
+        <span className={styles.toggleOrb} aria-hidden="true"><span /><span /><span /></span>
+        <span className={styles.toggleLabel}><strong>3D <span>{sceneEnabled ? 'ON' : 'OFF'}</span></strong><span>{sceneEnabled ? '입체 전시' : '상품 목록'}</span></span>
+        <span className={styles.toggleTrack} aria-hidden="true"><span /></span>
+      </button>
+  );
+
   return (
     <>
       {sceneEnabled && <iframe
@@ -103,7 +171,7 @@ export function CorridorShowroom({ products, collections, overlayOpen, onCommand
         className={styles.scene}
         src="/corridor/index.html?v=20261106-r7"
         title="ENICO VECK — 천장 와이어 의류 전시"
-        onLoad={synchronize}
+        onLoad={() => { synchronize(); observeSceneMenu(); }}
         inert={overlayOpen || fallback}
         aria-hidden={overlayOpen || fallback || undefined}
         allow="fullscreen"
@@ -113,10 +181,13 @@ export function CorridorShowroom({ products, collections, overlayOpen, onCommand
         <section className={styles.catalogFallback} aria-label="상품 목록" inert={overlayOpen} aria-hidden={overlayOpen || undefined}>
           <header className={styles.catalogHeader}>
             <h1>ENICO VECK</h1>
-            <nav aria-label="쇼핑 메뉴">
-              <button type="button" onClick={() => command({ type: 'open-cart' })}>장바구니 ({state.cartCount})</button>
-              <button type="button" onClick={() => command({ type: 'open-info', info: 'mypage' })}>{state.myPageLabel}</button>
-            </nav>
+            <div className={styles.catalogActions}>
+              <nav aria-label="쇼핑 메뉴">
+                <button type="button" onClick={() => command({ type: 'open-cart' })}>장바구니 ({state.cartCount})</button>
+                <button type="button" onClick={() => command({ type: 'open-info', info: 'mypage' })}>{state.myPageLabel}</button>
+              </nav>
+              {viewToggle}
+            </div>
           </header>
           <div className={styles.catalogNotice}>
             <p role="status">{fallback ? '3D 전시를 열 수 없어 상품 목록을 표시합니다.' : '상품 목록'}</p>
@@ -148,20 +219,7 @@ export function CorridorShowroom({ products, collections, overlayOpen, onCommand
           {notice && <p role="status">{notice}</p>}
         </section>
       )}
-      <button
-        type="button"
-        className={styles.viewToggle}
-        aria-label="3D 전시"
-        aria-pressed={sceneEnabled}
-        data-active={sceneEnabled}
-        disabled={preferredMode === null}
-        hidden={overlayOpen}
-        onClick={() => changeMode(sceneEnabled ? '2d' : '3d')}
-      >
-        <span className={styles.toggleOrb} aria-hidden="true"><span /><span /><span /></span>
-        <span className={styles.toggleLabel}><strong>3D {sceneEnabled ? 'ON' : 'OFF'}</strong><span>{sceneEnabled ? '입체 전시' : '상품 목록'}</span></span>
-        <span className={styles.toggleTrack} aria-hidden="true"><span /></span>
-      </button>
+      {sceneEnabled && viewToggle}
     </>
   );
 }
