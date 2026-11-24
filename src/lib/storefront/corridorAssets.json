@@ -1,5 +1,24 @@
 {
   "products": {
+    "abda74c9-ad97-4c42-98c9-b32c3eb9235a": {
+      "cutoutImg": "/corridor/assets/cutouts/garment_deep_black.webp",
+      "attachment": {
+        "aspect": 0.910959,
+        "center": [
+          0.5,
+          0.024
+        ],
+        "left": [
+          0.262,
+          0.136
+        ],
+        "right": [
+          0.738,
+          0.136
+        ]
+      },
+      "mountStyle": "clip"
+    },
     "f8958fbd-4c5d-47b8-8ff8-f0906710af77": {
       "cutoutImg": "/corridor/assets/cutouts/garment_00.webp",
       "attachment": {

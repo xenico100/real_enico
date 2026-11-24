@@ -290,7 +290,9 @@ function hangGarment(i, u, w, h, along, yaw, topY, echo = false) {
 PIECES.forEach((p, i) => {
   const aspect = GARMENT_ATTACHMENTS[i].aspect;
   const maxH = p.catEn === 'Dolls' ? 2.0 : p.catEn === 'Bags' ? 2.65 : p.catEn === 'Shirts' ? 3.6 : 4.0;
-  const w = Math.min(3.25, maxH * aspect), h = w / aspect;
+  // The lead piece (first item in the corridor) hangs a touch larger than the rest.
+  const frontScale = i === 0 ? 1.18 : 1;
+  const w = Math.min(3.25, maxH * aspect) * frontScale, h = w / aspect;
   const side = i % 2 === 0 ? 1 : -1;
   const yaw = side * (0.12 + (i % 3) * 0.07);
   const topY = (p.mountStyle === 'existing' ? 2.20 : 1.88) + [0.0, -0.12, 0.10, -0.04][i % 4];
